@@ -1,0 +1,29 @@
+_: !import
+  - {from: examples.minimal, import: Quadratic}
+  - {from: pyro, import: distributions as dist}
+clipppy:
+  conditioning:
+    y: !tensor [[5., 4., 3., 2., 1.]]
+  model: !Stochastic
+    - !py:Quadratic
+      x: !tensor [[1., 2., 3., 4., 5.]]
+    - a: &prior !py:dist.Uniform [-10., 10.]
+      b: *prior
+      c: !Sampler {d: *prior, batch_shape: !py:torch.Size [[2, 5]]}
+
+#pyrofit:
+#  module: examples.minimal
+#  model: quadratic  # Class name
+#conditioning:
+#  quadratic/y: [5., 4., 3., 2., 1.]
+## Note that model-class is automatically instantiated with instance-name = class-name
+#quadratic[Quadratic]:
+#  settings:
+#    x: [1., 2., 3., 4., 5.]
+#  variables:
+#    a:
+#      sample: [dist.Uniform, -10., 10.]
+#    b:
+#      sample: [dist.Uniform, -10., 10.]
+#    c:
+#      sample: [dist.Uniform, -10., 10.]

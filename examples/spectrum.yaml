@@ -1,0 +1,96 @@
+_: !import
+  - {from: pyro, import: distributions as dist}
+  - {from: examples.minimal, import: [Source, SpecModel]}
+clipppy:
+  model: &model !py:pyro.condition
+    - !Stochastic
+      obj: !py:SpecModel
+        xgrid: &xgrid !py:torch.linspace [-5., 5., 1000]
+        sources:
+          - !Stochastic:Source1
+            obj: !py:Source {xgrid: *xgrid}
+            specs: &priors
+              x0: !py:dist.Uniform [-5., 5.]
+              h0: !py:dist.Uniform [0., 10.]
+              w0: !py:dist.Uniform [0., 1.]
+          - !Stochastic:Source2 [!py:Source {xgrid: *xgrid}, *priors]
+          - !Stochastic:Source3
+            - !py:Source {xgrid: *xgrid}
+            - x0: !py:Sampler
+                d: !py:dist.Uniform [-5., 5.]
+                init: 0.
+              h0: !py:dist.Uniform [0., 10.]
+              w0: !py:dist.Uniform [0., 1.]
+      specs:
+        a: !py:dist.Uniform [-1., 1.]
+        b: !py:dist.Uniform [-1., 1.]
+    - spec: !tensor [!npz [examples/spectrum.npz, spec]]
+  guide:
+    __args:
+#      - cls: !py:DiagonalNormalSamplingGroup
+#        match: .*Source3.*
+#        name: Source3
+      - cls: Delta
+        match: .*Source.*
+      - cls: DiagonalNormalSamplingGroup
+    model: *model
+#  conditioning:
+#    spec: !tensor [!npz [examples/spectrum.npz, spec]]
+#  model: !Stochastic
+#    obj: !py:SpecModel
+#      xgrid: &xgrid !py:torch.linspace [-5., 5., 1000]
+#      sources:
+#        - !Stochastic:Source1
+#          obj: !py:Source {xgrid: *xgrid}
+#          specs: &priors
+#            x0: !py:dist.Uniform [-5., 5.]
+#            h0: !py:dist.Uniform [0., 10.]
+#            w0: !py:dist.Uniform [0., 1.]
+#        - !Stochastic:Source2 [!py:Source {xgrid: *xgrid}, *priors]
+#        - !Stochastic:Source3 [!py:Source {xgrid: *xgrid}, *priors]
+#    specs:
+#      a: !py:dist.Uniform [-1., 1.]
+#      b: !py:dist.Uniform [-1., 1.]
+#  guide: !py:Guide
+#    model: *root
+
+#pyrofit:
+#  module: examples.minimal
+#  model: specModel
+#conditioning:
+#  #SpecModel/spec: "$NPZ mock.npz[SpecModel/spec]"
+## Note that model-class is automatically instantiated with instance-name = class-name
+#specModel[SpecModel]:
+#  settings:
+#    xgrid: "$EVAL torch.linspace(-5., 5., 1000)"
+#  variables:
+#    a:
+#      sample: [dist.Uniform, -1., 1.]
+#    b:
+#      sample: [dist.Uniform, -1., 1.]
+#source1[Source]:
+#  # Since `source1` is not a function name, it is interpreted as instance of
+#  # class `Source`.
+#  variables:
+#    x0:
+#      sample: [dist.Uniform, -5., 5.]
+#    h0:
+#      sample: [dist.Uniform, 0., 10.]
+#    w0:
+#      sample: [dist.Uniform, 0., 1.]
+#source2[Source]:
+#  variables:
+#    x0:
+#      sample: [dist.Uniform, -5., 5.]
+#    h0:
+#      sample: [dist.Uniform, 0., 10.]
+#    w0:
+#      sample: [dist.Uniform, 0., 1.]
+#source3[Source]:
+#  variables:
+#    x0:
+#      sample: [dist.Uniform, -5., 5.]
+#    h0:
+#      sample: [dist.Uniform, 0., 10.]
+#    w0:
+#      sample: [dist.Uniform, 0., 1.]
