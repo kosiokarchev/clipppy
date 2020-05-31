@@ -29,7 +29,7 @@ class Quadratic:
 ########################################################################
 
 class Source:
-    def __init__(self, xgrid):
+    def __init__(self, xgrid: torch.Tensor):
         self.xgrid = xgrid
 
     def __call__(self, h0, x0, w0):
@@ -38,11 +38,11 @@ class Source:
 
 
 class SpecModel:
-    def __init__(self, xgrid, sources):
+    def __init__(self, xgrid: torch.Tensor, sources):
         self.xgrid = xgrid
         self.sources = sources
 
-    def __call__(self, a, b):
+    def __call__(self, a: torch.Tensor, b: torch.Tensor):
         spec = sum([source() for source in self.sources])
         spec += self.xgrid*b.unsqueeze(-1) + a.unsqueeze(-1)
 

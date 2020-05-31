@@ -12,6 +12,7 @@ setup(
         'Click',
         'pyyaml',
         'pyro-ppl',
+        'more-itertools'
     ],
     entry_points={
         'console_scripts': [
