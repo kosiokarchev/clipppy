@@ -29,11 +29,11 @@ guide:  # !py:Guide is optional
   # use keyword __args when you need to mix positional and keyword arguments
   # as in func(*args, kwarg)
   __args:
-    - cls: Delta
+    - cls: DeltaSamplingGroup
       match: .*Source.*
     - cls: DiagonalNormalSamplingGroup
   model: *model
 fit: !py:Fit
-  lr: 1e-1
+  lr: !py:float "-inf"
 mock: !py:Mock
   plate_stack: [20, 3]

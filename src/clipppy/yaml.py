@@ -11,8 +11,8 @@ import numpy as np
 import torch
 from ruamel import yaml as yaml
 
-from .globals import get_global
-from .stochastic import stochastic, Sampler
+from .globals import get_global, valueiter, flatten
+from .stochastic import stochastic, Sampler, SemiInfiniteSampler, InfiniteSampler
 
 
 class YAMLConstructor:
@@ -23,7 +23,7 @@ class YAMLConstructor:
 
     @classmethod
     def fix_signature(cls, signature: BoundArguments) -> BoundArguments:
-        for name, node in signature.arguments.items():
+        for name, value in signature.arguments.items():
             try:
                 param = signature.signature.parameters[name]
                 if param.annotation is param.empty:
@@ -32,26 +32,35 @@ class YAMLConstructor:
                     else:
                         hint = type(param.default)
                 else:
-                    # TODO: migrate to 3.8:
-                    # tp.get_origin(param.annotations)
                     hint = (param.annotation if inspect.isclass(param.annotation)
-                            else tp.get_origin(param.annotation) or object)
-                if any(hint.__module__.startswith(mod)
-                       for mod in ('builtins', 'typing', 'collections')):
-                    if hint is tp.Union:
-                        pass  # Can't handle unions (for now?)
-                    elif issubclass(hint, str):
-                        if not isinstance(node, yaml.ScalarNode):
-                            warn(f'Expected string node for {param}, but got {node}.')
-                    elif issubclass(hint, tp.Mapping):
-                        if not isinstance(node, yaml.MappingNode):
-                            warn(f'Expected a mapping node for {param}, but got {node}.')
-                    elif issubclass(hint, tp.Iterable):
-                        if not isinstance(node, yaml.SequenceNode):
-                            warn(f'Expected a sequece node for {param}, but got {node}.')
-                else:
-                    if node.tag.startswith('tag:yaml.org'):
-                        node.tag = cls.type_to_tag.get(hint, f'!py:{hint.__module__}.{hint.__name__}')
+                            else tp.get_origin(param.annotation) or None)
+
+                if not inspect.isclass(hint):
+                    # TODO: Maybe handle Union??
+                    continue
+
+                hint_is_builtin = any(hint.__module__.startswith(mod)
+                                      for mod in ('builtins', 'typing', 'collections'))
+                hint_is_str = issubclass(hint, str)
+                hint_is_callable = issubclass(hint, (type, tp.Callable))
+                target_nodetype = (
+                    (hint in (tp.Type, tp.Callable) or hint_is_str) and yaml.ScalarNode
+                    or hint_is_builtin and issubclass(hint, tp.Mapping) and yaml.MappingNode
+                    or hint_is_builtin and issubclass(hint, tp.Iterable) and yaml.SequenceNode
+                    or yaml.Node
+                )
+
+                for node in valueiter(value):
+                    if not isinstance(node, target_nodetype):
+                        warn(f'Expected {target_nodetype} for {param}, but got {node}.')
+                    if (not hint_is_str
+                        and (not hint_is_builtin or target_nodetype in (yaml.ScalarNode, yaml.Node))
+                        and node.tag.startswith('tag:yaml.org')):
+                        if hint_is_callable:
+                            node.tag = f'!py:{node.value}'
+                            node.value = ''
+                        else:
+                            node.tag = cls.type_to_tag.get(hint, f'!py:{hint.__module__}.{hint.__name__}')
             except Exception as e:
                 warn(e)
 
@@ -61,18 +70,30 @@ class YAMLConstructor:
     def get_args_kwargs(cls, loader: yaml.Loader, node: yaml.Node,
                         signature: Signature = free_signature) -> tp.Optional[BoundArguments]:
         if isinstance(node, yaml.ScalarNode):
-            node.tag = loader.resolve(yaml.ScalarNode, node.value, [True, False])
+            # This sometimes fails because of ruamel/yaml/resolver.py line 370
+            node.tag = loader.resolver.resolve(yaml.ScalarNode, node.value, [True, False])
             val = loader.construct_object(node)
             if val is None:
                 val = loader.yaml_constructors[node.tag](loader, node)
             return None if val is None else signature.bind(val)
         elif isinstance(node, yaml.SequenceNode):
             bound = signature.bind(*node.value)
+            args = []
             subnodes = node.value
         elif isinstance(node, yaml.MappingNode):
+            # Construct the keys
             kwargs = {loader.construct_object(key, deep=True): val for key, val in node.value}
-            subnodes = sum([val.value if key == '__args' else [val] for key, val in kwargs.items()], [])
-            bound = signature.bind(*(kwargs.pop('__args').value if '__args' in kwargs else ()), **kwargs)
+
+            args = kwargs.setdefault('__args', yaml.SequenceNode('tag:yaml.org,2002:seq', []))
+            args_is_seq = isinstance(args, yaml.SequenceNode) and args.tag == 'tag:yaml.org,2002:seq'
+            if args_is_seq:
+                kwargs['__args'] = args.value
+
+            # Extract nodes in order (nodes are not iterable, so only "flattens" __args)
+            subnodes = list(flatten(kwargs.values()))
+
+            __args = kwargs.pop('__args')
+            bound = signature.bind_partial(*(__args if args_is_seq else ()), **kwargs)
         else:
             raise ValueError(f'Invalid node type, {node}')
 
@@ -92,13 +113,8 @@ class YAMLConstructor:
                 or subnode_values[val]
             )
 
-        # for key, val in bound.arguments.items():
-        #     bound.arguments[key] = (
-        #         (loader.construct_object(v, deep=True) for v in val)
-        #             if signature.parameters[key].kind == Parameter.VAR_POSITIONAL
-        #         else {name: loader.construct_object(v, deep=True) for name, v in val.items()}
-        #             if signature.parameters[key].kind == Parameter.VAR_KEYWORD
-        #         else loader.construct_object(val, deep=True))
+        if args and args in subnode_values:
+            return bound.signature.bind(*subnode_values[args], **bound.kwargs)
 
         return bound
 
@@ -175,7 +191,7 @@ def _import(*specs: tp.Union[str, tp.Dict]):
         else:
             fromlist = spec.get('import', [])
             if isinstance(fromlist, str):
-                fromlist = [re.split(r'\s*as\s*', name)
+                fromlist = [re.split(r'\s+as\s+', name)
                             for name in re.split(r'\s*,\s*', fromlist)]
 
             module = import_module(spec['from'])
@@ -229,6 +245,8 @@ class MyYAML(yaml.YAML):
         c.add_multi_constructor('!Stochastic:', PrefixedStochasticYAMLConstructor.construct)
 
         c.add_constructor('!Sampler', YAMLConstructor.apply(Sampler))
+        c.add_constructor('!InfiniteSampler', YAMLConstructor.apply(InfiniteSampler))
+        c.add_constructor('!SemiInfiniteSampler', YAMLConstructor.apply(SemiInfiniteSampler))
 
         r: yaml.Resolver = self.resolver
         r.add_path_resolver('!py:Clipppy', [])

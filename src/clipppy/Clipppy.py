@@ -140,7 +140,6 @@ class Fit(Command):
        ``load_cls`` and use it directly."""
 
     @property
-    @lru_cache()
     def optimizer(self) -> pyro.optim.PyroOptim:
         """Construct an optimizer as ``optimizer_cls(optimizer_args)``."""
         return self.optimizer_cls(dict_union(
@@ -148,7 +147,6 @@ class Fit(Command):
         ))
 
     @property
-    @lru_cache()
     def lossfunc(self) -> tp.Union[pyro.infer.ELBO, tp.Callable[..., torch.Tensor]]:
         """
         Construct a loss as ``loss_cls(**loss_args)`` or simply return

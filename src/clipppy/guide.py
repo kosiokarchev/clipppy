@@ -26,17 +26,6 @@ from .globals import get_global, _Site, register_globals, enumlstrip, init_msgr
 __all__ = ('DeltaSamplingGroup', 'DiagonalNormalSamplingGroup', 'GroupSpec', 'Guide')
 
 
-class InferMessenger(Messenger):
-    def __init__(self, types=('sample',), **kwargs):
-        super().__init__()
-        self.types = types
-        self.kwargs = kwargs
-
-    def _pyro_sample(self, msg: _Site):
-        if msg['type'] in self.types:
-            msg['infer'].update(self.kwargs)
-
-
 class _AbstractPyroModuleMeta(type(PyroModule), ABCMeta):
     pass
 
@@ -50,7 +39,8 @@ class SamplingGroup(PyroModule, metaclass=_AbstractPyroModuleMeta):
         rightmost_common_dim = max(common_dims, default=-float('inf'))
 
         for name, site in self.sites.items():
-            self.transforms[name] = biject_to(site['fn'].support)
+            transform = biject_to(site['fn'].support)
+            self.transforms[name] = transform
 
             self.event_shapes[name] = site['fn'].event_shape
             batch_shape = site['fn'].batch_shape
@@ -65,7 +55,7 @@ class SamplingGroup(PyroModule, metaclass=_AbstractPyroModuleMeta):
 
             shape = self.batch_shapes[name] + self.event_shapes[name]
 
-            init = site['value'].__getitem__((0,)*(site['value'].ndim - len(shape))).expand(shape)
+            init = transform.inv(site['value'].__getitem__((0,)*(site['value'].ndim - len(shape))).expand(shape))
 
             self.inits[name] = init
 
@@ -101,10 +91,8 @@ class SamplingGroup(PyroModule, metaclass=_AbstractPyroModuleMeta):
     @property
     @lru_cache(maxsize=1)
     def mask(self) -> torch.BoolTensor:
-        # PyCharm (rightfully) complains that torch.cat returns generic Tensor
-        # instead of (specialised) BoolTensor, so shut it up:
-        # noinspection PyTypeChecker
-        return torch.cat([m.flatten() for m in self.masks.values()])
+        return tp.cast(torch.BoolTensor,
+                       torch.cat([m.flatten() for m in self.masks.values()]))
 
     @property
     def event_shape(self) -> torch.Size:
@@ -151,10 +139,10 @@ class SamplingGroup(PyroModule, metaclass=_AbstractPyroModuleMeta):
         return model_zs
 
     def forward(self, guide: 'Guide' = None, infer: dict = None) -> tp.Tuple[torch.Tensor, tp.Dict[str, torch.Tensor]]:
-        with InferMessenger(**(infer if infer is not None else {}),
-                            is_auxiliary=True):
-            with pyro.poutine.mask(mask=self.mask):
-                group_z = self._sample(infer)
+        with pyro.poutine.infer_config(
+                config_fn=lambda site: dict(**(infer if infer is not None else {}), is_auxiliary=True)),\
+             pyro.poutine.mask(mask=self.mask):
+            group_z = self._sample(infer)
 
         return group_z, self.unpack(group_z, guide)
 
@@ -193,11 +181,11 @@ class DiagonalNormalSamplingGroup(SamplingGroup):
 
     @pyro.nn.pyro_method
     def _sample(self, infer) -> torch.Tensor:
-        return self.guide_z
+        return tp.cast(torch.Tensor, self.guide_z)
 
 
 class GroupSpec:
-    def __init__(self, cls: tp.Union[tp.Type[SamplingGroup], str] = DeltaSamplingGroup,
+    def __init__(self, cls: tp.Type[SamplingGroup] = DeltaSamplingGroup,
                  match: tp.Union[str, re.Pattern] = re.compile('.*'), name='', *args, **kwargs):
         if isinstance(cls, str):
             cls = get_global(cls, get_global(cls+'SamplingGroup', cls, globals()), globals())
@@ -227,18 +215,18 @@ class GroupCollection(torch.nn.Module):
             for site in group.sites.values():
                 sites.remove(site)
             setattr(self, spec.name, group)
+        if sites:
+            setattr(self, 'Default', GroupSpec().make_group(sites))
 
     def __iter__(self) -> tp.Iterable[SamplingGroup]:
         return self.children()
 
 
 class Guide(PyroModule):
-    def __init__(self, *specs: tp.Union[GroupSpec, dict], model=None, name=''):
+    def __init__(self, *specs: GroupSpec, model=None, name=''):
         super().__init__(name)
 
-        self.specs: tp.Iterable[GroupSpec] = [
-            spec if isinstance(spec, GroupSpec) else GroupSpec(**spec)
-            for spec in (specs if specs else (GroupSpec(),))]
+        self.specs: tp.Iterable[GroupSpec] = specs
         self.model: tp.Callable = model
 
         self.prototype_trace: tp.Optional[pyro.poutine.Trace] = None

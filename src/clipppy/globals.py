@@ -9,7 +9,7 @@ from itertools import chain, repeat
 
 import torch
 import pyro.distributions as dist
-from more_itertools import lstrip, last, always_reversible
+from more_itertools import lstrip, last, always_reversible, always_iterable
 from pyro.infer.autoguide.initialization import InitMessenger
 from pyro.poutine.indep_messenger import CondIndepStackFrame
 
@@ -73,6 +73,11 @@ def flatten(*args: tp.Union[tp.Iterable, tp.Any]):
 
 def compose(*funcs: tp.Callable[[_Tin], tp.Union[_Tin, _Tout]]) -> tp.Callable[[_Tin], _Tout]:
     return lambda arg: last(arg for arg in (arg,) for f in always_reversible(flatten(funcs)) for arg in (f(arg),))
+
+
+def valueiter(arg: tp.Union[tp.Iterable, tp.Mapping, tp.Any]):
+    return (isinstance(arg, tp.Mapping) and arg.values()
+            or always_iterable(arg))
 
 
 def dict_union(*args: tp.Mapping[_KT, _VT], **kwargs: _VT) -> tp.Dict[_KT, _VT]:

@@ -1,7 +1,7 @@
 import types
 import typing as tp
 from contextlib import nullcontext
-from functools import update_wrapper
+from functools import update_wrapper, wraps, partial
 
 import pyro
 import torch
@@ -9,26 +9,66 @@ from pyro import distributions as dist
 from pyro.contrib.autoname import scope
 
 
-__all__ = ('Sampler', 'StochasticWrapper', 'stochastic')
+__all__ = ('Sampler', 'InfiniteSampler', 'SemiInfiniteSampler', 'StochasticWrapper', 'stochastic')
+
+
+class InfiniteUniform(dist.TorchDistribution):
+    @property
+    def arg_constraints(self):
+        return {}
+
+    def rsample(self, sample_shape=torch.Size()):
+        return torch.zeros(sample_shape)
+
+    @dist.constraints.dependent_property
+    def support(self):
+        return dist.constraints.real
+
+    def log_prob(self, value):
+        return torch.zeros_like(value)
+
+
+class SemiInfiniteUniform(InfiniteUniform):
+    @dist.constraints.dependent_property
+    def support(self):
+        return dist.constraints.positive
+
+    def log_prob(self, value):
+        return torch.where(value < 0., value.new_full((), -float('inf')), value.new_zeros(()))
 
 
 class Sampler:
     def __init__(self, d: dist.torch_distribution.TorchDistributionMixin,
-                 init: torch.Tensor = None,
-                 batch_shape=torch.Size(),
-                 name: str = None):
+                 expand_by: tp.Union[torch.Size, tp.Iterable[int]] = torch.Size(), event_ndim: int = None,
+                 mask: torch.Tensor = None, name: str = None,
+                 init: torch.Tensor = None, **kwargs):
         self.d = d
-        self.init = init
-        self.batch_shape = batch_shape
+        self.expand_by = expand_by
+        self.event_ndim = event_ndim if event_ndim is not None else len(self.expand_by)
+        self.mask = mask
         self.name = name
+        self.infer = dict(init=init, **kwargs)
 
     def set_name(self, name):
         self.name = name
         return self
 
+    @property
+    def mask_msgr(self):
+        return (pyro.poutine.mask(mask=self.mask) if self.mask is not None
+                else nullcontext())
+
+    @property
+    def infer_msgr(self):
+        return pyro.poutine.infer_config(config_fn=lambda site: self.infer)
+
     def __call__(self):
-        return pyro.sample(self.name, self.d.expand_by(self.batch_shape),
-                           infer=dict(init=self.init))
+        with self.infer_msgr, self.mask_msgr:
+            return pyro.sample(self.name, self.d.expand_by(self.expand_by).to_event(self.event_ndim))
+
+
+InfiniteSampler = wraps(Sampler)(partial(Sampler, d=InfiniteUniform()))
+SemiInfiniteSampler = wraps(Sampler)(partial(Sampler, d=SemiInfiniteUniform()))
 
 
 class StochasticWrapper:
@@ -40,6 +80,7 @@ class StochasticWrapper:
             return super(type(self), self).__call__(*args, **kwargs, **{
                 name: (spec() if isinstance(spec, Sampler) else spec)
                 for name, spec in self.stochastic_specs.items()
+                if name not in kwargs
             })
 
     def __repr__(self):
@@ -92,7 +133,6 @@ def stochastic(obj, specs: tp.Mapping[str, tp.Union[Sampler, dist.torch_distribu
                else spec)
         for name, spec in specs.items()
     }, name=name)
-
 
 
 from .globals import register_globals
