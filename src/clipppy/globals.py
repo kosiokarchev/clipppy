@@ -4,18 +4,21 @@ import operator
 import sys
 
 import typing as tp
-from functools import reduce
+from functools import reduce, partial
 from itertools import chain, repeat
 
 import torch
 import pyro.distributions as dist
 from more_itertools import lstrip, last, always_reversible, always_iterable
 from pyro.infer.autoguide.initialization import InitMessenger
+from pyro.poutine.condition_messenger import ConditionMessenger
 from pyro.poutine.indep_messenger import CondIndepStackFrame
 
 
 # TYPES
 # -----
+from pyro.poutine.messenger import Messenger, _bound_partial, _context_wrap
+
 _T = tp.TypeVar('_T')
 _KT = tp.TypeVar('_KT')
 _VT = tp.TypeVar('_VT')
@@ -132,6 +135,16 @@ def init_fn(site: _Site) -> torch.Tensor:
     init = site['infer'].get('init', None)
     return (to_tensor(init) if init is not None
             else site['fn']())
+
+
+def depoutine(obj: tp.Union[_bound_partial, tp.Any], msgr_type: tp.Type[Messenger] = ConditionMessenger):
+    # noinspection PyTypeHints
+    obj.func: partial
+    return obj.func.args[1] if (
+        isinstance(obj, _bound_partial)
+        and isinstance(obj.func, partial) and obj.func.func is _context_wrap
+        and isinstance(obj.func.args[0], msgr_type)
+    ) else obj
 
 
 init_msgr = InitMessenger(init_fn)

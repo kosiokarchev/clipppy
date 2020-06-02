@@ -12,7 +12,7 @@ import torch
 from pyro.infer import Trace_ELBO, SVI
 from tqdm import tqdm
 
-from .globals import register_globals, init_msgr, _Model, _Guide, noop, dict_union
+from .globals import register_globals, init_msgr, _Model, _Guide, noop, dict_union, depoutine
 from .guide import Guide
 
 
@@ -296,15 +296,23 @@ class Clipppy(Commandable):
                  **kwargs):
         # Conditions the model and sets it on the guide, if it doesn't have a model already.
         self.conditioning = conditioning
+        self._model = model
         self.model = model if conditioning is None else pyro.condition(model, data=conditioning)
         self.guide = guide
 
         if isinstance(self.guide, Guide) and self.guide.model is None:
             self.guide.model = self.model
 
+        self.kwargs = {}
         for key, val in kwargs.items():
             if self.get_cmd_cls(key) is not None:
                 setattr(self, key, val)
+            else:
+                self.kwargs[key] = val
+
+    @property
+    def umodel(self):
+        return depoutine(self._model)
 
     fit: Fit
     mock: Mock
