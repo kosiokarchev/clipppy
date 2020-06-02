@@ -48,8 +48,13 @@ class Command(ABC):
     """Special value to be used to indicate that instead of calling an object,
        it should be returned as is."""
 
-    def setattr(self, kwargs):
-        for key in list(key for key in kwargs if hasattr(type(self), key)):
+    @property
+    @lru_cache()
+    def attr_names(self) -> tp.List[str]:
+        return list(tp.get_type_hints(type(self)).keys())
+
+    def setattr(self, kwargs: tp.Dict[str, tp.Any]):
+        for key in list(key for key in kwargs if key in self.attr_names):
             setattr(self, key, kwargs.pop(key))
         return kwargs
 
@@ -62,15 +67,19 @@ class Command(ABC):
         raise NotImplementedError
 
     def __call__(self, *args, **kwargs):
+        oldkwargs = {name: getattr(self, name) for name in self.attr_names}
         kwargs = self.setattr(kwargs)
         allowed = inspect.signature(self.forward).parameters
-        return self.forward(*args, **dict_union(
+        ret = self.forward(*args, **dict_union(
             {key: value for key, value in self.boundkwargs.items() if key in allowed},
             kwargs))
+        self.setattr(oldkwargs)
+
+        return ret
 
     def __getattribute__(self, name):
         # Needed to avoid binding functions that are saved as properties
-        # upon attribute access. Properties should be annottated!
+        # upon attribute access. Properties should be annotated!
         cls = type(self)
         if name != '__dict__' and name not in self.__dict__ and name in tp.get_type_hints(cls):
             return getattr(cls, name)
@@ -241,7 +250,7 @@ class PPD(SamplingCommand):
 
         if self.observations:
             with pyro.poutine.trace() as model_tracer, self.plate,\
-                 pyro.condition(data=ret['guide_trace']), self.uncondition:
+                 pyro.poutine.replay(trace=ret['guide_trace']), self.uncondition:
                 model(*args, **kwargs)
             ret['model_trace'] = model_tracer.trace
 

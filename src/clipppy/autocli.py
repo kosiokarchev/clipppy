@@ -127,7 +127,7 @@ class AutoCLI:
 
         self._registry = {}
 
-    def annotation_to_click(self, ann) -> tp.TypedDict('', {'type': tp.Union[click.ParamType, tp.Tuple], 'multiple': bool, 'nargs': int}, total=False):
+    def annotation_to_click(self, ann) -> tp.TypedDict('', {'type': tp.Union[click.ParamType, tp.Tuple], 'multiple': bool}, total=False):
         try:
             origin = tp.get_origin(ann) or ann
             if origin in click_types_map:

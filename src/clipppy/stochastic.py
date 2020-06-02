@@ -39,12 +39,12 @@ class SemiInfiniteUniform(InfiniteUniform):
 
 class Sampler:
     def __init__(self, d: dist.torch_distribution.TorchDistributionMixin,
-                 expand_by: tp.Union[torch.Size, tp.Iterable[int]] = torch.Size(), event_ndim: int = None,
+                 expand_by: tp.Union[torch.Size, tp.Iterable[int]] = torch.Size(), to_event: int = None,
                  mask: torch.Tensor = None, name: str = None,
                  init: torch.Tensor = None, **kwargs):
         self.d = d
         self.expand_by = expand_by
-        self.event_ndim = event_ndim if event_ndim is not None else len(self.expand_by)
+        self.to_event = to_event
         self.name = name
         self.infer = dict(init=init, mask=mask, **kwargs)
 
@@ -58,7 +58,7 @@ class Sampler:
 
     def __call__(self):
         with self.infer_msgr:
-            return pyro.sample(self.name, self.d.expand_by(self.expand_by).to_event(self.event_ndim))
+            return pyro.sample(self.name, self.d.expand_by(self.expand_by).to_event(self.to_event))
 
 
 InfiniteSampler = wraps(Sampler)(partial(Sampler, d=InfiniteUniform()))
