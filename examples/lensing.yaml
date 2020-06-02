@@ -6,28 +6,45 @@ imports: !import
   - {from: pyrofit.lensing.new.sources, import: UnitPriorWindowedGPSource}
 defs:
   XY: &XY !py:get_meshgrid [0.0125, 400, 400]
-  mask: &mask !tensor:bool [!npy /Users/kosio/Projects/Scientific/MLens/pyrofit_lensing/yaml/windowed_gp/mock/mask_400x400_sigma_n=3.0.npy]
+  mask: &mask !tensor:bool [!npy ../pyrofit_lensing/yaml/windowed_gp/mock/mask_400x400_sigma_n=3.0.npy]
 conditioning:
-  image: !tensor [!npy /Users/kosio/Projects/Scientific/MLens/pyrofit_lensing/yaml/windowed_gp/mock/obs_400x400_sigma_n=3.0.npy]
+  image: !tensor [!npy ../pyrofit_lensing/yaml/windowed_gp/mock/obs_400x400_sigma_n=3.0.npy]
 model: !Stochastic
   - !py:LensingModelBase
     __args: *XY
     alphas:
       ext: !Stochastic:ext
-        - !py:ExternalShear {__args: *XY}
+        - !py:ExternalShear []
         - gamma_1: 0.0070
           gamma_2: 0.0095
       main: !Stochastic:main
-        - !py:SPLELens {__args: *XY}
+        - !py:SPLELens []
         - {slope: 2.1, phi: -0.4564, q: 0.8310, r_ein: 1.4897, x: -0.2665, y: 0.0999}
     sources:
-      src: !Stochastic:src
+      src01: !Stochastic:src01
         - !py:UnitPriorWindowedGPSource {mask: *mask}
-        - sigma: 0.01
-          alpha: !py:dist.Uniform [0., 100.]
-          theta: !InfiniteSampler
-            init: !py:torch.zeros [400, 400]
+        - sigma: 0.1
+          alpha: &alpha_sampler !py:dist.Uniform [0., 100.]
+          theta: &theta_sampler !InfiniteSampler
+            init: !py:torch.ones [400, 400]
             mask: *mask
             expand_by: [400, 400]
+      src005: !Stochastic:src005
+        - !py:UnitPriorWindowedGPSource {mask: *mask}
+        - {sigma: 0.05, alpha: *alpha_sampler, theta: *theta_sampler}
+      src003: !Stochastic:src003
+        - !py:UnitPriorWindowedGPSource {mask: *mask}
+        - {sigma: 0.03, alpha: *alpha_sampler, theta: *theta_sampler}
+      src001: !Stochastic:src001
+        - !py:UnitPriorWindowedGPSource {mask: *mask}
+        - {sigma: 0.01, alpha: *alpha_sampler, theta: *theta_sampler}
+      src0001: !Stochastic:src0001
+        - !py:UnitPriorWindowedGPSource {mask: *mask}
+        - {sigma: 0.001, alpha: *alpha_sampler, theta: *theta_sampler}
   - sigma_stat: 3.
     model_err: 0.
+guide:
+    - cls: DiagonalNormalSamplingGroup
+      match: src.*/theta
+# The rest of the parameters automatically get a Delta guide
+
