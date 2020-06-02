@@ -60,14 +60,13 @@ class SamplingGroup(PyroModule, metaclass=_AbstractPyroModuleMeta):
             self.inits[name] = init
 
             # TODO: Wait for better days to come...:
-            # _ if (_:=site.get('mask', None)) is not None
-            _ = site.get('mask', None)
-            self.masks[name] = (_ if _ is not None
-                                else getattr(site['fn'], '_mask',
-                                             init.new_full([], True, dtype=torch.bool))
-                                ).expand_as(init)
+            # _ if (_:=site.get('mask', None)) is not None....
+            mask = site['infer'].get('mask', site.get('mask', getattr(site['fn'], '_mask', None)))
+            if mask is None:
+                mask = init.new_full([], True, dtype=torch.bool)
+            self.masks[name] = mask.expand_as(init)
 
-            self.sizes[name] = shape.numel()
+            self.sizes[name] = int(self.masks[name].sum())
 
     def __init__(self, sites: tp.Iterable[_Site], name='', *args, **kwargs):
         super().__init__(name)
@@ -84,12 +83,12 @@ class SamplingGroup(PyroModule, metaclass=_AbstractPyroModuleMeta):
         self._process_prototype()
 
     @property
-    @lru_cache(maxsize=1)
+    @lru_cache()
     def init(self) -> torch.Tensor:
         return torch.cat([t.flatten() for t in self.inits.values()])
 
     @property
-    @lru_cache(maxsize=1)
+    @lru_cache()
     def mask(self) -> torch.BoolTensor:
         return tp.cast(torch.BoolTensor,
                        torch.cat([m.flatten() for m in self.masks.values()]))
@@ -114,8 +113,9 @@ class SamplingGroup(PyroModule, metaclass=_AbstractPyroModuleMeta):
             self.transforms.values()
         ):
             fn: dist.TorchDistribution
-            z = group_z[..., pos-self.sizes[name]:pos]
-            z = z.reshape(z.shape[:-1] + fn.event_shape)
+            zs = group_z[..., pos-self.sizes[name]:pos]
+            z = self.inits[name].expand(zs.shape[:-1] + self.masks[name].shape).clone()
+            z[..., self.masks[name]] = zs
 
             x = transform(z)
 
@@ -133,15 +133,13 @@ class SamplingGroup(PyroModule, metaclass=_AbstractPyroModuleMeta):
                         plate = guide.plate(frame.name)
                         if plate not in runtime._PYRO_STACK:
                             stack.enter_context(plate)
-                with pyro.poutine.mask(mask=self.masks[name]):
-                    model_zs[name] = pyro.sample(name, delta)
+                model_zs[name] = pyro.sample(name, delta)
 
         return model_zs
 
     def forward(self, guide: 'Guide' = None, infer: dict = None) -> tp.Tuple[torch.Tensor, tp.Dict[str, torch.Tensor]]:
         with pyro.poutine.infer_config(
-                config_fn=lambda site: dict(**(infer if infer is not None else {}), is_auxiliary=True)),\
-             pyro.poutine.mask(mask=self.mask):
+                config_fn=lambda site: dict(**(infer if infer is not None else {}), is_auxiliary=True)):
             group_z = self._sample(infer)
 
         return group_z, self.unpack(group_z, guide)
@@ -157,7 +155,7 @@ class DeltaSamplingGroup(SamplingGroup):
     def __init__(self, sites, name='', *args, **kwargs):
         super().__init__(sites, name)
 
-        self.loc = PyroParam(self.init, event_dim=1)
+        self.loc = PyroParam(self.init[self.mask], event_dim=1)
 
     # Emulate EasyGuide's map_estimate implementation
     include_det_jac = False
@@ -170,8 +168,8 @@ class DiagonalNormalSamplingGroup(SamplingGroup):
     def __init__(self, sites, name='', init_scale=1., *args, **kwargs):
         super().__init__(sites, name, *args, **kwargs)
 
-        self.loc = PyroParam(self.init, event_dim=1)
-        self.scale = PyroParam(torch.full_like(self.init, init_scale), event_dim=1,
+        self.loc = PyroParam(self.init[self.mask], event_dim=1)
+        self.scale = PyroParam(torch.full_like(self.loc, init_scale), event_dim=1,
                                constraint=dist.constraints.positive)
 
         self.guide_z = PyroSample(type(self).prior)
@@ -197,24 +195,25 @@ class GroupSpec:
         self.name = name if name else re.sub('SamplingGroup$', '', cls.__name__)
         self.args, self.kwargs = args, kwargs
 
-    def make_group(self, sites: tp.Iterable[_Site]) -> SamplingGroup:
-        return self.cls((site for site in sites if self.match.match(site['name'])),
-                        self.name, *self.args, **self.kwargs)
+    def make_group(self, sites: tp.Iterable[_Site]) -> tp.Optional[SamplingGroup]:
+        matched = [site for site in sites if self.match.match(site['name'])]
+        return self.cls(matched, self.name, *self.args, **self.kwargs) if matched else None
 
     def __repr__(self):
         return f'<{type(self).__name__}(name={self.name}, match={self.match}, cls={self.cls})>'
 
 
-class GroupCollection(torch.nn.Module):
+class GroupCollection(PyroModule):
     def __init__(self, specs: tp.Iterable[GroupSpec], trace: pyro.poutine.Trace):
         super().__init__()
 
         sites = [site for name, site in trace.iter_stochastic_nodes()]
         for spec in specs:
             group = spec.make_group(sites)
-            for site in group.sites.values():
-                sites.remove(site)
-            setattr(self, spec.name, group)
+            if group:
+                for site in group.sites.values():
+                    sites.remove(site)
+                setattr(self, spec.name, group)
         if sites:
             setattr(self, 'Default', GroupSpec().make_group(sites))
 

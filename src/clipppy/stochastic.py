@@ -45,25 +45,19 @@ class Sampler:
         self.d = d
         self.expand_by = expand_by
         self.event_ndim = event_ndim if event_ndim is not None else len(self.expand_by)
-        self.mask = mask
         self.name = name
-        self.infer = dict(init=init, **kwargs)
+        self.infer = dict(init=init, mask=mask, **kwargs)
 
     def set_name(self, name):
         self.name = name
         return self
 
     @property
-    def mask_msgr(self):
-        return (pyro.poutine.mask(mask=self.mask) if self.mask is not None
-                else nullcontext())
-
-    @property
     def infer_msgr(self):
         return pyro.poutine.infer_config(config_fn=lambda site: self.infer)
 
     def __call__(self):
-        with self.infer_msgr, self.mask_msgr:
+        with self.infer_msgr:
             return pyro.sample(self.name, self.d.expand_by(self.expand_by).to_event(self.event_ndim))
 
 
