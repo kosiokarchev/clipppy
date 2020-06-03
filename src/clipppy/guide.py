@@ -39,7 +39,7 @@ class SamplingGroup(PyroModule, metaclass=_AbstractPyroModuleMeta):
         rightmost_common_dim = max(common_dims, default=-float('inf'))
 
         for name, site in self.sites.items():
-            transform = biject_to(site['fn'].support)
+            transform = biject_to(site['infer'].get('support', site['fn'].support))
             self.transforms[name] = transform
 
             self.event_shapes[name] = site['fn'].event_shape

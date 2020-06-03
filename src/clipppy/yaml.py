@@ -122,7 +122,7 @@ class YAMLConstructor:
     def construct(cls, obj, loader: yaml.Loader, node: yaml.Node, **kw):
         try:
             signature = inspect.signature(obj, follow_wrapped=False)
-        except ValueError:
+        except (TypeError, ValueError):
             signature = cls.free_signature
 
         signature = cls.get_args_kwargs(loader, node, signature)
