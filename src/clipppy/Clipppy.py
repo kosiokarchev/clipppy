@@ -201,7 +201,7 @@ class Fit(Command):
                     if len(windowed_losses) >= self.avgwindow:
                         slope = np.polyfit(xavg, windowed_losses, deg=1)[0] / self.lr
 
-                    tq.set_postfix_str(f'loss={loss:.3f} (avg={avgloss:.3f}) (min={minloss:.3f}) (slope={slope:.3e})')
+                    tq.set_postfix_str(f'loss={loss:.3f} (avg={avgloss:.3f}, min={minloss:.3f}, slope={slope:.3e})')
 
                     if 0 < self.min_steps <= i and self.converged(slope, windowed_losses):
                         break

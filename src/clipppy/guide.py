@@ -18,7 +18,6 @@ from pyro.infer.autoguide.guides import prototype_hide_fn
 from pyro.nn import PyroModule, PyroParam, PyroSample
 from pyro.poutine import runtime
 from pyro.poutine.indep_messenger import CondIndepStackFrame
-from pyro.poutine.messenger import Messenger
 from torch.distributions import biject_to
 
 from .globals import get_global, _Site, register_globals, enumlstrip, init_msgr
@@ -141,6 +140,8 @@ class SamplingGroup(PyroModule, metaclass=_AbstractPyroModuleMeta):
         with pyro.poutine.infer_config(
                 config_fn=lambda site: dict(**(infer if infer is not None else {}), is_auxiliary=True)):
             group_z = self._sample(infer)
+            if not self.training:
+                group_z = group_z.detach()
 
         return group_z, self.unpack(group_z, guide)
 
@@ -184,7 +185,8 @@ class DiagonalNormalSamplingGroup(SamplingGroup):
 
 class GroupSpec:
     def __init__(self, cls: tp.Type[SamplingGroup] = DeltaSamplingGroup,
-                 match: tp.Union[str, re.Pattern] = re.compile('.*'), name='', *args, **kwargs):
+                 match: tp.Union[str, re.Pattern] = re.compile('.*'), name='',
+                 *args, **kwargs):
         if isinstance(cls, str):
             cls = get_global(cls, get_global(cls+'SamplingGroup', cls, globals()), globals())
 
@@ -203,36 +205,18 @@ class GroupSpec:
         return f'<{type(self).__name__}(name={self.name}, match={self.match}, cls={self.cls})>'
 
 
-class GroupCollection(PyroModule):
-    def __init__(self, specs: tp.Iterable[GroupSpec], trace: pyro.poutine.Trace):
-        super().__init__()
-
-        sites = [site for name, site in trace.iter_stochastic_nodes()]
-        for spec in specs:
-            group = spec.make_group(sites)
-            if group:
-                for site in group.sites.values():
-                    sites.remove(site)
-                setattr(self, spec.name, group)
-        if sites:
-            setattr(self, 'Default', GroupSpec().make_group(sites))
-
-    def __iter__(self) -> tp.Iterable[SamplingGroup]:
-        return self.children()
-
-
-class Guide(PyroModule):
-    def __init__(self, *specs: GroupSpec, model=None, name=''):
+class BaseGuide(PyroModule):
+    def __init__(self, model=None, name=''):
         super().__init__(name)
 
-        self.specs: tp.Iterable[GroupSpec] = specs
         self.model: tp.Callable = model
 
         self.prototype_trace: tp.Optional[pyro.poutine.Trace] = None
-        self.groups: tp.Optional[GroupCollection] = None
 
         self.frames: tp.MutableMapping[str, CondIndepStackFrame] = {}
         self.plates: tp.MutableMapping[str, pyro.plate] = {}
+
+        self.is_setup = False
 
     def _setup_prototype(self, *args, **kwargs):
         # run the model so we can inspect its structure
@@ -249,7 +233,11 @@ class Guide(PyroModule):
                     raise NotImplementedError("EasyGuide does not support sequential pyro.plate")
                 self.frames[frame.name] = frame
 
-        self.groups = GroupCollection(self.specs, self.prototype_trace)
+    def setup(self, *args, **kwargs) -> tp.List[tp.Tuple[str, tp.Any]]:
+        old_children = list(self.named_children())
+        self.is_setup = True
+        self._setup_prototype(*args, **kwargs)
+        return old_children
 
     def plate(self, name, size=None, subsample_size=None, subsample=None, *args, **kwargs):
         if name not in self.plates:
@@ -257,14 +245,11 @@ class Guide(PyroModule):
         return self.plates[name]
 
     def guide(self, *args, **kwargs) -> tp.Dict[str, torch.Tensor]:
-        # Union of all model samples dicts from self.groups
-        return dict(item
-                    for group in self.groups
-                    for item in group(*args, **kwargs)[1].items())
+        raise NotImplementedError
 
     def forward(self, *args, **kwargs):
-        if self.prototype_trace is None:
-            self._setup_prototype(*args, **kwargs)
+        if not self.is_setup:
+            self.setup(*args, **kwargs)
         result = self.guide(*args, **kwargs)
         self.plates.clear()
         return result
@@ -274,6 +259,37 @@ class Guide(PyroModule):
         state = self.__dict__.copy()
         state['model'] = None
         return state
+
+
+class Guide(BaseGuide):
+    child_spec = SamplingGroup
+    children: tp.Callable[[], tp.Iterable[child_spec]]
+
+    def __init__(self, *specs: GroupSpec, model=None, name=''):
+        super().__init__(model=model, name=name)
+
+        self.specs: tp.Iterable[GroupSpec] = specs
+
+    def setup(self, *args, **kwargs) -> tp.List[tp.Tuple[str, child_spec]]:
+        old_children = super().setup(*args, **kwargs)
+
+        sites = [site for name, site in self.prototype_trace.iter_stochastic_nodes()]
+        for spec in self.specs:
+            group = spec.make_group(sites)
+            if group:
+                for site in group.sites.values():
+                    sites.remove(site)
+                setattr(self, spec.name, group)
+        if sites:
+            setattr(self, 'Default', GroupSpec().make_group(sites))
+
+        return old_children
+
+    def guide(self, *args, **kwargs) -> tp.Dict[str, torch.Tensor]:
+        # Union of all model samples dicts from self.groups
+        return dict(item
+                    for group in self.children()
+                    for item in group(*args, **kwargs)[1].items())
 
 
 register_globals(**{a: globals()[a] for a in __all__ if a in globals()})
