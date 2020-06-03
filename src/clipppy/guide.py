@@ -233,8 +233,11 @@ class BaseGuide(PyroModule):
                     raise NotImplementedError("EasyGuide does not support sequential pyro.plate")
                 self.frames[frame.name] = frame
 
-    def setup(self, *args, **kwargs) -> tp.List[tp.Tuple[str, tp.Any]]:
-        old_children = list(self.named_children())
+    def setup(self, *args, **kwargs) -> tp.Dict[str, tp.Any]:
+        old_children = dict(self.named_children())
+        for child in old_children:
+            delattr(self, child)
+
         self.is_setup = True
         self._setup_prototype(*args, **kwargs)
         return old_children
@@ -270,7 +273,7 @@ class Guide(BaseGuide):
 
         self.specs: tp.Iterable[GroupSpec] = specs
 
-    def setup(self, *args, **kwargs) -> tp.List[tp.Tuple[str, child_spec]]:
+    def setup(self, *args, **kwargs) -> tp.Dict[str, child_spec]:
         old_children = super().setup(*args, **kwargs)
 
         sites = [site for name, site in self.prototype_trace.iter_stochastic_nodes()]

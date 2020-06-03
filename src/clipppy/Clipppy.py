@@ -10,7 +10,16 @@ import pyro.infer
 import pyro.optim
 import torch
 from pyro.infer import Trace_ELBO, SVI
-from tqdm import tqdm
+
+# TODO: better IPython checking
+try:
+    from IPython import get_ipython
+    if get_ipython() is None:
+        from tqdm import tqdm
+    else:
+        from tqdm.notebook import tqdm
+except ImportError:
+    from tqdm import tqdm
 
 from .globals import register_globals, init_msgr, _Model, _Guide, noop, dict_union, depoutine
 from .guide import Guide
