@@ -20,7 +20,7 @@ from pyro.poutine import runtime
 from pyro.poutine.indep_messenger import CondIndepStackFrame
 from torch.distributions import biject_to
 
-from .globals import get_global, _Site, register_globals, enumlstrip, init_msgr
+from .globals import get_global, _Site, register_globals, enumlstrip, init_msgr, no_grad_msgr
 
 __all__ = ('DeltaSamplingGroup', 'DiagonalNormalSamplingGroup', 'GroupSpec', 'Guide')
 
@@ -136,14 +136,22 @@ class SamplingGroup(PyroModule, metaclass=_AbstractPyroModuleMeta):
 
         return model_zs
 
+    @property
+    def grad_context(self):
+        if self.training:
+            return torch.enable_grad()
+        else:
+            ret = ExitStack()
+            ret.enter_context(no_grad_msgr)
+            ret.enter_context(torch.no_grad())
+            return ret
+
     def forward(self, guide: 'Guide' = None, infer: dict = None) -> tp.Tuple[torch.Tensor, tp.Dict[str, torch.Tensor]]:
         with pyro.poutine.infer_config(
                 config_fn=lambda site: dict(**(infer if infer is not None else {}), is_auxiliary=True)):
-            group_z = self._sample(infer)
-            if not self.training:
-                group_z = group_z.detach()
-
-        return group_z, self.unpack(group_z, guide)
+            with self.grad_context:
+                group_z = self._sample(infer)
+                return group_z, self.unpack(group_z, guide)
 
     def extra_repr(self) -> str:
         return f'{len(self.sites)} sites, {self.event_shape}'
@@ -162,7 +170,7 @@ class DeltaSamplingGroup(SamplingGroup):
     include_det_jac = False
 
     def _sample(self, infer) -> torch.Tensor:
-        return self.loc
+        return tp.cast(torch.Tensor, self.loc)
 
 
 class DiagonalNormalSamplingGroup(SamplingGroup):

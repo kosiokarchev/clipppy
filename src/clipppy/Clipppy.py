@@ -224,7 +224,7 @@ class SamplingCommand(Command, ABC):
 
     conditioning: bool = False
     """Whether to retain any conditioning already applied to the model.
-       If a `False` value, `pyro.poutine.handlers.uncondition` will
+       If a false value, `pyro.poutine.handlers.uncondition` will
        be applied to ``model`` before evaluating."""
 
     @property
@@ -253,8 +253,11 @@ class PPD(SamplingCommand):
     def forward(self, model: _Model, guide: Guide, *args, **kwargs)\
             -> tp.TypedDict('ppd', {'guide_trace': pyro.poutine.Trace,
                                     'model_trace': pyro.poutine.Trace}, total=False):
+        was_training = guide.training
+        guide.eval()
         with pyro.poutine.trace() as guide_tracer, self.plate:
             guide(*args, **kwargs)
+        guide.train(was_training)
         ret = {'guide_trace': guide_tracer.trace}
 
         if self.observations:

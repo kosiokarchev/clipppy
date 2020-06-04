@@ -128,6 +128,12 @@ def to_tensor(val):
     return torch.tensor(val) if not torch.is_tensor(val) else val
 
 
+class NoGradMessenger(Messenger):
+    @staticmethod
+    def _pyro_post_param(msg: _Site):
+        msg['value'] = msg['value'].detach()
+
+
 # TODO: Decide on to_tensor strategy in general!
 def init_fn(site: _Site) -> torch.Tensor:
     # sys.version_info >= (3, 8)
@@ -135,6 +141,10 @@ def init_fn(site: _Site) -> torch.Tensor:
     init = site['infer'].get('init', None)
     return (to_tensor(init) if init is not None
             else site['fn']())
+
+
+init_msgr = InitMessenger(init_fn)
+no_grad_msgr = NoGradMessenger()
 
 
 def depoutine(obj: tp.Union[_bound_partial, tp.Any], msgr_type: tp.Type[Messenger] = ConditionMessenger):
@@ -145,6 +155,3 @@ def depoutine(obj: tp.Union[_bound_partial, tp.Any], msgr_type: tp.Type[Messenge
         and isinstance(obj.func, partial) and obj.func.func is _context_wrap
         and isinstance(obj.func.args[0], msgr_type)
     ) else obj
-
-
-init_msgr = InitMessenger(init_fn)
