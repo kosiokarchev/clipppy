@@ -45,7 +45,7 @@ class SamplingGroup(PyroModule, metaclass=_AbstractPyroModuleMeta):
             batch_shape = site['fn'].batch_shape
 
             self.batch_shapes[name] = torch.Size(
-                enumlstrip(batch_shape, lambda i, x: x==1 or i-len(batch_shape) in common_dims))
+                enumlstrip(batch_shape, lambda i, x: x == 1 or i-len(batch_shape) in common_dims))
             if len(self.batch_shapes[name]) > -rightmost_common_dim:
                 raise ValueError(
                     'grouping expects all per-site plates to be right of all common plates, '
@@ -181,19 +181,21 @@ class DiagonalNormalSamplingGroup(SamplingGroup):
         self.scale = PyroParam(torch.full_like(self.loc, init_scale), event_dim=1,
                                constraint=dist.constraints.positive)
 
-        self.guide_z = PyroSample(type(self).prior)
+        self.guide_z: torch.Tensor = PyroSample(type(self).prior)
 
     def prior(self):
         return dist.Normal(self.loc, self.scale).to_event(1)
 
     @pyro.nn.pyro_method
     def _sample(self, infer) -> torch.Tensor:
-        return tp.cast(torch.Tensor, self.guide_z)
+        return self.guide_z
 
 
 class GroupSpec:
     def __init__(self, cls: tp.Type[SamplingGroup] = DeltaSamplingGroup,
-                 match: tp.Union[str, re.Pattern] = re.compile('.*'), name='',
+                 match: tp.Union[str, re.Pattern] = re.compile('.*'),    # by default include anything
+                 exclude: tp.Union[str, re.Pattern] = re.compile('.^'),  # by default exclude nothing
+                 name='',
                  *args, **kwargs):
         if isinstance(cls, str):
             cls = get_global(cls, get_global(cls+'SamplingGroup', cls, globals()), globals())
@@ -202,11 +204,13 @@ class GroupSpec:
         assert issubclass(self.cls, SamplingGroup)
 
         self.match = re.compile(match)
+        self.exclude = re.compile(exclude)
         self.name = name if name else re.sub('SamplingGroup$', '', cls.__name__)
         self.args, self.kwargs = args, kwargs
 
     def make_group(self, sites: tp.Iterable[_Site]) -> tp.Optional[SamplingGroup]:
-        matched = [site for site in sites if self.match.match(site['name'])]
+        matched = [site for site in sites
+                   if self.match.match(site['name']) and not self.exclude.match(site['name'])]
         return self.cls(matched, self.name, *self.args, **self.kwargs) if matched else None
 
     def __repr__(self):
@@ -291,13 +295,13 @@ class Guide(BaseGuide):
                 for site in group.sites.values():
                     sites.remove(site)
                 setattr(self, spec.name, group)
-        if sites:
-            setattr(self, 'Default', GroupSpec().make_group(sites))
+        # if sites:
+        #     setattr(self, 'Default', GroupSpec().make_group(sites))
 
         return old_children
 
     def guide(self, *args, **kwargs) -> tp.Dict[str, torch.Tensor]:
-        # Union of all model samples dicts from self.groups
+        # Union of all model samples dicts from self.children
         return dict(item
                     for group in self.children()
                     for item in group(*args, **kwargs)[1].items())
