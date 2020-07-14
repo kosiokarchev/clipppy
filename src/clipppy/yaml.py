@@ -221,8 +221,8 @@ class MyYAML(yaml.YAML):
         return data if key is None else data[key]
 
     @staticmethod
-    def pt(fname: str, key: str = None):
-        data = torch.load(fname)
+    def pt(fname: str, key: str = None, **kwargs):
+        data = torch.load(fname, **kwargs)
         return data if key is None else data[key]
 
     def __init__(self):

@@ -79,10 +79,12 @@ class Command(ABC):
         oldkwargs = {name: getattr(self, name) for name in self.attr_names}
         kwargs = self.setattr(kwargs)
         allowed = inspect.signature(self.forward).parameters
-        ret = self.forward(*args, **dict_union(
-            {key: value for key, value in self.boundkwargs.items() if key in allowed},
-            kwargs))
-        self.setattr(oldkwargs)
+        try:
+            ret = self.forward(*args, **dict_union(
+                {key: value for key, value in self.boundkwargs.items() if key in allowed},
+                kwargs))
+        finally:
+            self.setattr(oldkwargs)
 
         return ret
 
@@ -318,7 +320,6 @@ class Clipppy(Commandable):
         # Conditions the model and sets it on the guide, if it doesn't have a model already.
         self.conditioning = conditioning
         self._model = model
-        self.model = model if conditioning is None else pyro.condition(model, data=conditioning)
         self.guide = guide
 
         if isinstance(self.guide, Guide) and self.guide.model is None:
@@ -334,6 +335,10 @@ class Clipppy(Commandable):
     @property
     def umodel(self):
         return depoutine(self._model)
+
+    @property
+    def model(self):
+        return self._model if self.conditioning is None else pyro.condition(self._model, data=self.conditioning)
 
     fit: Fit
     mock: Mock
