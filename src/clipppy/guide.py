@@ -22,7 +22,7 @@ from torch.distributions import biject_to
 
 from .globals import get_global, _Site, register_globals, enumlstrip, init_msgr, no_grad_msgr
 
-__all__ = ('DeltaSamplingGroup', 'DiagonalNormalSamplingGroup', 'GroupSpec', 'Guide')
+__all__ = ('DeltaSamplingGroup', 'DiagonalNormalSamplingGroup', 'MultivariateNormalSamplingGroup', 'GroupSpec', 'Guide')
 
 
 class _AbstractPyroModuleMeta(type(PyroModule), ABCMeta):
@@ -185,6 +185,24 @@ class DiagonalNormalSamplingGroup(SamplingGroup):
 
     def prior(self):
         return dist.Normal(self.loc, self.scale).to_event(1)
+
+    @pyro.nn.pyro_method
+    def _sample(self, infer) -> torch.Tensor:
+        return self.guide_z
+
+
+class MultivariateNormalSamplingGroup(SamplingGroup):
+    def __init__(self, sites, name='', init_scale=1., *args, **kwargs):
+        super().__init__(sites, name, *args, **kwargs)
+
+        self.loc = PyroParam(self.init[self.mask], event_dim=1)
+        self.scale_tril = PyroParam(dist.util.eye_like(self.loc, self.loc.shape[-1]) * init_scale,
+                                    event_dim=2, constraint=dist.constraints.lower_cholesky)
+
+        self.guide_z: torch.Tensor = PyroSample(type(self).prior)
+
+    def prior(self):
+        return dist.MultivariateNormal(self.loc, scale_tril=self.scale_tril)
 
     @pyro.nn.pyro_method
     def _sample(self, infer) -> torch.Tensor:
