@@ -73,4 +73,4 @@ setattr(first(p for p in cli.params if p.name=='config'), 'metavar', 'config.yam
 
 if __name__ == '__main__':
     # cli.main(['--version'], standalone_mode=False)
-    cli.main(['examples/spectrum.yaml', 'mock', '--help'], standalone_mode=False)
+    cli.main(['examples/spectrum.yaml', 'ppd', '--help'], standalone_mode=False)
