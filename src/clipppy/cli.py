@@ -32,7 +32,7 @@ class LazyMultiCommand(click.MultiCommand):
         except AttributeError:
             raise click.UsageError(f'command {cmd_name} not available.', ctx)
 
-        return click.Command(cmd_name, callback=obj, help=getattr(cmd, '__doc__', None),
+        return click.Command(cmd_name, callback=cmd, help=getattr(cmd, '__doc__', None),
                              params=list(self.autocli.annotated_class(cmd).values()))
 
 
@@ -73,4 +73,5 @@ setattr(first(p for p in cli.params if p.name=='config'), 'metavar', 'config.yam
 
 if __name__ == '__main__':
     # cli.main(['--version'], standalone_mode=False)
-    cli.main(['examples/spectrum.yaml', 'ppd', '--help'], standalone_mode=False)
+    cli.main(['/users/kosio/downloads/config.yaml', 'mock', '--savename', 'obs.pt'], standalone_mode=False)
+    # cli.main(['examples/spectrum.yaml', 'ppd', '--help'], standalone_mode=False)
