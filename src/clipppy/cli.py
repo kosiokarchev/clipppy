@@ -49,9 +49,9 @@ device_literal = tp.Literal.__getitem__(
 @click.version_option('0.1')  # TODO: version
 @click.pass_context
 def cli(ctx: click.Context, config: autocli._ExistingFile, device: device_literal = None):
-    print(locals())
+    # print(locals())
     assert device in tp.get_args(device_literal)
-    if device is 'cpu':
+    if device in ('cpu', None):
         torch.set_default_tensor_type(torch.FloatTensor)
     else:
         torch.set_default_tensor_type(torch.cuda.FloatTensor)
@@ -73,4 +73,4 @@ setattr(first(p for p in cli.params if p.name=='config'), 'metavar', 'config.yam
 
 if __name__ == '__main__':
     # cli.main(['--version'], standalone_mode=False)
-    cli.main(['--device', 'cpu', 'examples/spectrum.yaml'], standalone_mode=False)
+    cli.main(['examples/spectrum.yaml', 'mock', '--help'], standalone_mode=False)

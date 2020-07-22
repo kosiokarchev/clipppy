@@ -162,7 +162,7 @@ class AutoCLI:
                 self.option_kwargs, annkwargs,
                 param_decls=[(is_bool and param.default) and f'--{name}/--no-{name}' or f'--{name}', param.name],
                 is_flag=is_bool,
-                default=not callable(param.default) and param.default or ObjectContainer(param.default),
+                default=param.default if not callable(param.default) else ObjectContainer(param.default),
                 help=(param.doc or self.option_kwargs.get('help', '') or '').split('\n', 1)[0]
             ))
             or click.Argument(**dict_union(
