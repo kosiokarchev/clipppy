@@ -28,6 +28,25 @@ from .guide import Guide
 __all__ = ('Clipppy', 'Fit', 'Mock', 'Command')
 
 
+class ProxyDict(dict):
+    def __init__(self, obj, keys):
+        super().__init__()
+        self._keys = keys
+        self.obj = obj
+
+    def keys(self):
+        return self._keys
+
+    def values(self):
+        return [self[k] for k in self.keys()]
+
+    def items(self):
+        return [(k, self[k]) for k in self.keys()]
+
+    def __getitem__(self, item):
+        return getattr(self.obj, item)
+
+
 class Command(ABC):
     """
     An abstract base class for commands.
@@ -262,11 +281,15 @@ class PPD(SamplingCommand):
         if self.guidefile is not None:
             guide = torch.load(self.guidefile)
 
-        was_training = guide.training
-        guide.eval()
+        guide_is_trainable = hasattr(guide, 'training')
+
+        if guide_is_trainable:
+            was_training = guide.training
+            guide.eval()
         with pyro.poutine.trace() as guide_tracer, self.plate:
             guide(*args, **kwargs)
-        guide.train(was_training)
+        if guide_is_trainable:
+            guide.train(was_training)
         ret = {'guide_trace': guide_tracer.trace}
 
         if self.observations:
@@ -297,7 +320,8 @@ class Commandable:
 
     def __setattr__(self, key, value):
         if isinstance(value, Command):
-            value.boundkwargs = dict(model=self.model, guide=self.guide)
+            value.boundkwargs = ProxyDict(self, ('model', 'guide'))
+            # value.boundkwargs = dict(model=self.model, guide=self.guide)
         super().__setattr__(key, value)
 
     def __getattr__(self, name: str):
