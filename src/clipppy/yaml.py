@@ -11,6 +11,7 @@ import numpy as np
 import torch
 from ruamel import yaml as yaml
 
+from .Clipppy import Clipppy
 from .globals import get_global, valueiter, flatten
 from .stochastic import stochastic, Sampler, SemiInfiniteSampler, InfiniteSampler
 
