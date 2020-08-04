@@ -1,0 +1,102 @@
+imports: !import
+  - {from: pyro, import: distributions as dist}
+  - {from: pyrofit.lensing.utils, import: get_meshgrid}
+  - {from: pyrofit.lensing.new.distributions}
+  - {from: pyrofit.lensing.new.model, import: LensingModelBase}
+  - {from: pyrofit.lensing.new.lenses, import: [SPLEwithSubhaloes, ExternalShear, SmoothMeshSubhaloes, MeshSubhaloes]}
+  - {from: pyrofit.lensing.new.lenses.analytical, import: [NFWLens]}
+  - {from: pyrofit.lensing.new.sources, import: [ImageSource, SersicSource, UnitPriorWindowedGPSource]}
+defs:
+  res: &res 0.0125
+  nx: &nx 400
+  ny: &ny 400
+  XY: &XY !py:get_meshgrid [*res, *nx, *ny]
+  mask: &mask !tensor [!npy mockelt-mask.npy]
+  ngpchannels: &ngplayers 4
+  params:  # truth
+    ext/gamma_1: 0.0070
+    ext/gamma_2: 0.0095
+    main/phi: -0.4564
+    main/q: 0.8310
+    main/r_ein: 1.4897
+    main/slope: 2.1
+    main/x: -0.2665
+    main/y: 0.0999
+conditioning:
+  image: !npy mockelt-obs.npy
+model: !Stochastic
+  - !py:LensingModelBase
+    __args: *XY
+    mask: *mask
+    alphas:
+      ext: !Stochastic:ext
+        - !py:ExternalShear []
+        - gamma_1: !Sampler
+            d: !py:dist.Normal [0., 0.05]
+            init: 0.
+          gamma_2: !Sampler
+            d: !py:dist.Normal [0., 0.05]
+            init: 0.
+      main: !Stochastic:main
+        - !py:SPLEwithSubhaloes
+          z_lens: &z_lens 0.6
+          z_src: &z_src 2.5
+          fsub: 0.05
+          vary_nsub: False
+          sub: !Stochastic:sub
+            - !py:SmoothMeshSubhaloes
+              lens: !py:NFWLens
+                z_lens: *z_lens
+                z_src: *z_src
+              extent_space: 5.
+              range_mass: [5, 13]
+              nsub: 10000
+              m_smooth: 1e15  # !py:torch.logspace [7, 11, 9]
+              pos_sampler: !py:dist.Normal [!tensor [[0., 0.]], !tensor [[1., 1.]]]
+              mass_sampler: !py:UNITSDistribution
+                log_prob: !py:SubhaloMassPDF
+                  alpha: 0.9
+                  beta: 6
+                  M: 6.e+11
+                  mcut: 1.
+                grid: !py:torch.logspace [5, 13, 201]
+                log_prob_of_original: True
+            - {}
+        - phi: !InfiniteSampler
+            init: 0.
+          q: !Sampler
+            d: !py:dist.Uniform [0., 1.]
+            init: 0.8
+          r_ein: !Sampler
+            d: !py:dist.Normal [1., 0.5]
+            init: 1.4
+            support: !py:dist.constraints.positive
+          slope: !Sampler
+            d: !py:dist.Normal  [2.1, 0.3]
+            init: 2.1
+            support: !py:dist.constraints.interval [1.4, 3.]
+          x: !py:dist.Normal  [-0.2, 0.1]
+          y: !py:dist.Normal  [0., 0.1]
+    sources:
+      gp: !Stochastic:gp
+        - !py:UnitPriorWindowedGPSource {mask: *mask}
+        - sigma: [0.1725, 0.0345, 0.0173, 0.0035]
+          alpha: !Sampler
+            d: !py:dist.Uniform [0., 100.]  # could be a SemiInfiniteSampler?
+            expand_by: [*ngplayers]
+          theta: &theta_sampler !InfiniteSampler
+            init: !py:torch.zeros [*ngplayers, *ny, *nx]
+            mask: *mask
+            expand_by: [*ngplayers, *ny, *nx]
+          multilayer: 1
+  - sigma_stat: 1.
+    model_err: 0.
+guide:
+  - cls: DiagonalNormalSamplingGroup
+    init_scale: 0.01
+    match: gp.*
+    name: gp
+  - cls: MultivariateNormalSamplingGroup
+    init_scale: 0.1
+    exclude: main/sub.*
+    name: lens
