@@ -118,15 +118,16 @@ class Command(ABC):
     # Common attributes:
     plate_stack: tp.Union[tp.Iterable[int], tp.ContextManager] = nullcontext()
     """A stack of plates or an iterable of ints.
-       
+
        Either one or multiple plates (as returned by `pyro.plate
        <pyro.primitives.plate>` or `pyro.plate_stack
        <pyro.primitives.plate_stack>`) or an iterable of ints that
        will be converted to a stack of plates (named ``plate_0``, etc. and
-       aligned to ``rightmost_dim = -1``) for batch mock generation."""
+       aligned to ``rightmost_dim = -1``) for batch mock generation.
+    """
 
     @property
-    def plate(self) -> pyro.plate:
+    def plate(self) -> tp.Union[tp.ContextManager, pyro.primitives.plate]:
         return (self.plate_stack if isinstance(self.plate_stack, tp.ContextManager)
                 else pyro.plate_stack('plate', self.plate_stack))
 
@@ -149,7 +150,7 @@ class Fit(Command):
     conv_th: float = -float('inf')
     """Convergence threshold. Should be positive or ``-float('inf')`` to turn
        off convergence-based termination.
-       
+
        See `converged`."""
 
     avgwindow: int = 100
@@ -164,7 +165,7 @@ class Fit(Command):
 
     optimizer_args: tp.Optional[tp.Dict] = {}
     """The (keyword!) arguments to pass to ``optimizer_cls``.
-    
+
        Will be updated with the standalone ``lr`` passed. Defaults are
        ``{'amsgrad': False, 'weight_decay': 0.}``."""
 
@@ -174,7 +175,7 @@ class Fit(Command):
 
     loss_args: tp.Dict = {}
     """Arguments for the ``loss_cls`` constructor.
-    
+
        Pass the special value `Command.no_call` to avoid instantiating
        ``load_cls`` and use it directly."""
 
@@ -293,8 +294,9 @@ class PPD(SamplingCommand):
         ret = {'guide_trace': guide_tracer.trace}
 
         if self.observations:
-            with pyro.poutine.trace() as model_tracer, self.plate,\
-                 pyro.poutine.replay(trace=ret['guide_trace']), self.uncondition:
+            with pyro.poutine.trace() as model_tracer, \
+                    pyro.poutine.replay(trace=ret['guide_trace']), \
+                    self.uncondition:
                 model(*args, **kwargs)
             ret['model_trace'] = model_tracer.trace
 
