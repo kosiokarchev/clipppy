@@ -1,6 +1,6 @@
-click~=7.1.2
-torch~=1.5.0
-numpy~=1.18.5
-tqdm~=4.46.1
-setuptools~=47.1.1
+click>=7.1.2
+torch>=1.5.0
+numpy>=1.18.5
+tqdm>=4.46.1
+setuptools>=47.1.1
 clipppy~=0.1

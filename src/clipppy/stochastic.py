@@ -1,13 +1,13 @@
+import abc
 import types
 import typing as tp
 from contextlib import nullcontext
-from functools import update_wrapper, wraps, partial
+from functools import partial, update_wrapper, wraps
 
 import pyro
 import torch
 from pyro import distributions as dist
 from pyro.contrib.autoname import scope
-
 
 __all__ = ('Sampler', 'InfiniteSampler', 'SemiInfiniteSampler', 'StochasticWrapper', 'stochastic')
 
@@ -37,20 +37,32 @@ class SemiInfiniteUniform(InfiniteUniform):
         return torch.where(value < 0., value.new_full((), -float('inf')), value.new_zeros(()))
 
 
-class Sampler:
-    def __init__(self, d: dist.torch_distribution.TorchDistributionMixin,
-                 expand_by: tp.Union[torch.Size, tp.Iterable[int]] = torch.Size(), to_event: int = None,
-                 mask: torch.Tensor = None, name: str = None,
-                 init: torch.Tensor = None, **kwargs):
-        self.d = d
-        self.expand_by = expand_by
-        self.to_event = to_event
+class AbstractSampler(abc.ABC):
+    def __init__(self, name: str = None, init: torch.Tensor = None, to_event: int = None,
+                 support: dist.constraints.Constraint = dist.constraints.real):
         self.name = name
-        self.infer = dict(init=init, mask=mask, **kwargs)
+        self.init = init
+        self.support = support
+        self.event_dim = to_event
 
     def set_name(self, name):
         self.name = name
         return self
+
+    def __call__(self):
+        raise NotImplemented
+
+
+class Sampler(AbstractSampler):
+    def __init__(self, d: dist.torch_distribution.TorchDistributionMixin,
+                 expand_by: tp.Union[torch.Size, tp.Iterable[int]] = torch.Size(), mask: torch.Tensor = None,
+                 name: str = None, init: torch.Tensor = None, to_event: int = None,
+                 support: dist.constraints.Constraint = dist.constraints.real,
+                 **kwargs):
+        super(Sampler, self).__init__(name=name, init=init, to_event=to_event, support=support)
+        self.d = d
+        self.expand_by = expand_by
+        self.infer = dict(init=self.init, mask=mask, support=support, **kwargs)
 
     @property
     def infer_msgr(self):
@@ -58,7 +70,12 @@ class Sampler:
 
     def __call__(self):
         with self.infer_msgr:
-            return pyro.sample(self.name, self.d.expand_by(self.expand_by).to_event(self.to_event))
+            return pyro.sample(self.name, self.d.expand_by(self.expand_by).to_event(self.event_dim))
+
+
+class Parameter(AbstractSampler):
+    def __call__(self):
+        return pyro.param(self.name, init_tensor=self.init, constraint=self.support, event_dim=self.event_dim)
 
 
 InfiniteSampler = wraps(Sampler)(partial(Sampler, d=InfiniteUniform()))
@@ -72,7 +89,7 @@ class StochasticWrapper:
     def __call__(self, *args, **kwargs):
         with scope(prefix=self.stochastic_name) if self.stochastic_name else nullcontext():
             return super(type(self), self).__call__(*args, **kwargs, **{
-                name: (spec() if isinstance(spec, Sampler) else spec)
+                name: (spec() if isinstance(spec, AbstractSampler) else spec)
                 for name, spec in self.stochastic_specs.items()
                 if name not in kwargs
             })
