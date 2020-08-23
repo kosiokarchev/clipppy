@@ -73,7 +73,7 @@ class Sampler(AbstractSampler):
             return pyro.sample(self.name, self.d.expand_by(self.expand_by).to_event(self.event_dim))
 
 
-class Parameter(AbstractSampler):
+class Param(AbstractSampler):
     def __call__(self):
         return pyro.param(self.name, init_tensor=self.init, constraint=self.support, event_dim=self.event_dim)
 

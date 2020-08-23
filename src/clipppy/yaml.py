@@ -4,16 +4,15 @@ import re
 import typing as tp
 from functools import partial
 from importlib import import_module
-from inspect import Signature, BoundArguments, Parameter
+from inspect import BoundArguments, Parameter, Signature
 from warnings import warn
 
 import numpy as np
 import torch
 from ruamel import yaml as yaml
 
-from .Clipppy import Clipppy
-from .globals import get_global, valueiter, flatten
-from .stochastic import stochastic, Sampler, SemiInfiniteSampler, InfiniteSampler
+from .globals import flatten, get_global, valueiter
+from .stochastic import InfiniteSampler, Param, Sampler, SemiInfiniteSampler, stochastic
 
 
 class YAMLConstructor:
@@ -245,6 +244,7 @@ class MyYAML(yaml.YAML):
         c.add_constructor('!Stochastic', YAMLConstructor.apply(stochastic))
         c.add_multi_constructor('!Stochastic:', PrefixedStochasticYAMLConstructor.construct)
 
+        c.add_constructor('!Param', YAMLConstructor.apply(Param))
         c.add_constructor('!Sampler', YAMLConstructor.apply(Sampler))
         c.add_constructor('!InfiniteSampler', YAMLConstructor.apply(InfiniteSampler))
         c.add_constructor('!SemiInfiniteSampler', YAMLConstructor.apply(SemiInfiniteSampler))
