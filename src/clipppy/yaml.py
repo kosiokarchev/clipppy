@@ -11,6 +11,10 @@ import numpy as np
 import torch
 from ruamel import yaml as yaml
 
+# noinspection PyUnresolvedReferences
+from .Clipppy import Clipppy
+# noinspection PyUnresolvedReferences
+from .guide import Guide
 from .globals import flatten, get_global, valueiter
 from .stochastic import InfiniteSampler, Param, Sampler, SemiInfiniteSampler, stochastic
 
