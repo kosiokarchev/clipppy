@@ -181,10 +181,12 @@ class DiagonalNormalSamplingGroup(SamplingGroup):
         self.scale = PyroParam(torch.full_like(self.loc, init_scale), event_dim=1,
                                constraint=dist.constraints.positive)
 
-        self.guide_z: torch.Tensor = PyroSample(type(self).prior)
-
     def prior(self):
         return dist.Normal(self.loc, self.scale).to_event(1)
+
+    @PyroSample
+    def guide_z(self):
+        return self.prior()
 
     @pyro.nn.pyro_method
     def _sample(self, infer) -> torch.Tensor:
@@ -199,10 +201,12 @@ class MultivariateNormalSamplingGroup(SamplingGroup):
         self.scale_tril = PyroParam(dist.util.eye_like(self.loc, self.loc.shape[-1]) * init_scale,
                                     event_dim=2, constraint=dist.constraints.lower_cholesky)
 
-        self.guide_z: torch.Tensor = PyroSample(type(self).prior)
-
     def prior(self):
         return dist.MultivariateNormal(self.loc, scale_tril=self.scale_tril)
+
+    @PyroSample
+    def guide_z(self):
+        return self.prior()
 
     @pyro.nn.pyro_method
     def _sample(self, infer) -> torch.Tensor:
