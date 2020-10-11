@@ -28,7 +28,7 @@ __all__ = ('DeltaSamplingGroup', 'DiagonalNormalSamplingGroup', 'MultivariateNor
 class _AbstractPyroModuleMeta(type(PyroModule), ABCMeta):
     def __getattr__(self, item):
         if item.startswith('_pyro_prior_'):
-            return getattr(self, item.lstrip('_pyro_prior_'))
+            return getattr(self, item.lstrip('_pyro_prior_')).prior
         return super().__getattr__(item)
 
 
