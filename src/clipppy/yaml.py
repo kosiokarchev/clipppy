@@ -1,5 +1,6 @@
 import builtins
 import inspect
+import io
 import os
 import re
 import typing as tp
@@ -242,13 +243,20 @@ class MyYAML(yaml.YAML):
         data = torch.load(fname, **kwargs)
         return data if key is None else data[key]
 
-    def load(self, stream):
-        if not isinstance(stream, Path):
-            stream = Path(stream)
-        assert stream.is_file()
-        stream = stream.absolute()
-        with cwd(self.base_dir if self.base_dir is not None else stream.parent):
+    def load(self, path_or_stream: tp.Union[os.PathLike, str, tp.TextIO]):
+        path = (not isinstance(path_or_stream, io.IOBase)) and Path(path_or_stream)
+        stream = path and path.open() or path_or_stream
+
+        with cwd(self.base_dir or (path and path.parent) or '.'):
             super().load(stream)
+
+    # def load(self, stream):
+    #     if not isinstance(stream, Path):
+    #         stream = Path(stream)
+    #     assert stream.is_file()
+    #     stream = stream.absolute()
+    #     with cwd(self.base_dir if self.base_dir is not None else stream.parent):
+    #         super().load(stream)
 
     def __init__(self, base_dir: os.PathLike = None):
         self.base_dir = base_dir if base_dir is not None else None
