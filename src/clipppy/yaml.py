@@ -1,10 +1,13 @@
 import builtins
 import inspect
+import os
 import re
 import typing as tp
+from contextlib import contextmanager
 from functools import partial
 from importlib import import_module
 from inspect import BoundArguments, Parameter, Signature
+from pathlib import Path
 from warnings import warn
 
 import numpy as np
@@ -210,6 +213,16 @@ def _import(*specs: tp.Union[str, tp.Dict]):
             vars(builtins).update({oname: getattr(module, iname) for iname, oname in fromlist})
 
 
+@contextmanager
+def cwd(newcwd: os.PathLike):
+    curcwd = Path.cwd()
+    try:
+        os.chdir(newcwd)
+        yield
+    finally:
+        os.chdir(curcwd)
+
+
 class MyYAML(yaml.YAML):
     @staticmethod
     def eval(loader, node: yaml.Node):
@@ -229,7 +242,17 @@ class MyYAML(yaml.YAML):
         data = torch.load(fname, **kwargs)
         return data if key is None else data[key]
 
-    def __init__(self):
+    def load(self, stream):
+        if not isinstance(stream, Path):
+            stream = Path(stream)
+        assert stream.is_file()
+        stream = stream.absolute()
+        with cwd(self.base_dir if self.base_dir is not None else stream.parent):
+            super().load(stream)
+
+    def __init__(self, base_dir: os.PathLike = None):
+        self.base_dir = base_dir if base_dir is not None else None
+
         super().__init__(typ='unsafe')
         c: yaml.Constructor = self.constructor
         c.add_constructor('!eval', self.eval)
