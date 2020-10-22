@@ -295,7 +295,11 @@ class MyYAML(yaml.YAML):
         path = (not isinstance(path_or_stream, io.IOBase)) and Path(path_or_stream)
         stream = path and path.open() or path_or_stream
 
-        with cwd(os.path.split(stream.name)[0]):
+        wd = os.path.split(stream.name)[0]
+        if wd == "":
+            wd = "./"
+
+        with cwd(wd):
             return super().load(stream)
 
     def __init__(self, base_dir: os.PathLike = None):
