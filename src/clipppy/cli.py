@@ -57,19 +57,19 @@ def cli(ctx: click.Context, config: autocli._ExistingFile, device: device_litera
         torch.set_default_tensor_type(torch.cuda.FloatTensor)
         torch.cuda.set_device(torch.device(device))
 
-    ctx.obj = MyYAML().load(open(config))
+    ctx.obj = MyYAML().load(config)
     assert isinstance(ctx.obj, Clipppy)
     print(ctx.obj)
 
 
 acli = AutoCLI(show_default=True)
-cli = click.version_option('0.1')(
+cli = click.version_option('0.1')(  # TODO: version
     LazyMultiCommand(
         autocli=acli, name=cli.__name__, callback=cli,
         params=list(acli.function(cli).values()),
         invoke_without_command=True, no_args_is_help=False, chain=True,
     ))
-setattr(first(p for p in cli.params if p.name=='config'), 'metavar', 'config.yaml')
+setattr(first(p for p in cli.params if p.name == 'config'), 'metavar', 'config.yaml')
 
 if __name__ == '__main__':
     # cli.main(['--version'], standalone_mode=False)

@@ -9,7 +9,8 @@ import torch
 from pyro import distributions as dist
 from pyro.contrib.autoname import scope
 
-__all__ = ('Sampler', 'InfiniteSampler', 'SemiInfiniteSampler', 'StochasticWrapper', 'stochastic')
+__all__ = ('Sampler', 'Param', 'InfiniteSampler', 'SemiInfiniteSampler',
+           'StochasticWrapper', 'stochastic')
 
 
 class InfiniteUniform(dist.TorchDistribution):

@@ -322,6 +322,12 @@ class Commandable:
         if isinstance(value, Command):
             value.boundkwargs = ProxyDict(self, ('model', 'guide'))
             # value.boundkwargs = dict(model=self.model, guide=self.guide)
+        elif isinstance(value, dict):
+            # sys.version_info >= (3, 8)
+            cmd_cls = self.get_cmd_cls(key)
+            if cmd_cls is not None:
+                return self.__setattr__(key, cmd_cls(**value))
+
         super().__setattr__(key, value)
 
     def __getattr__(self, name: str):
