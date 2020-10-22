@@ -265,6 +265,9 @@ def _import(*specs: tp.Union[str, tp.Dict]):
 @contextmanager
 def cwd(newcwd: os.PathLike):
     curcwd = Path.cwd()
+    if newcwd == "":
+        newcwd = "."
+
     try:
         os.chdir(newcwd)
         yield
