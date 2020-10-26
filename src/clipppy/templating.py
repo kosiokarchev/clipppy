@@ -3,8 +3,9 @@ import string
 import typing
 from functools import partial
 
-from string import _sentinel_dict, _ChainMap
+from collections import ChainMap
 
+_sentinel_dict = {}
 
 class Template(string.Template):
     def safe_convert(self, mo: re.Match, mapping: typing.Mapping[str, str]):
@@ -22,9 +23,9 @@ class Template(string.Template):
 
     @staticmethod
     def get_mapping(mapping, **kwargs):
-        return kwargs if mapping is _sentinel_dict else _ChainMap(kwargs, mapping)
+        return kwargs if mapping is _sentinel_dict else ChainMap(kwargs, mapping)
 
-    def safe_substitute(self, mapping=_sentinel_dict, /, **kws):
+    def safe_substitute(self, mapping=_sentinel_dict, **kws):
         # Helper function for .sub()
         return self.pattern.sub(partial(self.safe_convert, mapping=self.get_mapping(mapping, **kws)), self.template)
 
@@ -34,5 +35,5 @@ class TemplateWithDefaults(Template):
 
     def safe_convert(self, mo: re.Match, mapping: typing.Mapping[str, str]):
         if mo.group('default') is not None:
-            mapping = _ChainMap(mapping, {mo.group('braced'): mo.group('default').replace(r'\)', ')').replace(r'\\', '\\')})
+            mapping = ChainMap(mapping, {mo.group('braced'): mo.group('default').replace(r'\)', ')').replace(r'\\', '\\')})
         return super().safe_convert(mo, mapping)
