@@ -11,15 +11,7 @@ import pyro.optim
 import torch
 from pyro.infer import Trace_ELBO, SVI
 
-# TODO: better IPython checking
-try:
-    from IPython import get_ipython
-    if get_ipython() is None:
-        from tqdm import tqdm
-    else:
-        from tqdm.notebook import tqdm
-except ImportError:
-    from tqdm import tqdm
+from tqdm.auto import tqdm
 
 from .globals import register_globals, init_msgr, _Model, _Guide, noop, dict_union, depoutine
 from .guide import Guide
@@ -99,13 +91,12 @@ class Command(ABC):
         kwargs = self.setattr(kwargs)
         allowed = inspect.signature(self.forward).parameters
         try:
-            ret = self.forward(*args, **dict_union(
+            return self.forward(*args, **dict_union(
                 {key: value for key, value in self.boundkwargs.items() if key in allowed},
-                kwargs))
+                kwargs
+            ))
         finally:
             self.setattr(oldkwargs)
-
-        return ret
 
     def __getattribute__(self, name):
         # Needed to avoid binding functions that are saved as properties
@@ -237,6 +228,8 @@ class Fit(Command):
                         break
         except KeyboardInterrupt:
             pass
+
+        return losses
 
 
 class SamplingCommand(Command, ABC):
