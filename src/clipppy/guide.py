@@ -2,25 +2,25 @@
 Guide functionality mostly copied from pyro.contrib.easyguide
 with little alterations of some annoying bits and cosmetic improvement.
 Also, with some new functionality.
+Edit: *inspired* by easyguide, but probably nothing like it anymore.
 """
 import re
-from abc import abstractmethod, ABCMeta
+import typing as tp
+from abc import ABCMeta, abstractmethod
 from contextlib import ExitStack
 from functools import lru_cache
 from operator import itemgetter
 
 import pyro
 import torch
-import typing as tp
-
-from pyro import poutine, distributions as dist
+from pyro import distributions as dist, poutine
 from pyro.infer.autoguide.guides import prototype_hide_fn
 from pyro.nn import PyroModule, PyroParam, PyroSample
 from pyro.poutine import runtime
 from pyro.poutine.indep_messenger import CondIndepStackFrame
 from torch.distributions import biject_to
 
-from .globals import get_global, _Site, register_globals, enumlstrip, init_msgr, no_grad_msgr
+from .globals import _Site, enumlstrip, get_global, init_msgr, no_grad_msgr, register_globals
 
 __all__ = ('DeltaSamplingGroup', 'DiagonalNormalSamplingGroup', 'MultivariateNormalSamplingGroup', 'GroupSpec', 'Guide')
 
@@ -122,7 +122,7 @@ class SamplingGroup(PyroModule, metaclass=_AbstractPyroModuleMeta):
             x = transform(z)
 
             if self.include_det_jac:
-                log_density = transform.log_abs_det_jacobian(x, z)
+                log_density = transform.inv.log_abs_det_jacobian(x, z)
                 log_density = log_density.sum(list(range(-(log_density.ndim - z.ndim + fn.event_dim), 0)))
             else:
                 log_density = 0.

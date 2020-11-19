@@ -5,7 +5,7 @@ import os
 import re
 import typing as tp
 from contextlib import contextmanager
-from functools import partial
+from functools import lru_cache, partial, wraps
 from importlib import import_module
 from inspect import BoundArguments, Parameter, Signature
 from pathlib import Path
@@ -17,9 +17,9 @@ from ruamel import yaml as yaml
 
 # noinspection PyUnresolvedReferences
 from .Clipppy import Clipppy
+from .globals import flatten, get_global, valueiter
 # noinspection PyUnresolvedReferences
 from .guide import Guide
-from .globals import flatten, get_global, valueiter
 from .stochastic import InfiniteSampler, Param, Sampler, SemiInfiniteSampler, stochastic
 from .templating import TemplateWithDefaults
 
@@ -226,22 +226,30 @@ def cwd(newcwd: os.PathLike):
 
 
 class MyYAML(yaml.YAML):
+    @lru_cache(typed=True)
+    def _load_file(self, loader: tp.Callable, *args, **kwargs):
+        return loader(*args, **kwargs)
+
     @staticmethod
     def eval(loader, node: yaml.Node):
         return eval(node.value)
 
-    @staticmethod
-    def npy(loader, node: yaml.Node) -> np.ndarray:
-        return np.load(node.value)
+    def npy(self, loader, node: yaml.Node) -> np.ndarray:
+        return self._load_file(np.load, node.value)
 
-    @staticmethod
-    def npz(fname: str, key: str = None) -> np.ndarray:
-        data = np.load(fname)
+    def npz(self, fname: str, key: str = None) -> np.ndarray:
+        data = self._load_file(np.load, fname)
         return data if key is None else data[key]
 
-    @staticmethod
-    def pt(fname: str, key: str = None, **kwargs):
-        data = torch.load(fname, **kwargs)
+    @property
+    def txt(self):
+        @wraps(np.loadtxt)
+        def _txt(*args, **kwargs):
+            return self._load_file(np.loadtxt, *args, **kwargs)
+        return _txt
+
+    def pt(self, fname: str, key: str = None, **kwargs):
+        data = self._load_file(torch.load, fname, **kwargs)
         return data if key is None else data[key]
 
     def load(self, path_or_stream: tp.Union[os.PathLike, str, tp.TextIO],
@@ -264,6 +272,7 @@ class MyYAML(yaml.YAML):
         c.add_constructor('!eval', self.eval)
         c.add_constructor('!npy', self.npy)
         c.add_constructor('!npz', YAMLConstructor.apply(self.npz))
+        c.add_constructor('!txt', YAMLConstructor.apply(self.txt))
         c.add_constructor('!pt', YAMLConstructor.apply(self.pt))
 
         c.add_constructor('!import', YAMLConstructor.apply(_import))
