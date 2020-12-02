@@ -13,16 +13,23 @@ from operator import itemgetter
 
 import pyro
 import torch
+from more_itertools import partition
 from pyro import distributions as dist, poutine
+from pyro.distributions import constraints, transforms
 from pyro.infer.autoguide.guides import prototype_hide_fn
 from pyro.nn import PyroModule, PyroParam, PyroSample
 from pyro.poutine import runtime
 from pyro.poutine.indep_messenger import CondIndepStackFrame
 from torch.distributions import biject_to
 
-from .globals import _Site, enumlstrip, get_global, init_msgr, no_grad_msgr, register_globals
+from .globals import _Site, dict_union, enumlstrip, get_global, init_msgr, no_grad_msgr, register_globals
 
-__all__ = ('DeltaSamplingGroup', 'DiagonalNormalSamplingGroup', 'MultivariateNormalSamplingGroup', 'GroupSpec', 'Guide')
+__all__ = ('DeltaSamplingGroup', 'DiagonalNormalSamplingGroup', 'MultivariateNormalSamplingGroup',
+           'PartialMultivariateNormalSamplingGroup', 'GroupSpec', 'Guide')
+
+
+_allmatch = re.compile('.*')
+_nomatch = re.compile('.^')
 
 
 class _AbstractPyroModuleMeta(type(PyroModule), ABCMeta):
@@ -77,7 +84,7 @@ class SamplingGroup(PyroModule, metaclass=_AbstractPyroModuleMeta):
         self.event_shapes: tp.MutableMapping[str, torch.Size] = {}
         self.batch_shapes: tp.MutableMapping[str, torch.Size] = {}
         self.sizes: tp.MutableMapping[str, int] = {}
-        self.transforms: tp.MutableMapping[str, dist.transforms.Transform] = {}
+        self.transforms: tp.MutableMapping[str, transforms.Transform] = {}
 
         self.masks: tp.MutableMapping[str, torch.Tensor] = {}
         self.inits: tp.MutableMapping[str, torch.Tensor] = {}
@@ -121,7 +128,7 @@ class SamplingGroup(PyroModule, metaclass=_AbstractPyroModuleMeta):
 
             x = transform(z)
 
-            if self.include_det_jac:
+            if self.include_det_jac and transform.bijective:
                 log_density = transform.inv.log_abs_det_jacobian(x, z)
                 log_density = log_density.sum(list(range(-(log_density.ndim - z.ndim + fn.event_dim), 0)))
             else:
@@ -176,50 +183,78 @@ class DeltaSamplingGroup(SamplingGroup):
         return tp.cast(torch.Tensor, self.loc)
 
 
-class DiagonalNormalSamplingGroup(SamplingGroup):
+class LocatedSamplingGroupWithPrior(SamplingGroup):
+    def __init__(self, sites, name='', *args, **kwargs):
+        super().__init__(sites, name, *args, **kwargs)
+        self.loc = PyroParam(self.init[self.mask], event_dim=1)
+
+    @abstractmethod
+    def prior(self): ...
+
+    @PyroSample
+    def guide_z(self):
+        return self.prior()
+
+    @pyro.nn.pyro_method
+    def _sample(self, infer) -> torch.Tensor:
+        return self.guide_z
+
+
+class DiagonalNormalSamplingGroup(LocatedSamplingGroupWithPrior):
     def __init__(self, sites, name='', init_scale=1., *args, **kwargs):
         super().__init__(sites, name, *args, **kwargs)
-
-        self.loc = PyroParam(self.init[self.mask], event_dim=1)
-        self.scale = PyroParam(torch.full_like(self.loc, init_scale), event_dim=1,
-                               constraint=dist.constraints.positive)
+        self.scale = PyroParam(torch.full_like(self.loc, init_scale), event_dim=1, constraint=constraints.positive)
 
     def prior(self):
         return dist.Normal(self.loc, self.scale).to_event(1)
 
-    @PyroSample
-    def guide_z(self):
-        return self.prior()
 
-    @pyro.nn.pyro_method
-    def _sample(self, infer) -> torch.Tensor:
-        return self.guide_z
-
-
-class MultivariateNormalSamplingGroup(SamplingGroup):
+class MultivariateNormalSamplingGroup(LocatedSamplingGroupWithPrior):
     def __init__(self, sites, name='', init_scale=1., *args, **kwargs):
         super().__init__(sites, name, *args, **kwargs)
-
-        self.loc = PyroParam(self.init[self.mask], event_dim=1)
         self.scale_tril = PyroParam(dist.util.eye_like(self.loc, self.loc.shape[-1]) * init_scale,
-                                    event_dim=2, constraint=dist.constraints.lower_cholesky)
+                                    event_dim=2, constraint=constraints.lower_cholesky)
 
     def prior(self):
         return dist.MultivariateNormal(self.loc, scale_tril=self.scale_tril)
 
-    @PyroSample
-    def guide_z(self):
-        return self.prior()
 
-    @pyro.nn.pyro_method
-    def _sample(self, infer) -> torch.Tensor:
-        return self.guide_z
+class PartialMultivariateNormalSamplingGroup(LocatedSamplingGroupWithPrior):
+    def __init__(self, sites, name='', diag=_nomatch, init_scale_full=1., init_scale_diag=1., *args, **kwargs):
+        self.diag_pattern = re.compile(diag)
+        self.sites_full, self.sites_diag = ({site['name']: site for site in _}
+                                            for _ in partition(lambda _: self.diag_pattern.match(_['name']), sites))
+
+        super().__init__(dict_union(self.sites_full, self.sites_diag).values(), name, *args, **kwargs)
+
+        self.size_full, self.size_diag = (sum(self.sizes[site] for site in _)
+                                          for _ in (self.sites_full, self.sites_diag))
+
+        self.scale_full = PyroParam(dist.util.eye_like(self.loc, self.size_full) * init_scale_full,
+                                    event_dim=2, constraint=constraints.lower_cholesky)
+        self.scale_cross = PyroParam(self.loc.new_zeros(torch.Size((self.size_diag, self.size_full))), event_dim=2)
+        self.scale_diag = PyroParam(self.loc.new_full(torch.Size((self.size_diag,)), init_scale_diag),
+                                    event_dim=1, constraint=constraints.positive)
+
+        self.guide_z_aux = PyroSample(dist.Normal(self.loc.new_zeros(()), 1.).expand(self.event_shape).to_event(1))
+
+    @property
+    def half_log_det(self):
+        return self.scale_full.diagonal(dim1=-2, dim2=-1).log().sum(-1) + self.scale_diag.log().sum(-1)
+
+    def prior(self):
+        z_aux = self.guide_z_aux
+        zfull, zdiag = z_aux[..., :self.size_full, None], z_aux[..., self.size_full:]
+        return dist.Delta(self.loc + torch.cat((
+            (self.scale_full @ zfull).squeeze(-1),
+            (self.scale_cross @ zfull).squeeze(-1) + self.scale_diag * zdiag
+        ), dim=-1), log_density=-self.half_log_det, event_dim=1)
 
 
 class GroupSpec:
     def __init__(self, cls: tp.Type[SamplingGroup] = DeltaSamplingGroup,
-                 match: tp.Union[str, re.Pattern] = re.compile('.*'),    # by default include anything
-                 exclude: tp.Union[str, re.Pattern] = re.compile('.^'),  # by default exclude nothing
+                 match: tp.Union[str, re.Pattern] = _allmatch,   # by default include anything
+                 exclude: tp.Union[str, re.Pattern] = _nomatch,  # by default exclude nothing
                  name='',
                  *args, **kwargs):
         if isinstance(cls, str):
@@ -302,15 +337,14 @@ class BaseGuide(PyroModule):
 
 
 class Guide(BaseGuide):
-    child_spec = SamplingGroup
-    children: tp.Callable[[], tp.Iterable[child_spec]]
+    children: tp.Callable[[], tp.Iterable[SamplingGroup]]
 
     def __init__(self, *specs: GroupSpec, model=None, name=''):
         super().__init__(model=model, name=name)
 
         self.specs: tp.Iterable[GroupSpec] = specs
 
-    def setup(self, *args, **kwargs) -> tp.Dict[str, child_spec]:
+    def setup(self, *args, **kwargs) -> tp.Dict[str, SamplingGroup]:
         old_children = super().setup(*args, **kwargs)
 
         sites = [site for name, site in self.prototype_trace.iter_stochastic_nodes()]

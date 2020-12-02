@@ -348,7 +348,7 @@ class Clipppy(Commandable):
                  conditioning: tp.Dict[str, torch.Tensor] = None,
                  **kwargs):
         # Conditions the model and sets it on the guide, if it doesn't have a model already.
-        self.conditioning = conditioning
+        self.conditioning = conditioning if conditioning is not None else {}
         self._model = model
         self.guide = guide
 
@@ -368,7 +368,7 @@ class Clipppy(Commandable):
 
     @property
     def model(self):
-        return self._model if self.conditioning is None else pyro.condition(self._model, data=self.conditioning)
+        return pyro.condition(self._model, data=self.conditioning)
 
     fit: Fit
     mock: Mock
