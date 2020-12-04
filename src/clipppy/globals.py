@@ -1,6 +1,7 @@
 import builtins
 import inspect
 import operator
+import re
 import sys
 
 import typing as tp
@@ -155,3 +156,7 @@ def depoutine(obj: tp.Union[_bound_partial, tp.Any], msgr_type: tp.Type[Messenge
         and isinstance(obj.func, partial) and obj.func.func is _context_wrap
         and isinstance(obj.func.args[0], msgr_type)
     ) else obj
+
+
+_allmatch = re.compile('.*')
+_nomatch = re.compile('.^')

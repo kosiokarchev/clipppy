@@ -30,6 +30,7 @@ author = 'Kosio Karchev'
 extensions = [
     'sphinx.ext.intersphinx',
     'sphinx.ext.autodoc',
+    'sphinx.ext.inheritance_diagram',
     'sphinx.ext.napoleon',
     'autoapi.extension',
 ]
@@ -45,6 +46,9 @@ intersphinx_mapping = {
 napoleon_google_docstring = False
 
 autoapi_dirs = ['../../src/clipppy']
+autoapi_options = ['members', 'undoc-members', 'private-members', 'show-inheritance', 'show-inheritance-diagram',
+                   'special-members']
+autoapi_member_order = 'groupwise'
 
 default_role = 'any'
 
