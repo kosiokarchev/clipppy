@@ -10,7 +10,7 @@ setup(
     package_dir={'': 'src'},
     install_requires=[
         'Click',
-        'ruamel-yaml',
+        'ruamel.yaml',
         'pyro-ppl',
         'more-itertools'
     ],
