@@ -1,8 +1,8 @@
+import ast
 import builtins
 import inspect
 import io
 import os
-import re
 import typing as tp
 from contextlib import contextmanager
 from functools import lru_cache, partial, wraps
@@ -193,26 +193,36 @@ class PrefixedStochasticYAMLConstructor(YAMLConstructor):
 # sys.version_info >= (3, 8)
 # spec: tp.Union[str, tp.TypedDict('', **{'from': str, 'import': tp.Union[str, tp.Sequence[str]]}, total=False)]
 def _import(*specs: tp.Union[str, tp.Dict]):
+    res = {}
     for spec in specs:
-        if isinstance(spec, str):
-            module = __import__(spec)
-            setattr(builtins, module.__name__, module)
-        else:
-            fromlist = spec.get('import', [])
-            if isinstance(fromlist, str):
-                fromlist = [re.split(r'\s+as\s+', name)
-                            for name in re.split(r'\s*,\s*', fromlist)]
-
-            module = import_module(spec['from'])
-
-            if not fromlist:
-                fromlist = getattr(module, '__all__', [key for key in vars(module) if not key.startswith('_')])
-
-            fromlist = [((name,)*2 if isinstance(name, str)
-                         else name*2 if len(name)==1 else name)
-                        for name in fromlist]
-
-            vars(builtins).update({oname: getattr(module, iname) for iname, oname in fromlist})
+        if not isinstance(spec, str):
+            spec = f'from {spec["from"]} import {spec["import"] if isinstance(spec["import"], str) else ", ".join(spec["import"])}'
+        while True:
+            try:
+                for stmt in ast.parse(spec).body:
+                    if isinstance(stmt, ast.Import):
+                        for names in stmt.names:
+                            if names.asname is None:
+                                res[names.name] = __import__(names.name)
+                            else:
+                                res[names.asname] = import_module(names.name)
+                    elif isinstance(stmt, ast.ImportFrom):
+                        mod = import_module(stmt.module)
+                        for names in stmt.names:
+                            if names.name == '*':
+                                for name in getattr(mod, '__all__', [key for key in vars(mod) if not key.startswith('_')]):
+                                    res[name] = getattr(mod, name)
+                            else:
+                                res[names.asname if names.asname is not None else names.name] = getattr(mod, names.name)
+            except SyntaxError as e:
+                if not spec.startswith('import'):
+                    spec = 'import ' + spec
+                    continue  # retry
+                else:
+                    raise e
+            else:
+                break
+    vars(builtins).update(res)
 
 
 @contextmanager
