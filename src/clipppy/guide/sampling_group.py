@@ -76,6 +76,8 @@ class SamplingGroup(PyroModule, metaclass=_AbstractPyroModuleMeta):
 
         self._process_prototype()
 
+        self.active = True
+
     @property
     @lru_cache()
     def init(self) -> torch.Tensor:

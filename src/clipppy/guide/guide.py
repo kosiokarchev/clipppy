@@ -105,5 +105,5 @@ class Guide(BaseGuide):
     def guide(self, *args, **kwargs) -> tp.Dict[str, torch.Tensor]:
         # Union of all model samples dicts from self.children
         return dict(item
-                    for group in self.children()
+                    for group in self.children() if group.active
                     for item in group(*args, **kwargs)[1].items())
