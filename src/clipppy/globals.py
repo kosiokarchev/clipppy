@@ -85,7 +85,7 @@ def valueiter(arg: tp.Union[tp.Iterable, tp.Mapping, tp.Any]):
 
 
 def dict_union(*args: tp.Mapping[_KT, _VT], **kwargs: _VT) -> tp.Dict[_KT, _VT]:
-    return reduce(lambda a, b: dict(chain(a.items(), b.items()))
+    return reduce((lambda a, b: dict(chain(a.items(), b.items())))
                   if sys.version_info < (3, 9) else operator.or_,
                   args + (kwargs,), {})
 
