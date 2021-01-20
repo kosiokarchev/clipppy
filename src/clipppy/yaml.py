@@ -17,11 +17,12 @@ from ruamel import yaml as yaml
 
 # noinspection PyUnresolvedReferences
 from .Clipppy import Clipppy
-from .globals import flatten, get_global, valueiter
+from .globals import get_global
 # noinspection PyUnresolvedReferences
 from .guide import Guide
 from .stochastic import InfiniteSampler, Param, Sampler, SemiInfiniteSampler, stochastic
 from .templating import TemplateWithDefaults
+from .utils import flatten, valueiter
 
 
 class YAMLConstructor:
@@ -71,7 +72,7 @@ class YAMLConstructor:
                         else:
                             node.tag = cls.type_to_tag.get(hint, f'!py:{hint.__module__}.{hint.__name__}')
             except Exception as e:
-                warn(e)
+                warn(str(e))
 
         return signature
 

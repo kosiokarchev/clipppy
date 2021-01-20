@@ -1,6 +1,6 @@
 import pyro
-import torch
 import pyro.distributions as dist
+import torch
 
 
 ##################################################

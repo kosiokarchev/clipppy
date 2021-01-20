@@ -7,8 +7,8 @@ from pyro import distributions as dist
 from pyro.distributions import constraints
 from pyro.nn import PyroParam, PyroSample
 
-from clipppy.globals import _nomatch, dict_union
-from clipppy.guide.sampling_group import LocatedSamplingGroupWithPrior, SamplingGroup
+from ..guide.sampling_group import LocatedSamplingGroupWithPrior, SamplingGroup
+from ..utils import _nomatch, dict_union
 
 
 # This should be the same as EasyGuide's map_estimate,

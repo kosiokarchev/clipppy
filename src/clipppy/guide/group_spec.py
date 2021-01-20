@@ -1,9 +1,11 @@
 import re
 import typing as tp
 
-from clipppy.globals import _allmatch, _nomatch, _Site, get_global
-from clipppy.guide.sampling_group import SamplingGroup
-from clipppy.guide.sampling_groups import DeltaSamplingGroup
+from .sampling_group import SamplingGroup
+from .sampling_groups import DeltaSamplingGroup
+from ..globals import get_global
+from ..utils import _allmatch, _nomatch
+from ..utils.typing import _Site
 
 
 class GroupSpec:

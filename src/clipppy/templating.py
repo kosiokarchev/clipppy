@@ -1,11 +1,12 @@
 import re
 import string
 import typing
+from collections import ChainMap
 from functools import partial
 
-from collections import ChainMap
+from frozendict import frozendict
 
-_sentinel_dict = {}
+_sentinel_dict = frozendict()
 
 class Template(string.Template):
     def safe_convert(self, mo: re.Match, mapping: typing.Mapping[str, str]):

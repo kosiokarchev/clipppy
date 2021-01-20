@@ -1,9 +1,9 @@
+import typing
 from copy import copy
 
 import torch
-import typing
-from pyro.distributions.torch_distribution import MaskedDistribution, ExpandedDistribution, TorchDistributionMixin, \
-    TorchDistribution
+from pyro.distributions.torch_distribution import (ExpandedDistribution, MaskedDistribution, TorchDistribution,
+                                                   TorchDistributionMixin)
 from pyro.distributions.util import broadcast_shape
 from torch.distributions import Independent
 

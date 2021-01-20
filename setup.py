@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 
 setup(
     name='clipppy',
@@ -12,7 +12,8 @@ setup(
         'Click',
         'ruamel.yaml',
         'pyro-ppl',
-        'more-itertools'
+        'more-itertools',
+        'frozendict'
     ],
     entry_points={
         'console_scripts': [

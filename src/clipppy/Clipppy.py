@@ -1,6 +1,6 @@
 import inspect
 import typing as tp
-from abc import abstractmethod, ABC
+from abc import ABC, abstractmethod
 from contextlib import nullcontext
 from functools import lru_cache
 
@@ -9,13 +9,14 @@ import pyro
 import pyro.infer
 import pyro.optim
 import torch
-from pyro.infer import Trace_ELBO, SVI
-
+from pyro.infer import SVI, Trace_ELBO
 from tqdm.auto import tqdm
 
-from .globals import register_globals, init_msgr, _Model, _Guide, noop, dict_union, depoutine
+from .globals import register_globals
 from .guide import Guide
-
+from .utils import dict_union, noop
+from .utils.pyro import depoutine, init_msgr
+from .utils.typing import _Guide, _Model
 
 __all__ = ('Clipppy', 'Fit', 'Mock', 'Command')
 
@@ -156,8 +157,10 @@ class Fit(Command):
     optimizer_args: tp.Optional[tp.Dict] = {}
     """The (keyword!) arguments to pass to ``optimizer_cls``.
     
-       Will be updated with the standalone ``lr`` passed. Defaults are
-       ``{'amsgrad': False, 'weight_decay': 0.}``."""
+       Will be updated with the standalone ``lr`` passed, unless it is ``noop``.
+       
+       Pass the special value `Command.no_call` to avoid instantiating
+       ``optimizer_cls`` and use it directly."""
 
     loss_cls: tp.Union[tp.Type[pyro.infer.ELBO], tp.Callable[..., torch.Tensor]]\
         = Trace_ELBO
@@ -169,12 +172,25 @@ class Fit(Command):
        Pass the special value `Command.no_call` to avoid instantiating
        ``load_cls`` and use it directly."""
 
+    callback: tp.Callable[[int, float, tp.Mapping[str, tp.Any]], tp.Any] = noop
+    """Callback to be executed after each step.
+    
+       Signature should be ``callback(i, loss, locals)``, where ``i`` is the
+       current step index, ``loss`` is the current loss, and ``locals`` is a
+       dictionary of the local variables in the fitting function. Depending on
+       the python implementation, modifying its values might influence the
+       fitting. Returning any ``True`` value interrupts the fitting."""
+
     @property
     def optimizer(self) -> pyro.optim.PyroOptim:
-        """Construct an optimizer as ``optimizer_cls(optimizer_args)``."""
-        return self.optimizer_cls(dict_union(
-            {'amsgrad': False, 'weight_decay': 0.}, self.optimizer_args, {'lr': self.lr}
-        ))
+        """
+        Construct an optimizer as ``optimizer_cls(optimizer_args)`` or simply
+        return `optimizer_cls` if `optimizer_args` is `Command.no_call`.
+        """
+        return (self.optimizer_cls if self.optimizer_args is Command.no_call
+                else self.optimizer_cls(
+                    self.optimizer_args if self.lr is noop else
+                    dict_union(self.optimizer_args, {'lr': self.lr})))
 
     @property
     def lossfunc(self) -> tp.Union[pyro.infer.ELBO, tp.Callable[..., torch.Tensor]]:
@@ -224,7 +240,7 @@ class Fit(Command):
 
                     tq.set_postfix_str(f'loss={loss:.3f} (avg={avgloss:.3f}, min={minloss:.3f}, slope={slope:.3e})')
 
-                    if 0 < self.min_steps <= i and self.converged(slope, windowed_losses):
+                    if self.callback(i, loss, locals()) or (0 < self.min_steps <= i and self.converged(slope, windowed_losses)):
                         break
         except KeyboardInterrupt:
             pass

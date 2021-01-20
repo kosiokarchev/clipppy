@@ -2,13 +2,12 @@ import typing as tp
 
 import click
 import torch
-
 from more_itertools import first
 
-import clipppy.autocli as autocli
-from clipppy.autocli import AutoCLI
-from clipppy.Clipppy import Clipppy
-from clipppy.yaml import MyYAML
+from . import autocli
+from .autocli import AutoCLI
+from .Clipppy import Clipppy
+from .yaml import MyYAML
 
 
 class LazyMultiCommand(click.MultiCommand):

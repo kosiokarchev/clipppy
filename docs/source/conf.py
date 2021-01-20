@@ -18,7 +18,7 @@
 # -- Project information -----------------------------------------------------
 
 project = 'CLIPPPY'
-copyright = '2020, Kosio Karchev'
+copyright = '2021, Kosio Karchev'
 author = 'Kosio Karchev'
 
 

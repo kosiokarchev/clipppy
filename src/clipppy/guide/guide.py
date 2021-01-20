@@ -13,10 +13,9 @@ from pyro.infer.autoguide.guides import prototype_hide_fn
 from pyro.nn import PyroModule
 from pyro.poutine.indep_messenger import CondIndepStackFrame
 
-from ..globals import init_msgr, register_globals
-
 from .group_spec import GroupSpec
 from .sampling_group import SamplingGroup
+from ..utils.pyro import init_msgr
 
 
 class BaseGuide(PyroModule):

@@ -12,7 +12,9 @@ from pyro.nn import PyroModule, PyroParam, PyroSample
 from pyro.poutine import runtime
 from torch.distributions import biject_to
 
-from clipppy.globals import _Site, enumlstrip, no_grad_msgr
+from ..utils import enumlstrip
+from ..utils.pyro import no_grad_msgr
+from ..utils.typing import _Site
 
 
 class _AbstractPyroModuleMeta(type(PyroModule), ABCMeta):
