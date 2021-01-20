@@ -5,8 +5,7 @@ import pyro.infer
 import pyro.optim
 import torch
 
-from .commandable import Commandable
-from .commands import Fit, Mock, PPD
+from .commands import Commandable, Fit, Mock, PPD
 from .globals import register_globals
 from .guide import Guide
 from .utils import noop

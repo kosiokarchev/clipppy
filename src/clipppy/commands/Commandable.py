@@ -1,7 +1,7 @@
 import typing as tp
 from functools import lru_cache
 
-from .commands import Command
+from .Command import Command
 
 
 class ProxyDict(dict):
