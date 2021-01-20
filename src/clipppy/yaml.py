@@ -16,10 +16,8 @@ import torch
 from ruamel import yaml as yaml
 
 # noinspection PyUnresolvedReferences
-from .Clipppy import Clipppy
+from . import Clipppy, helpers, guide
 from .globals import get_global
-# noinspection PyUnresolvedReferences
-from .guide import Guide
 from .stochastic import InfiniteSampler, Param, Sampler, SemiInfiniteSampler, stochastic
 from .templating import TemplateWithDefaults
 from .utils import flatten, valueiter
