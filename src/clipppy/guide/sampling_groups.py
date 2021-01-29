@@ -28,18 +28,21 @@ class DeltaSamplingGroup(SamplingGroup):
 
 
 class DiagonalNormalSamplingGroup(LocatedSamplingGroupWithPrior):
-    def __init__(self, sites, name='', init_scale=1., *args, **kwargs):
+    def __init__(self, sites, name='', init_scale: tp.Union[torch.Tensor, float] = 1., *args, **kwargs):
         super().__init__(sites, name, *args, **kwargs)
-        self.scale = PyroParam(torch.full_like(self.loc, init_scale), event_dim=1, constraint=constraints.positive)
+
+        self.scale = PyroParam(self._scale_diagonal(init_scale, self.jacobian(self.loc)),
+                               event_dim=1, constraint=constraints.positive)
 
     def prior(self):
         return dist.Normal(self.loc, self.scale).to_event(1)
 
 
 class MultivariateNormalSamplingGroup(LocatedSamplingGroupWithPrior):
-    def __init__(self, sites, name='', init_scale=1., *args, **kwargs):
+    def __init__(self, sites, name='', init_scale: tp.Union[torch.Tensor, float] = 1., *args, **kwargs):
         super().__init__(sites, name, *args, **kwargs)
-        self.scale_tril = PyroParam(dist.util.eye_like(self.loc, self.loc.shape[-1]) * init_scale,
+
+        self.scale_tril = PyroParam(self._scale_matrix(init_scale, self.jacobian(self.loc)),
                                     event_dim=2, constraint=constraints.lower_cholesky)
 
     def prior(self):
@@ -47,7 +50,10 @@ class MultivariateNormalSamplingGroup(LocatedSamplingGroupWithPrior):
 
 
 class PartialMultivariateNormalSamplingGroup(LocatedSamplingGroupWithPrior):
-    def __init__(self, sites, name='', diag=_nomatch, init_scale_full=1., init_scale_diag=1., *args, **kwargs):
+    def __init__(self, sites, name='', diag=_nomatch,
+                 init_scale_full: tp.Union[torch.Tensor, float] = 1.,
+                 init_scale_diag: tp.Union[torch.Tensor, float] = 1.,
+                 *args, **kwargs):
         self.diag_pattern = re.compile(diag)
         self.sites_full, self.sites_diag = ({site['name']: site for site in _}
                                             for _ in partition(lambda _: self.diag_pattern.match(_['name']), sites))
@@ -57,10 +63,12 @@ class PartialMultivariateNormalSamplingGroup(LocatedSamplingGroupWithPrior):
         self.size_full, self.size_diag = (sum(self.sizes[site] for site in _)
                                           for _ in (self.sites_full, self.sites_diag))
 
-        self.scale_full = PyroParam(dist.util.eye_like(self.loc, self.size_full) * init_scale_full,
+        jac = self.jacobian(self.loc)
+
+        self.scale_full = PyroParam(self._scale_matrix(init_scale_full, jac[:self.size_full]),
                                     event_dim=2, constraint=constraints.lower_cholesky)
         self.scale_cross = PyroParam(self.loc.new_zeros(torch.Size((self.size_diag, self.size_full))), event_dim=2)
-        self.scale_diag = PyroParam(self.loc.new_full(torch.Size((self.size_diag,)), init_scale_diag),
+        self.scale_diag = PyroParam(self._scale_diagonal(init_scale_diag, jac[self.size_full:]),
                                     event_dim=1, constraint=constraints.positive)
 
         self.guide_z_aux = PyroSample(dist.Normal(self.loc.new_zeros(()), 1.).expand(self.event_shape).to_event(1))

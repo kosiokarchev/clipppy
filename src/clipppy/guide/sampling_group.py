@@ -12,7 +12,7 @@ from pyro.nn import PyroModule, PyroParam, PyroSample
 from pyro.poutine import runtime
 from torch.distributions import biject_to
 
-from ..utils import enumlstrip
+from ..utils import enumlstrip, to_tensor
 from ..utils.pyro import no_grad_msgr
 from ..utils.typing import _Site
 
@@ -101,13 +101,22 @@ class SamplingGroup(PyroModule, metaclass=_AbstractPyroModuleMeta):
     # By default, include constraining transformation's Jacobian factor
     include_det_jac = True
 
+    def unpacker(self, arr: torch.Tensor) -> tp.Iterable[torch.Tensor]:
+        for pos, size in zip((s for s in [0] for x in self.sizes.values() for s in [x+s]), self.sizes.values()):
+            yield arr[..., pos-size:pos]
+
+    def jacobian(self, guide_z: torch.Tensor) -> torch.Tensor:
+        return torch.cat(tuple(
+            tr.log_abs_det_jacobian(z, tr(z)).exp()
+            for z, tr in zip(self.unpacker(guide_z), self.transforms.values())
+        ), dim=-1)
+
     def unpack(self, group_z: torch.Tensor, guide: 'Guide' = None) -> tp.Dict[str, torch.Tensor]:
         model_zs = {}
         for pos, (name, fn, frames), transform in zip(
             # lazy cumsum!! python ftw!
             (s for s in [0] for x in self.sizes.values() for s in [x+s]),
-            map(itemgetter('name', 'fn', 'cond_indep_stack'),
-                self.sites.values()),
+            map(itemgetter('name', 'fn', 'cond_indep_stack'), self.sites.values()),
             self.transforms.values()
         ):
             fn: dist.TorchDistribution
@@ -160,6 +169,17 @@ class LocatedSamplingGroupWithPrior(SamplingGroup):
     def __init__(self, sites, name='', *args, **kwargs):
         super().__init__(sites, name, *args, **kwargs)
         self.loc = PyroParam(self.init[self.mask], event_dim=1)
+
+    @staticmethod
+    def _scale_diagonal(scale: tp.Union[torch.Tensor, float], jac: torch.Tensor):
+        return to_tensor(scale).to(jac).expand_as(jac) / jac
+
+    @staticmethod
+    def _scale_matrix(scale: tp.Union[torch.Tensor, float], jac: torch.Tensor):
+        scale = to_tensor(scale)
+        if not scale.shape[-2:] == 2*(jac.shape[-1],):
+            scale = dist.util.eye_like(jac, jac.shape[-1]) * scale.expand_as(jac).unsqueeze(-2)
+        return scale / jac.unsqueeze(-1)
 
     @abstractmethod
     def prior(self): ...
