@@ -61,7 +61,7 @@ class Fit(Command):
        Pass the special value `Command.no_call` to avoid instantiating
        ``load_cls`` and use it directly."""
 
-    callback: tp.Callable[[int, float, tp.Mapping[str, tp.Any]], tp.Any] = noop
+    callback: tp.Callable[[int, float, tp.Mapping[str, tp.Any]], tp.Any] = None
     """Callback to be executed after each step.
 
        Signature should be ``callback(i, loss, locals)``, where ``i`` is the
@@ -129,8 +129,7 @@ class Fit(Command):
 
                     tq.set_postfix_str(f'loss={loss:.3f} (avg={avgloss:.3f}, min={minloss:.3f}, slope={slope:.3e})')
 
-                    if self.callback(i, loss, locals()) or (
-                            0 < self.min_steps <= i and self.converged(slope, windowed_losses)):
+                    if (callable(self.callback) and self.callback(i, loss, locals())) or (0 < self.min_steps <= i and self.converged(slope, windowed_losses)):
                         break
         except KeyboardInterrupt:
             pass

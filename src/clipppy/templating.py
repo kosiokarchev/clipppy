@@ -8,6 +8,7 @@ from frozendict import frozendict
 
 _sentinel_dict = frozendict()
 
+
 class Template(string.Template):
     def safe_convert(self, mo: re.Match, mapping: typing.Mapping[str, str]):
         named = mo.group('named') or mo.group('braced')

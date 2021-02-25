@@ -16,11 +16,15 @@ import torch
 from ruamel import yaml as yaml
 
 # noinspection PyUnresolvedReferences
-from . import Clipppy, helpers, guide
+from . import Clipppy, guide, helpers
 from .globals import get_global
 from .stochastic import InfiniteSampler, Param, Sampler, SemiInfiniteSampler, stochastic
 from .templating import TemplateWithDefaults
 from .utils import flatten, valueiter
+
+
+class NodeTypeMismatchError(Exception):
+    pass
 
 
 class YAMLConstructor:
@@ -28,6 +32,8 @@ class YAMLConstructor:
                                 Parameter('kwargs', Parameter.VAR_KEYWORD)))
 
     type_to_tag: tp.Dict[tp.Type, str] = {}
+
+    strict_node_type = True
 
     @classmethod
     def fix_signature(cls, signature: BoundArguments) -> BoundArguments:
@@ -50,9 +56,9 @@ class YAMLConstructor:
                 hint_is_builtin = any(hint.__module__.startswith(mod)
                                       for mod in ('builtins', 'typing', 'collections'))
                 hint_is_str = issubclass(hint, str)
-                hint_is_callable = issubclass(hint, (type, tp.Callable))
+                hint_is_callable = issubclass(hint, type) or (not isinstance(hint, type) and issubclass(hint, tp.Callable))
                 target_nodetype = (
-                    (hint in (tp.Type, tp.Callable) or hint_is_str) and yaml.ScalarNode
+                    (hint_is_callable or hint_is_str) and yaml.ScalarNode
                     or hint_is_builtin and issubclass(hint, tp.Mapping) and yaml.MappingNode
                     or hint_is_builtin and issubclass(hint, tp.Iterable) and yaml.SequenceNode
                     or yaml.Node
@@ -60,7 +66,7 @@ class YAMLConstructor:
 
                 for node in valueiter(value):
                     if not isinstance(node, target_nodetype):
-                        warn(f'Expected {target_nodetype} for {param}, but got {node}.')
+                        raise NodeTypeMismatchError(f'Expected {target_nodetype} for {param}, but got {node}.')
                     if (not hint_is_str
                         and (not hint_is_builtin or target_nodetype in (yaml.ScalarNode, yaml.Node))
                         and node.tag.startswith('tag:yaml.org')):
@@ -70,6 +76,8 @@ class YAMLConstructor:
                         else:
                             node.tag = cls.type_to_tag.get(hint, f'!py:{hint.__module__}.{hint.__name__}')
             except Exception as e:
+                if cls.strict_node_type and isinstance(e, NodeTypeMismatchError):
+                    raise e
                 warn(str(e))
 
         return signature
@@ -273,7 +281,7 @@ class MyYAML(yaml.YAML):
         with cwd(self.base_dir or path.parent):
             return super().load(stream)
 
-    def __init__(self, base_dir: os.PathLike = None):
+    def __init__(self, base_dir: tp.Union[os.PathLike, tp.AnyStr] = None):
         self.base_dir = base_dir if base_dir is not None else None
 
         super().__init__(typ='unsafe')

@@ -176,7 +176,7 @@ class LocatedSamplingGroupWithPrior(SamplingGroup):
 
     @staticmethod
     def _scale_matrix(scale: tp.Union[torch.Tensor, float], jac: torch.Tensor):
-        scale = to_tensor(scale)
+        scale = to_tensor(scale).to(jac)
         if not scale.shape[-2:] == 2*(jac.shape[-1],):
             scale = dist.util.eye_like(jac, jac.shape[-1]) * scale.expand_as(jac).unsqueeze(-2)
         return scale / jac.unsqueeze(-1)
