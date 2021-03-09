@@ -86,8 +86,11 @@ class YAMLConstructor:
     def get_args_kwargs(cls, loader: yaml.Loader, node: yaml.Node,
                         signature: Signature = free_signature) -> tp.Optional[BoundArguments]:
         if isinstance(node, yaml.ScalarNode):
-            # This sometimes fails because of ruamel/yaml/resolver.py line 370
-            node.tag = loader.resolver.resolve(yaml.ScalarNode, node.value, [True, False])
+            try:
+                # This sometimes fails because of ruamel/yaml/resolver.py line 370
+                node.tag = loader.resolver.resolve(yaml.ScalarNode, node.value, [True, False])
+            except IndexError:
+                node.tag = loader.DEFAULT_SCALAR_TAG
             val = loader.construct_object(node)
             if val is None:
                 val = loader.yaml_constructors[node.tag](loader, node)
@@ -184,11 +187,16 @@ class PrefixedYAMLConstructor(YAMLConstructor):
 class PrefixedTensorYAMLConstructor(YAMLConstructor):
     @classmethod
     def construct(cls, loader: yaml.Loader, suffix: str, node: yaml.Node, **kwargs):
-        dtype = getattr(torch, suffix)
-        if not isinstance(getattr(torch, suffix), torch.dtype):
+        if suffix == 'default':
+            kwargs = {'dtype': torch.get_default_dtype(),
+                      'device': torch._C._get_default_device(),
+                      **kwargs}
+        else:
+            kwargs = {'dtype': getattr(torch, suffix), **kwargs}
+        if not isinstance(kwargs['dtype'], torch.dtype):
             raise ValueError(f'In tag "!torch:{suffix}", "{suffix}" is not a valid torch.dtype.')
 
-        return super().construct(torch.tensor, loader, node, dtype=dtype)
+        return super().construct(torch.tensor, loader, node, **kwargs)
 
 
 class PrefixedStochasticYAMLConstructor(YAMLConstructor):
@@ -242,7 +250,7 @@ def cwd(newcwd: os.PathLike):
         os.chdir(curcwd)
 
 
-class MyYAML(yaml.YAML):
+class ClipppyYAML(yaml.YAML):
     @lru_cache(typed=True)
     def _load_file(self, loader: tp.Callable, *args, **kwargs):
         return loader(*args, **kwargs)
@@ -258,12 +266,9 @@ class MyYAML(yaml.YAML):
         data = self._load_file(np.load, fname)
         return data if key is None else data[key]
 
-    @property
-    def txt(self):
-        @wraps(np.loadtxt)
-        def _txt(*args, **kwargs):
-            return self._load_file(np.loadtxt, *args, **kwargs)
-        return _txt
+    @wraps(np.loadtxt)
+    def txt(self, *args, **kwargs):
+        return self._load_file(np.loadtxt, *args, **kwargs)
 
     def pt(self, fname: str, key: str = None, **kwargs):
         data = self._load_file(torch.load, fname, **kwargs)
@@ -281,7 +286,7 @@ class MyYAML(yaml.YAML):
         with cwd(self.base_dir or path.parent):
             return super().load(stream)
 
-    def __init__(self, base_dir: tp.Union[os.PathLike, tp.AnyStr] = None):
+    def __init__(self, base_dir: tp.Union[os.PathLike, tp.AnyStr] = None, interpret_as_Clipppy=True):
         self.base_dir = base_dir if base_dir is not None else None
 
         super().__init__(typ='unsafe')
@@ -308,6 +313,10 @@ class MyYAML(yaml.YAML):
         c.add_constructor('!InfiniteSampler', YAMLConstructor.apply(InfiniteSampler))
         c.add_constructor('!SemiInfiniteSampler', YAMLConstructor.apply(SemiInfiniteSampler))
 
-        r: yaml.Resolver = self.resolver
-        r.add_path_resolver('!py:Clipppy', [])
-        r.add_path_resolver('!py:Guide', ['guide'])
+        if interpret_as_Clipppy:
+            r: yaml.Resolver = self.resolver
+            r.add_path_resolver('!py:Clipppy', [])
+            r.add_path_resolver('!py:Guide', ['guide'])
+
+
+MyYAML = ClipppyYAML

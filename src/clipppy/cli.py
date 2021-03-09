@@ -7,7 +7,7 @@ from more_itertools import first
 from . import autocli
 from .autocli import AutoCLI
 from .Clipppy import Clipppy
-from .yaml import MyYAML
+from .yaml import ClipppyYAML
 
 
 class LazyMultiCommand(click.MultiCommand):
@@ -56,7 +56,7 @@ def cli(ctx: click.Context, config: autocli._ExistingFile, device: device_litera
         torch.set_default_tensor_type(torch.cuda.FloatTensor)
         torch.cuda.set_device(torch.device(device))
 
-    ctx.obj = MyYAML().load(config)
+    ctx.obj = ClipppyYAML().load(config)
     assert isinstance(ctx.obj, Clipppy)
     print(ctx.obj)
 

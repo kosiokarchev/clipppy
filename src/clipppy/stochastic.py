@@ -9,6 +9,7 @@ import torch
 from pyro import distributions as dist
 from pyro.contrib.autoname import scope
 
+
 __all__ = ('Sampler', 'Param', 'InfiniteSampler', 'SemiInfiniteSampler',
            'StochasticWrapper', 'stochastic')
 
@@ -142,7 +143,7 @@ def stochastic(obj, specs: tp.Mapping[str, tp.Union[Sampler, dist.torch_distribu
     use :any:`_stochastic`.
     """
     return _stochastic(obj=obj, stochastic_specs={
-        name: (spec.set_name(name) if isinstance(spec, Sampler)
+        name: (spec.set_name(name) if isinstance(spec, AbstractSampler)
                else Sampler(spec, name=name) if isinstance(spec, dist.torch_distribution.TorchDistributionMixin)
                else spec)
         for name, spec in specs.items()
