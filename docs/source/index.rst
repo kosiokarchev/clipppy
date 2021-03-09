@@ -42,6 +42,9 @@ of a custom script model definition.
    :maxdepth: 4
    :caption: Contents:
 
+   userguide
+   devguide
+
 
 Indices and tables
 ==================
