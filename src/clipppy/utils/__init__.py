@@ -1,12 +1,13 @@
 import operator
 import re
 import sys
+import types
 import typing as tp
 from functools import reduce
 from itertools import chain, repeat
 
 import torch
-from more_itertools import always_iterable, always_reversible, last, lstrip
+from more_itertools import always_iterable, always_reversible, collapse, last, lstrip
 
 from .typing import _KT, _T, _Tin, _Tout, _VT
 
@@ -19,16 +20,11 @@ def itemsetter(value=None, *keys, **kwargs):
     return _itemsetter
 
 
-def flatten(*args: tp.Union[tp.Iterable, tp.Any]):
-    for item in args:
-        yield from flatten(*item) if isinstance(item, tp.Iterable) and not isinstance(item, str) else (item,)
-
-
 def compose(*funcs: tp.Callable[[_Tin], tp.Union[_Tin, _Tout]]) -> tp.Callable[[_Tin], _Tout]:
-    return lambda arg: last(arg for arg in (arg,) for f in always_reversible(flatten(funcs)) for arg in (f(arg),))
+    return lambda arg: last(arg for arg in (arg,) for f in always_reversible(collapse(funcs)) for arg in (f(arg),))
 
 
-def valueiter(arg: tp.Union[tp.Iterable, tp.Mapping, tp.Any]):
+def valueiter(arg: tp.Union[tp.Iterable[_T], tp.Mapping[tp.Any, _T], _T]) -> tp.Iterable[_T]:
     return isinstance(arg, tp.Mapping) and arg.values() or always_iterable(arg)
 
 
@@ -44,7 +40,7 @@ def enumlstrip(iterable, pred):
         yield y[1]  # return value from (index, value)
 
 
-def tryme(func: tp.Callable[..., _T], exc: tp.Type[Exception]=Exception, default: _T = None) -> _T:
+def tryme(func: tp.Callable[..., _T], exc: tp.Type[Exception] = Exception, default: _T = None) -> _T:
     try:
         return func()
     except exc:
@@ -61,3 +57,22 @@ def to_tensor(val):
 
 _allmatch = re.compile('.*')
 _nomatch = re.compile('.^')
+
+
+class ObjectWrapper:
+    def __init__(self, baseObject):
+        self.__class__ = baseObject.__class__
+        self.__dict__ = baseObject.__dict__
+
+
+class FunctionWrapper:
+    """def functions and lambdas in python are special..."""
+    def __init__(self, func: types.FunctionType):
+        self.func = func
+
+    def __call__(self, *args, **kwargs):
+        return self.func(*args, **kwargs)
+
+
+def wrap_any(obj):
+    return FunctionWrapper(obj) if isinstance(obj, types.FunctionType) else ObjectWrapper(obj)

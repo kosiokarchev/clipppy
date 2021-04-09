@@ -3,16 +3,20 @@ import builtins
 import inspect
 import io
 import os
+import typing
 import typing as tp
 from contextlib import contextmanager
 from functools import lru_cache, partial, wraps
 from importlib import import_module
 from inspect import BoundArguments, Parameter, Signature
+from itertools import repeat, starmap
 from pathlib import Path
 from warnings import warn
 
 import numpy as np
 import torch
+from frozendict import frozendict
+from more_itertools import consume, side_effect
 from ruamel import yaml as yaml
 
 # noinspection PyUnresolvedReferences
@@ -20,7 +24,11 @@ from . import Clipppy, guide, helpers
 from .globals import get_global
 from .stochastic import InfiniteSampler, Param, Sampler, SemiInfiniteSampler, stochastic
 from .templating import TemplateWithDefaults
-from .utils import flatten, valueiter
+from .utils import valueiter
+from .utils.signatures import get_param_for_name
+
+
+_T = typing.TypeVar('_T')
 
 
 class NodeTypeMismatchError(Exception):
@@ -36,106 +44,113 @@ class YAMLConstructor:
     strict_node_type = True
 
     @classmethod
-    def fix_signature(cls, signature: BoundArguments) -> BoundArguments:
-        for name, value in signature.arguments.items():
-            try:
-                param = signature.signature.parameters[name]
-                if param.annotation is param.empty:
-                    if param.default in (param.empty, None):
-                        continue
-                    else:
-                        hint = type(param.default)
+    def infer_single_tag(cls, node: typing.Union[yaml.Node, _T], param: Parameter) -> typing.Union[yaml.Node, _T]:
+        if not isinstance(node, yaml.Node):
+            return node
+        try:
+            if param.annotation is param.empty:
+                if param.default in (param.empty, None):
+                    # noinspection PyTypeChecker
+                    return
                 else:
-                    hint = (param.annotation if inspect.isclass(param.annotation)
-                            else tp.get_origin(param.annotation) or None)
+                    hint = type(param.default)
+            else:
+                hint = (param.annotation if inspect.isclass(param.annotation)
+                        else tp.get_origin(param.annotation) or None)
 
-                if not inspect.isclass(hint):
-                    # TODO: Maybe handle Union??
-                    continue
+            if not inspect.isclass(hint):
+                # TODO: Maybe handle Union??
+                # noinspection PyTypeChecker
+                return
 
-                hint_is_builtin = any(hint.__module__.startswith(mod)
-                                      for mod in ('builtins', 'typing', 'collections'))
-                hint_is_str = issubclass(hint, str)
-                hint_is_callable = issubclass(hint, type) or (not isinstance(hint, type) and issubclass(hint, tp.Callable))
-                target_nodetype = (
+            hint_is_builtin = any(hint.__module__.startswith(mod)
+                                  for mod in ('builtins', 'typing', 'collections'))
+            hint_is_str = issubclass(hint, str)
+            hint_is_callable = issubclass(hint, type) or (not isinstance(hint, type) and issubclass(hint, tp.Callable))
+            target_nodetype = (
                     (hint_is_callable or hint_is_str) and yaml.ScalarNode
                     or hint_is_builtin and issubclass(hint, tp.Mapping) and yaml.MappingNode
                     or hint_is_builtin and issubclass(hint, tp.Iterable) and yaml.SequenceNode
                     or yaml.Node
-                )
+            )
 
-                for node in valueiter(value):
-                    if not isinstance(node, target_nodetype):
-                        raise NodeTypeMismatchError(f'Expected {target_nodetype} for {param}, but got {node}.')
-                    if (not hint_is_str
+            for n in valueiter(node):
+                if not isinstance(n, target_nodetype):
+                    raise NodeTypeMismatchError(f'Expected {target_nodetype} for {param}, but got {n}.')
+                if (not hint_is_str
                         and (not hint_is_builtin or target_nodetype in (yaml.ScalarNode, yaml.Node))
-                        and node.tag.startswith('tag:yaml.org')):
-                        if hint_is_callable:
-                            node.tag = f'!py:{node.value}'
-                            node.value = ''
-                        else:
-                            node.tag = cls.type_to_tag.get(hint, f'!py:{hint.__module__}.{hint.__name__}')
-            except Exception as e:
-                if cls.strict_node_type and isinstance(e, NodeTypeMismatchError):
-                    raise e
-                warn(str(e))
+                        and n.tag.startswith('tag:yaml.org')):
+                    if hint_is_callable:
+                        n.tag = f'!py:{n.value}'
+                        n.value = ''
+                    else:
+                        n.tag = cls.type_to_tag.get(hint, f'!py:{hint.__module__}.{hint.__name__}')
+        except Exception as e:
+            if cls.strict_node_type and isinstance(e, NodeTypeMismatchError):
+                raise
+            warn(str(e), RuntimeWarning)
+        finally:
+            return node
 
-        return signature
+    @classmethod
+    def infer_tags_from_signature(cls, signature: BoundArguments):
+        consume(
+            cls.infer_single_tag(node, param)
+            for name, val in signature.arguments.items()
+            for param in [signature.signature.parameters[name]]
+            for node in (val.values() if param.kind == param.VAR_KEYWORD else
+                         val if param.kind == param.VAR_POSITIONAL else (val,))
+        )
+
+    _args_key = '<'
+    _kwargs_key = '<<'
 
     @classmethod
     def get_args_kwargs(cls, loader: yaml.Loader, node: yaml.Node,
                         signature: Signature = free_signature) -> tp.Optional[BoundArguments]:
+        construct_object = partial(loader.construct_object, deep=True)
         if isinstance(node, yaml.ScalarNode):
             try:
                 # This sometimes fails because of ruamel/yaml/resolver.py line 370
                 node.tag = loader.resolver.resolve(yaml.ScalarNode, node.value, [True, False])
             except IndexError:
                 node.tag = loader.DEFAULT_SCALAR_TAG
-            val = loader.construct_object(node)
-            if val is None:
-                val = loader.yaml_constructors[node.tag](loader, node)
+            val = loader.yaml_constructors[node.tag](loader, node)
             return None if val is None else signature.bind(val)
         elif isinstance(node, yaml.SequenceNode):
-            bound = signature.bind(*node.value)
-            args = []
-            subnodes = node.value
+            cls.infer_tags_from_signature(signature.bind(*node.value))
+            return signature.bind(*map(construct_object, node.value))
         elif isinstance(node, yaml.MappingNode):
-            # Construct the keys
-            kwargs = {loader.construct_object(key, deep=True): val for key, val in node.value}
+            pos_params = (p for param in signature.parameters.values()
+                          for p in ((param,) if param.kind in (param.POSITIONAL_ONLY, param.POSITIONAL_OR_KEYWORD)
+                                    else repeat(param) if param.kind == param.VAR_POSITIONAL else ()))
+            args, kwargs = [],  {}
+            for key, val in node.value:  # type: typing.Union[yaml.Node, str], typing.Union[yaml.Node, typing.Iterable]
+                if key.tag == 'tag:yaml.org,2002:merge':
+                    key.tag = loader.DEFAULT_SCALAR_TAG
+                key = construct_object(key)
+                if key == '__args':
+                    key = cls._args_key
+                    warn(f'Using "__args" for parameter expansion is deprecated and will soon be considered an ordinary keyword argument.'
+                         f' Consider using "{cls._args_key}" instead.', FutureWarning)
+                if key == cls._args_key:
+                    is_default_seq = val.tag == loader.DEFAULT_SEQUENCE_TAG
+                    if is_default_seq:
+                        consume(starmap(cls.infer_single_tag, zip(val.value, pos_params)))
+                    val = construct_object(val)
+                    args.extend(val if is_default_seq else side_effect(partial(next, pos_params), val))
+                elif key == cls._kwargs_key:
+                    if val.tag in (loader.DEFAULT_SCALAR_TAG, loader.DEFAULT_SEQUENCE_TAG):
+                        raise NodeTypeMismatchError(f'Expected {yaml.MappingNode} for "{key}", but got {val}.')
+                    elif val.tag == loader.DEFAULT_MAPPING_TAG:
+                        consume(cls.infer_single_tag(v, get_param_for_name(signature, construct_object(k))) for k, v in val.value)
+                    kwargs.update(construct_object(val))
+                else:
+                    kwargs[key] = construct_object(cls.infer_single_tag(val, get_param_for_name(signature, key)))
 
-            args = kwargs.setdefault('__args', yaml.SequenceNode('tag:yaml.org,2002:seq', []))
-            args_is_seq = isinstance(args, yaml.SequenceNode) and args.tag == 'tag:yaml.org,2002:seq'
-            if args_is_seq:
-                kwargs['__args'] = args.value
-
-            # Extract nodes in order (nodes are not iterable, so only "flattens" __args)
-            subnodes = list(flatten(kwargs.values()))
-
-            __args = kwargs.pop('__args')
-            bound = signature.bind_partial(*(__args if args_is_seq else ()), **kwargs)
+            return signature.bind(*args, **kwargs)
         else:
-            raise ValueError(f'Invalid node type, {node}')
-
-        # Experimental
-        cls.fix_signature(bound)
-
-        # Construct nodes in yaml order
-        subnode_values = {n: loader.construct_object(n, deep=True)
-                          for n in subnodes}
-
-        for key, val in bound.arguments.items():
-            bound.arguments[key] = (
-                signature.parameters[key].kind == Parameter.VAR_POSITIONAL
-                and (subnode_values[n] for n in val)
-                or signature.parameters[key].kind == Parameter.VAR_KEYWORD
-                and {name: subnode_values[n] for name, n in val.items()}
-                or subnode_values[val]
-            )
-
-        if args and args in subnode_values:
-            return bound.signature.bind(*subnode_values[args], **bound.kwargs)
-
-        return bound
+            raise ValueError(f'Invalid node type: {node}')
 
     @classmethod
     def construct(cls, obj, loader: yaml.Loader, node: yaml.Node, **kw):
@@ -319,4 +334,7 @@ class ClipppyYAML(yaml.YAML):
             r.add_path_resolver('!py:Guide', ['guide'])
 
 
-MyYAML = ClipppyYAML
+def __getattr__(name):
+    if name == 'MyYAML':
+        warn('"MyYAML" was renamed to "ClipppyYAML" and will soon be unavailable.', FutureWarning)
+        return ClipppyYAML
