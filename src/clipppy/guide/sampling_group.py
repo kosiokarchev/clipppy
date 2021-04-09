@@ -12,6 +12,7 @@ from pyro.nn import PyroModule, PyroParam, PyroSample
 from pyro.poutine import runtime
 from torch.distributions import biject_to
 
+from . import guide
 from ..utils import enumlstrip, to_tensor
 from ..utils.pyro import no_grad_msgr
 from ..utils.typing import _Site
@@ -111,7 +112,7 @@ class SamplingGroup(PyroModule, metaclass=_AbstractPyroModuleMeta):
             for z, tr in zip(self.unpacker(guide_z), self.transforms.values())
         ), dim=-1)
 
-    def unpack(self, group_z: torch.Tensor, guide: 'Guide' = None) -> tp.Dict[str, torch.Tensor]:
+    def unpack(self, group_z: torch.Tensor, guide: 'guide.Guide' = None) -> tp.Dict[str, torch.Tensor]:
         model_zs = {}
         for pos, (name, fn, frames), transform in zip(
             # lazy cumsum!! python ftw!
@@ -154,7 +155,7 @@ class SamplingGroup(PyroModule, metaclass=_AbstractPyroModuleMeta):
             ret.enter_context(torch.no_grad())
             return ret
 
-    def forward(self, guide: 'Guide' = None, infer: dict = None) -> tp.Tuple[torch.Tensor, tp.Dict[str, torch.Tensor]]:
+    def forward(self, guide: 'guide.Guide' = None, infer: dict = None) -> tp.Tuple[torch.Tensor, tp.Dict[str, torch.Tensor]]:
         with pyro.poutine.infer_config(
                 config_fn=lambda site: dict(**(infer if infer is not None else {}), is_auxiliary=True)):
             with self.grad_context:

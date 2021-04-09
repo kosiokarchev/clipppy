@@ -14,6 +14,7 @@ from .utils import wrap_any
 __all__ = ('Sampler', 'Param', 'InfiniteSampler', 'SemiInfiniteSampler',
            'StochasticWrapper', 'stochastic')
 
+
 _sentinel = object()
 
 
@@ -134,7 +135,3 @@ def stochastic(obj, specs: tp.Mapping[str, tp.Union[Sampler, dist.torch_distribu
                else spec)
         for name, spec in specs.items()
     }, name=name)
-
-
-from .globals import register_globals
-register_globals(**{a: globals()[a] for a in __all__ if a in globals()})

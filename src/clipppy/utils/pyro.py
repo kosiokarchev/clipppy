@@ -13,7 +13,7 @@ from . import to_tensor
 from .typing import _Site
 
 
-__all__ = ('NoGradMessenger', 'init_fn', 'init_msgr', 'no_grad_msgr', 'depoutine')
+__all__ = 'NoGradMessenger', 'init_fn', 'init_msgr', 'no_grad_msgr', 'depoutine'
 
 
 class NoGradMessenger(Messenger):

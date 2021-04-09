@@ -6,13 +6,14 @@ import pyro.optim
 import torch
 
 from .commands import Commandable, Fit, Mock, PPD
-from .globals import register_globals
 from .guide import Guide
 from .utils import noop
 from .utils.pyro import depoutine
 from .utils.typing import _Model
 
-__all__ = ('Clipppy',)
+
+__all__ = 'Clipppy',
+
 
 
 class Clipppy(Commandable):
@@ -55,6 +56,3 @@ class Clipppy(Commandable):
     fit: Fit
     mock: Mock
     ppd: PPD
-
-
-register_globals(**{a: globals()[a] for a in __all__ if a in globals()})

@@ -3,10 +3,10 @@ import typing
 import pyro.optim
 import torch
 
-from .globals import register_globals
 from .utils import dict_union
 
-__all__ = ('scheduled_optimizer', 'scheduled_optimizer_callback', 'scheduled_optimizer_callback_with_loss')
+
+__all__ = 'scheduled_optimizer', 'scheduled_optimizer_callback', 'scheduled_optimizer_callback_with_loss'
 
 
 def scheduled_optimizer(lr_scheduler_cls: typing.Type[pyro.optim.PyroLRScheduler],
@@ -43,6 +43,3 @@ class scheduled_optimizer_callback_with_loss(scheduled_optimizer_callback):
     @staticmethod
     def _get_args(i, loss, locs):
         return loss,
-
-
-register_globals(**{a: globals()[a] for a in __all__ if a in globals()})

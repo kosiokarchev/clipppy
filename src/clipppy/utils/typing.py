@@ -6,7 +6,7 @@ from pyro import distributions as dist
 from pyro.poutine.indep_messenger import CondIndepStackFrame
 
 
-__all__ = ('_T', '_KT', '_VT', '_Tout', '_Tin', '_Site', '_Model', '_Guide')
+__all__ = '_T', '_KT', '_VT', '_Tout', '_Tin', '_Site', '_Model', '_Guide'
 
 
 _T = tp.TypeVar('_T')

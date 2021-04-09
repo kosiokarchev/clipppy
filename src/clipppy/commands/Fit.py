@@ -79,8 +79,8 @@ class Fit(Command):
         """
         return (self.optimizer_cls if self.optimizer_args is Command.no_call
                 else self.optimizer_cls(
-            self.optimizer_args if self.lr is noop else
-            dict_union(self.optimizer_args, {'lr': self.lr})))
+                    self.optimizer_args if self.lr is noop else
+                    dict_union(self.optimizer_args, {'lr': self.lr})))
 
     @property
     def lossfunc(self) -> tp.Union[pyro.infer.ELBO, tp.Callable[..., torch.Tensor]]:

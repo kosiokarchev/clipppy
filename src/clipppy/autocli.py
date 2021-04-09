@@ -11,8 +11,8 @@ from more_itertools import always_iterable, always_reversible, first
 from .utils import dict_union, tryme
 from .utils.signatures import is_variadic
 
-__all__ = ('_File', '_ExistingFile', '_Dir', '_Dir',
-           'AutoCLI', 'acli')
+
+__all__ = '_File', '_ExistingFile', '_Dir', '_Dir', 'AutoCLI', 'acli'
 
 
 class EvalParamType(click.ParamType):

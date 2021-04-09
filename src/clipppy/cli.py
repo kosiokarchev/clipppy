@@ -6,7 +6,7 @@ from more_itertools import first
 
 from . import autocli
 from .autocli import AutoCLI
-from .Clipppy import Clipppy
+from .clipppy import Clipppy
 from .yaml import ClipppyYAML
 
 

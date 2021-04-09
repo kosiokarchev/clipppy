@@ -60,9 +60,9 @@ _nomatch = re.compile('.^')
 
 
 class ObjectWrapper:
-    def __init__(self, baseObject):
-        self.__class__ = baseObject.__class__
-        self.__dict__ = baseObject.__dict__
+    def __init__(self, base):
+        self.__class__ = base.__class__
+        self.__dict__ = base.__dict__
 
 
 class FunctionWrapper:
