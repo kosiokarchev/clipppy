@@ -129,7 +129,7 @@ Secondly, YAML introduces the idea of *tags* (and Clipppy takes it maybe a bit t
                 # any other keyword arguments will go into kwargs
 
     ``!tensor``
-        Explicitly construct a `torch.Tensor` via the `torch.tensor` function. The simplest use case is to convert a list of numbers to a tensor: ::
+        Explicitly construct a `torch.Tensor` via the `torch.tensor` function. The simplest use case is to convert a list of numbers\ [#]_ to a tensor: ::
 
             !tensor [[1, 2, 3, 4, 5]]
 
@@ -146,6 +146,7 @@ Secondly, YAML introduces the idea of *tags* (and Clipppy takes it maybe a bit t
 
         .. note:: The usual caveats of `torch.tensor` apply. In particular, a copy is **always** made, even if the ``data`` is a `Tensor <torch.Tensor>` with the requested properties. Furthermore, if an explicit ``device`` argument is not given, any non-`Tensor <torch.Tensor>` ``data`` will be (copied and) placed on the default ``torch`` device, whereas a `Tensor <torch.Tensor>` will be (copied and) **kept on the same device**. Use, therefore, :term:`\!tensor:default <!tensor:DTYPE>` to ensure that the result is placed on the default device.
 
+        .. [#] Arguably, it's simpler to convert a single number to a tensor: ``!tensor 42``. This also works but is slightly frowned upon.
         .. [#dtypebrackets] If you're confused about the brackets here, remember that `torch.get_default_dtype` is a function and needs to be called with no arguments.
 
     ``!tensor:DTYPE``
