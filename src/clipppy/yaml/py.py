@@ -1,3 +1,4 @@
+from __future__ import annotations
 from dataclasses import dataclass
 from importlib import import_module
 from operator import attrgetter
@@ -14,7 +15,7 @@ __all__ = 'PyYAMLConstructor',
 
 @dataclass
 class PyYAMLConstructor(YAMLConstructor):
-    _yaml: 'yaml.ClipppyYAML'
+    _yaml: yaml.ClipppyYAML
 
     @property
     def scope(self):

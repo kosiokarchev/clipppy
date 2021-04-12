@@ -5,8 +5,11 @@ import pyro.infer
 import pyro.optim
 import torch
 
-from .commands import Commandable, Fit, Mock, PPD
-from .guide import Guide
+from .commands.Commandable import Commandable
+from .commands.fit import Fit
+from .commands.mock import Mock
+from .commands.ppd import PPD
+from .guide.guide import Guide
 from .utils import noop
 from .utils.pyro import depoutine
 from .utils.typing import _Model

@@ -20,8 +20,9 @@ from .constructor import YAMLConstructor
 from .prefixed import PrefixedStochasticYAMLConstructor, PrefixedTensorYAMLConstructor
 from .py import PyYAMLConstructor
 from .. import Clipppy
-from ..guide.guide import Guide
-from ..stochastic import InfiniteSampler, Param, Sampler, SemiInfiniteSampler, stochastic as Stochastic
+from ..stochastic import stochastic as Stochastic
+from ..stochastic.infinite import InfiniteSampler, SemiInfiniteSampler
+from ..stochastic.sampler import Param, Sampler
 from ..templating import TemplateWithDefaults
 
 
