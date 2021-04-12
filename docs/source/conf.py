@@ -33,8 +33,9 @@ extensions = [
     'sphinx.ext.inheritance_diagram',
     'sphinx.ext.napoleon',
     'sphinx.ext.todo',
+    # 'sphinx.ext.viewcode',
     'autoapi.extension',
-    'recommonmark'
+    'recommonmark',
 ]
 
 todo_include_todos = True
@@ -54,6 +55,7 @@ autoapi_dirs = ['../../src/clipppy']
 autoapi_options = ['members', 'undoc-members', 'private-members', 'show-inheritance', 'show-inheritance-diagram',
                    'special-members']
 autoapi_member_order = 'groupwise'
+autoapi_keep_files = True
 
 default_role = 'any'
 
@@ -63,8 +65,17 @@ templates_path = ['_templates']
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = []
+root_doc = 'root.rst'
+exclude_patterns = ['userguide/*/*']
 
+trim_footnote_reference_space = True
+
+# language=rst
+rst_prolog = '''
+.. |Clipppy| replace:: Clipppy
+.. |citation needed| replace:: `[citation needed]`:superscript:
+.. _ruamel.yaml: https://yaml.readthedocs.io/en/latest/
+'''
 
 # -- Options for HTML output -------------------------------------------------
 
