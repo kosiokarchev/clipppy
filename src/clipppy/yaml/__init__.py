@@ -3,6 +3,7 @@ import builtins as __builtins__
 import inspect
 import io
 import os
+import re
 from collections import ChainMap
 from contextlib import contextmanager
 from functools import lru_cache, wraps
@@ -145,11 +146,18 @@ class ClipppyYAML(YAML):
         self.base_dir = base_dir if base_dir is not None else None
 
         super().__init__(typ='unsafe')
+        self.py_constructor = PyYAMLConstructor(self)
+
+        r: Resolver = self.resolver
+        r.add_implicit_resolver(self.py_constructor._args_tag, re.compile('<'), '<')
+
+        if interpret_as_Clipppy:
+            r.add_path_resolver(f'!py:{Clipppy.__name__}', [])
+
         c: Constructor = self.constructor
         # TODO: FORCE DEPTH!!
         c.deep_construct = True
 
-        self.py_constructor = PyYAMLConstructor(self)
         c.add_multi_constructor('!py:', self.py_constructor.construct)
         c.add_constructor('!import', YAMLConstructor.apply(self.import_))
 
@@ -171,11 +179,6 @@ class ClipppyYAML(YAML):
         c.add_constructor('!Sampler', YAMLConstructor.apply(Sampler))
         c.add_constructor('!InfiniteSampler', YAMLConstructor.apply(InfiniteSampler))
         c.add_constructor('!SemiInfiniteSampler', YAMLConstructor.apply(SemiInfiniteSampler))
-
-        if interpret_as_Clipppy:
-            r: Resolver = self.resolver
-            r.add_path_resolver(f'!py:{Clipppy.__name__}', [])
-            # r.add_path_resolver(f'!py:{Guide.__name__}', ['guide'])
 
 
 def __getattr__(name):
