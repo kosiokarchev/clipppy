@@ -1,35 +1,67 @@
 from __future__ import annotations
 
 from contextlib import nullcontext
-from typing import Any, cast, Mapping, MutableMapping, Type, TypeVar, Union
+from typing import Any, Callable, ClassVar, Generic, Mapping, Type, Union
 
-from pyro import distributions as dist
+from frozendict import frozendict
 from pyro.contrib.autoname import scope
+from pyro.distributions import TorchDistributionMixin
 
+from . import _T, Wrapper
 from .sampler import AbstractSampler, Sampler
-from ..utils import wrap_any
+from .wrapper import _cls, _T, Wrapper
 
 
 __all__ = 'stochastic',
 
-_T = TypeVar('_T')
-_cls = TypeVar('_cls')
+
+class Capsule(Generic[_T]):
+    always_include_self: ClassVar = False
+    value: _T
+
+    def __init__(self, *arg_capsules: Capsule, **kwarg_capsules: Capsule):
+        self.arg_capsules = arg_capsules
+        self.kwarg_capsules = kwarg_capsules
+
+    def fill(self, value):
+        if self.always_include_self or not (self.arg_capsules or self.kwarg_capsules):
+            self.value = value
+        for capsule, val in zip(self.arg_capsules, value):
+            capsule.value = val
+        for key in self.kwarg_capsules.keys() & value.keys():
+            self.kwarg_capsules[key].value = value[key]
 
 
-class StochasticWrapper:
-    _wrapped_registry: MutableMapping[Type, Type[StochasticWrapper]] = {}
+class ACapsule(Capsule):
+    always_include_self = True
 
-    _stochastic_obj: Any
-    stochastic_specs: Mapping[str, Union[Sampler, Any]]
-    stochastic_name: str
 
-    @property
-    def _stochastic_args(self):
-        return self._stochastic_obj, self.stochastic_specs, self.stochastic_name
+_SpecT = Union[Sampler, Any]
 
-    @_stochastic_args.setter
-    def _stochastic_args(self, value):
-        self._stochastic_obj, self.stochastic_specs, self.stochastic_name = value
+# _ExpandSentinel = NewType('_ExpandSentinel', object)
+# expand_sentinel: Final = _ExpandSentinel(object())
+#
+# _SpecKT: TypeAlias = str
+# _SpecVT = Union[Sampler, TorchDistributionMixin, Callable[[], 'SpecT']]
+# _SpecT = Mapping[_SpecKT, _SpecVT]
+#
+# def expanded_items(m: Mapping[Union[Any, _ExpandSentinel], Union[Any, Callable[[], Mapping[]]]]):
+#     for key, value in m.items():
+#         if key is expand_sentinel:
+#             yield
+#         yield (key, value)
+
+
+class StochasticWrapper(Wrapper):
+    stochastic_specs: Mapping[str, _SpecT] = Wrapper.WrapperArgGetter(1)
+    stochastic_capsule: Capsule = Wrapper.WrapperArgGetter(2)
+    stochastic_name: str = Wrapper.WrapperArgGetter(3)
+
+    @classmethod
+    def _wrap(cls: Type[_cls], obj: _T, specs: Mapping[str, _SpecT] = frozendict(), capsule: Capsule = None, name=None):
+        return super()._wrap(obj, specs, capsule, name)
+
+    expand: ClassVar = object()
 
     def __call__(self, *args, **kwargs):
         with scope(prefix=self.stochastic_name) if self.stochastic_name else nullcontext():
@@ -42,37 +74,20 @@ class StochasticWrapper:
     def __repr__(self):
         return (f'"{self.stochastic_name}": ' if self.stochastic_name else '') + super().__repr__()
 
-    def __reduce__(self):
-        return type(self).__mro__[1].stochastic_wrap, self._stochastic_args
 
-    def __class_getitem__(cls, item: Type):
-        _class = cls._wrapped_registry.get(item, None)
-        if _class is None:
-            _class = cast(Type[cls], type(f'{cls.__name__}[{item.__name__}]', (cls, item), {}))
-            cls._wrapped_registry[item] = _class
-        return _class
-
-    @classmethod
-    def stochastic_wrap(cls: Type[_cls], obj: _T, stochastic_specs: Mapping[str, Union[Sampler, Any]], name=None) -> Union[_cls, _T]:
-        """Make a StochasticWrapper from an object, with the given specs and name."""
-        _obj: Union[_cls, _T] = wrap_any(obj)
-        _obj.__class__ = cls[type(_obj)]
-        _obj._stochastic_args = obj, stochastic_specs, name
-        return _obj
-
-
-def stochastic(obj, specs: Mapping[str, Union[Sampler, dist.torch_distribution.TorchDistributionMixin, Any]], name=None):
-    """
+def stochastic(obj: Callable, specs: Mapping[str, Union[_SpecT, TorchDistributionMixin]],
+               capsule: Capsule = None, name: str = None):
+    r"""
     Make a StochasticWrapper from a dict of specs that can be:
-       - full-blown Sampler's
-       - TorchDistributionMixin's that will be wrapped in Sampler's
+       - full-blown `AbstractSampler`\ s
+       - `TorchDistributionMixin`\ s that will be wrapped in `Sampler`\ s
        - any other value that will be passed as-is
     If you really want to pass a distribution to the wrapper as-is,
-    use :any:`_stochastic`.
+    use `StochasticWrapper._wrap`.
     """
-    return StochasticWrapper.stochastic_wrap(obj=obj, stochastic_specs={
+    return StochasticWrapper._wrap(obj=obj, specs={
         name: (spec.set_name(name) if isinstance(spec, AbstractSampler)
-               else Sampler(spec, name=name) if isinstance(spec, dist.torch_distribution.TorchDistributionMixin)
+               else Sampler(spec, name=name) if isinstance(spec, TorchDistributionMixin)
                else spec)
         for name, spec in specs.items()
-    }, name=name)
+    }, capsule=capsule, name=name)
