@@ -1,7 +1,6 @@
 import enum
 import re
 import sys
-import types
 import typing as tp
 from functools import reduce
 from itertools import chain, repeat
@@ -59,22 +58,3 @@ def to_tensor(val):
 
 _allmatch = re.compile('.*')
 _nomatch = re.compile('.^')
-
-
-class ObjectWrapper:
-    def __init__(self, base):
-        self.__class__ = base.__class__
-        self.__dict__ = base.__dict__
-
-
-class FunctionWrapper:
-    """def functions and lambdas in python are special..."""
-    def __init__(self, func: types.FunctionType):
-        self.func = func
-
-    def __call__(self, *args, **kwargs):
-        return self.func(*args, **kwargs)
-
-
-def wrap_any(obj):
-    return FunctionWrapper(obj) if isinstance(obj, types.FunctionType) else ObjectWrapper(obj)

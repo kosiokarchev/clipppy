@@ -5,9 +5,8 @@ from typing import Any, Callable, ClassVar, Generic, Mapping, Type, Union
 
 from frozendict import frozendict
 from pyro.contrib.autoname import scope
-from pyro.distributions import TorchDistributionMixin
+from pyro.distributions.torch_distribution import TorchDistributionMixin
 
-from . import _T, Wrapper
 from .sampler import AbstractSampler, Sampler
 from .wrapper import _cls, _T, Wrapper
 
@@ -53,13 +52,18 @@ _SpecT = Union[Sampler, Any]
 
 
 class StochasticWrapper(Wrapper):
-    stochastic_specs: Mapping[str, _SpecT] = Wrapper.WrapperArgGetter(1)
-    stochastic_capsule: Capsule = Wrapper.WrapperArgGetter(2)
-    stochastic_name: str = Wrapper.WrapperArgGetter(3)
+    __slots__ = 'stochastic_specs', 'stochastic_capsule', 'stochastic_name'
 
-    @classmethod
-    def _wrap(cls: Type[_cls], obj: _T, specs: Mapping[str, _SpecT] = frozendict(), capsule: Capsule = None, name=None):
-        return super()._wrap(obj, specs, capsule, name)
+    def __new__(cls: Type[_cls], obj: _T = Wrapper._no_object, specs: Mapping[str, _SpecT] = frozendict(),
+                capsule: Capsule = None, name: str = None):
+        self = super().__new__(cls, obj, specs, capsule, name)
+
+        if obj is not Wrapper._no_object:
+            self.stochastic_specs = specs
+            self.stochastic_capsule = capsule
+            self.stochastic_name = name
+
+        return self
 
     expand: ClassVar = object()
 
@@ -85,7 +89,7 @@ def stochastic(obj: Callable, specs: Mapping[str, Union[_SpecT, TorchDistributio
     If you really want to pass a distribution to the wrapper as-is,
     use `StochasticWrapper._wrap`.
     """
-    return StochasticWrapper._wrap(obj=obj, specs={
+    return StochasticWrapper(obj=obj, specs={
         name: (spec.set_name(name) if isinstance(spec, AbstractSampler)
                else Sampler(spec, name=name) if isinstance(spec, TorchDistributionMixin)
                else spec)

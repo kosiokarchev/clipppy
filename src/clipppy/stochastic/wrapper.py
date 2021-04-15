@@ -1,46 +1,71 @@
-from dataclasses import dataclass
-from typing import cast, ClassVar, MutableMapping, Type, TypeVar, Union
+from __future__ import annotations
 
-from clipppy.stochastic import StochasticWrapper
-from clipppy.utils import wrap_any
+import types
+from functools import update_wrapper
+from itertools import starmap
+from typing import cast, ClassVar, Generic, MutableMapping, Type, TypeVar, Union
 
-
-class Wrapper:
-    @dataclass
-    class WrapperArgGetter:
-        idx: int
-
-        def __get__(self, instance, owner):
-            if not isinstance(instance, Wrapper):
-                raise TypeError(f'Can only get wrapper args on {type(Wrapper)} instances.')
-            return instance._wrapper_args[self.idx]
-
-    _wrapper_args: tuple
-    _wrapped_obj = WrapperArgGetter(0)
-
-    _wrapped_registry: ClassVar[MutableMapping[Type, Type[StochasticWrapper]]]
-
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-        cls._wrapped_registry = {}
-
-    def __class_getitem__(cls, item: Type):
-        _class = cls._wrapped_registry.get(item, None)
-        if _class is None:
-            _class = cast(Type[cls], type(f'{cls.__name__}[{item.__name__}]', (cls, item), {}))
-            cls._wrapped_registry[item] = _class
-        return _class
-
-    @classmethod
-    def _wrap(cls: Type[_cls], obj: _T, *args) -> Union[_cls, _T]:
-        _obj: Union[Wrapper, _T] = wrap_any(obj)
-        _obj.__class__ = cls[type(_obj)]
-        _obj._wrapper_args = (obj,) + args
-        return _obj
-
-    def __reduce__(self):
-        return type(self).mro()[1]._wrap, self._wrapper_args  # TODO: un-slight-hack
+from frozendict import frozendict
+from more_itertools import consume
 
 
 _T = TypeVar('_T')
 _cls = TypeVar('_cls')
+
+
+class FunctionWrapper:
+    """def functions and lambdas in python are special..."""
+    def __init__(self, func: types.FunctionType):
+        self.func = func
+        update_wrapper(self, func)
+
+    def __call__(self, *args, **kwargs):
+        return self.func(*args, **kwargs)
+
+
+class Wrapper(Generic[_T]):
+    """Maps non-wrapped types to wrapped with specific Wrapped subtype"""
+    _wrapped_registry: ClassVar[MutableMapping[Type[_T], Type[Wrapper[_T]]]]
+
+    def __init_subclass__(cls, final=False, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if not final:
+            cls._wrapped_registry = {}
+
+    def __class_getitem__(cls, item: Type):
+        if item not in cls._wrapped_registry:
+            cls._wrapped_registry[item] = cast(Type[cls], type(f'{cls.__name__}[{item.__name__}]', (cls, item), {
+                '__call__': update_wrapper(
+                    lambda self, *args, **kwargs: super(type(self), self).__call__(*args, **kwargs),
+                    item.__call__)
+            }, final=True))
+        return cls._wrapped_registry[item]
+
+    _no_object = object()
+
+    def __new__(cls: Type[_cls], obj: _T = _no_object, namespace=frozendict(), *args, **kwargs) -> Union[_cls, _T]:
+        if obj is cls._no_object:
+            return object.__new__(cls)
+        if isinstance(obj, types.FunctionType):
+            obj = FunctionWrapper(obj)
+
+        self: Union[Wrapper, _T] = cls[type(obj)]()
+        self.__dict__ = vars(obj)
+        self._wrapped_obj = obj
+        return self
+
+    # Nothing should follow __new__, or super().__init__'s should stop here
+    __init__ = lambda *args, **kwargs: None
+
+    __slots__ = '_wrapped_obj'
+
+    def __getstate__(self):
+        return {attr: getattr(self, attr) for t in type(self).__mro__
+                for attr in getattr(t, '__slots__', ()) if hasattr(self, attr)}
+
+    def __setstate__(self, state):
+        consume(starmap(self.__setattr__, state.items()))
+
+    def __reduce__(self):
+        wrapper_class = type(self).__bases__[0]
+        return wrapper_class.__new__, (wrapper_class, self._wrapped_obj,), self.__getstate__()
