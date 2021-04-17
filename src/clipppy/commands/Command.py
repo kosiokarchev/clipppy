@@ -6,6 +6,8 @@ from functools import lru_cache
 
 import pyro
 
+from ..utils import Sentinel
+
 
 class Command(ABC):
     """
@@ -32,7 +34,7 @@ class Command(ABC):
         if there are exact name matches in its signature.
     """
 
-    no_call = object()
+    no_call = Sentinel.no_call
     """Special value to be used to indicate that instead of calling an object,
        it should be returned as is."""
 

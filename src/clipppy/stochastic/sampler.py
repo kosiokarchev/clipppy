@@ -8,13 +8,12 @@ from pyro import distributions as dist
 
 __all__ = 'Sampler', 'Param'
 
-
-_sentinel = object()
+from ..utils import Sentinel
 
 
 class AbstractSampler(abc.ABC):
     def __init__(self, name: str = None, init: torch.Tensor = None, to_event: int = None,
-                 support: dist.constraints.Constraint = _sentinel):
+                 support: dist.constraints.Constraint = Sentinel.skip):
         self.name = name
         self.init = init
         self.support = support
@@ -30,9 +29,9 @@ class AbstractSampler(abc.ABC):
 
 class Sampler(AbstractSampler):
     def __init__(self, d: dist.torch_distribution.TorchDistributionMixin,
-                 expand_by: tp.Union[torch.Size, tp.Iterable[int]] = torch.Size(), mask: torch.Tensor = None,
+                 expand_by: Union[torch.Size, Iterable[int]] = torch.Size(), mask: torch.Tensor = None,
                  name: str = None, init: torch.Tensor = None, to_event: int = None,
-                 support: dist.constraints.Constraint = _sentinel,
+                 support: dist.constraints.Constraint = Sentinel.skip,
                  **kwargs):
         super(Sampler, self).__init__(name=name, init=init, to_event=to_event, support=support)
         self.d = d
@@ -41,7 +40,7 @@ class Sampler(AbstractSampler):
 
     @property
     def infer_msgr(self):
-        return pyro.poutine.infer_config(config_fn=lambda site: {key: val for key, val in self.infer.items() if val is not _sentinel})
+        return pyro.poutine.infer_config(config_fn=lambda site: {key: val for key, val in self.infer.items() if val is not Sentinel.skip})
 
     def __call__(self):
         with self.infer_msgr:
