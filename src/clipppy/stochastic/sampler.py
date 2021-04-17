@@ -1,5 +1,5 @@
 import abc
-import typing as tp
+from typing import Iterable, Union
 
 import pyro
 import torch

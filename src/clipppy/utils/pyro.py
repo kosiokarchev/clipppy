@@ -1,5 +1,5 @@
-import typing as tp
 from functools import partial
+from typing import Any, Type, Union
 
 import pyro
 import torch
@@ -34,7 +34,7 @@ init_msgr = InitMessenger(init_fn)
 no_grad_msgr = NoGradMessenger()
 
 
-def depoutine(obj: tp.Union[_bound_partial, tp.Any], msgr_type: tp.Type[Messenger] = ConditionMessenger):
+def depoutine(obj: Union[_bound_partial, Any], msgr_type: Type[Messenger] = ConditionMessenger):
     # noinspection PyTypeHints
     obj.func: partial
     return obj.func.args[1] if (

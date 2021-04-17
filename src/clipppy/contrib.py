@@ -1,5 +1,5 @@
-import typing
 from copy import copy
+from typing import Union
 
 import torch
 from pyro.distributions.torch_distribution import (ExpandedDistribution, MaskedDistribution, TorchDistribution,
@@ -43,7 +43,7 @@ class EventMaskedDistribution(MaskedDistribution):
         while isinstance(d, Independent) or isinstance(d, ExpandedDistribution):
             d = d.base_dist
 
-        d: typing.Union[TorchDistribution, TorchDistributionMixin] \
+        d: Union[TorchDistribution, TorchDistributionMixin] \
             = copy(d)
         d._batch_shape = d.shape()[:-len(event_shape)]
         d._event_shape = event_shape

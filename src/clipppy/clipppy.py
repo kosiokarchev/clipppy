@@ -1,4 +1,4 @@
-import typing as tp
+from typing import Mapping
 
 import pyro
 import pyro.infer
@@ -31,7 +31,7 @@ class Clipppy(Commandable):
     def __init__(self,
                  model: _Model = noop,
                  guide: Guide = Guide(),
-                 conditioning: tp.Dict[str, torch.Tensor] = None,
+                 conditioning: Mapping[str, torch.Tensor] = None,
                  **kwargs):
         # Conditions the model and sets it on the guide, if it doesn't have a model already.
         self.conditioning = conditioning if conditioning is not None else {}

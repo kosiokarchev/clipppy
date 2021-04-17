@@ -4,7 +4,7 @@ with little alterations of some annoying bits and cosmetic improvement.
 Also, with some new functionality.
 Edit: *inspired* by easyguide, but probably nothing like it anymore.
 """
-import typing as tp
+from typing import Any, Callable, Iterable, MutableMapping, Optional
 
 import pyro
 import torch
@@ -23,12 +23,12 @@ class BaseGuide(PyroModule):
     def __init__(self, model=None, name=''):
         super().__init__(name)
 
-        self.model: tp.Callable = model
+        self.model: Callable = model
 
-        self.prototype_trace: tp.Optional[pyro.poutine.Trace] = None
+        self.prototype_trace: Optional[pyro.poutine.Trace] = None
 
-        self.frames: tp.MutableMapping[str, CondIndepStackFrame] = {}
-        self.plates: tp.MutableMapping[str, pyro.plate] = {}
+        self.frames: MutableMapping[str, CondIndepStackFrame] = {}
+        self.plates: MutableMapping[str, pyro.plate] = {}
 
         self.is_setup = False
 
@@ -47,7 +47,7 @@ class BaseGuide(PyroModule):
                     raise NotImplementedError("EasyGuide does not support sequential pyro.plate")
                 self.frames[frame.name] = frame
 
-    def setup(self, *args, **kwargs) -> tp.Dict[str, tp.Any]:
+    def setup(self, *args, **kwargs) -> MutableMapping[str, Any]:
         old_children = dict(self.named_children())
         for child in old_children:
             delattr(self, child)
@@ -61,7 +61,7 @@ class BaseGuide(PyroModule):
             self.plates[name] = pyro.plate(name, size, subsample_size, subsample, *args, **kwargs)
         return self.plates[name]
 
-    def guide(self, *args, **kwargs) -> tp.Dict[str, torch.Tensor]:
+    def guide(self, *args, **kwargs) -> MutableMapping[str, torch.Tensor]:
         raise NotImplementedError
 
     def forward(self, *args, **kwargs):
@@ -79,14 +79,14 @@ class BaseGuide(PyroModule):
 
 
 class Guide(BaseGuide):
-    children: tp.Callable[[], tp.Iterable[SamplingGroup]]
+    children: Callable[[], Iterable[SamplingGroup]]
 
     def __init__(self, *specs: GroupSpec, model=None, name=''):
         super().__init__(model=model, name=name)
 
-        self.specs: tp.Iterable[GroupSpec] = specs
+        self.specs: Iterable[GroupSpec] = specs
 
-    def setup(self, *args, **kwargs) -> tp.Dict[str, SamplingGroup]:
+    def setup(self, *args, **kwargs) -> MutableMapping[str, SamplingGroup]:
         old_children = super().setup(*args, **kwargs)
 
         sites = [site for name, site in self.prototype_trace.iter_stochastic_nodes()]
@@ -101,7 +101,7 @@ class Guide(BaseGuide):
 
         return old_children
 
-    def guide(self, *args, **kwargs) -> tp.Dict[str, torch.Tensor]:
+    def guide(self, *args, **kwargs) -> MutableMapping[str, torch.Tensor]:
         # Union of all model samples dicts from self.children
         return dict(item
                     for group in self.children() if group.active
