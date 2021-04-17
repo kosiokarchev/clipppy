@@ -145,17 +145,17 @@ class ClipppyYAML(YAML):
     def __init__(self, base_dir: Union[os.PathLike, AnyStr] = None, interpret_as_Clipppy=True):
         self.base_dir = base_dir if base_dir is not None else None
 
-        super().__init__(typ='unsafe')
+        super().__init__(typ='unsafe', pure=True)
         self.py_constructor = PyYAMLConstructor(self)
 
         r: Resolver = self.resolver
-        r.add_implicit_resolver(self.py_constructor._args_tag, re.compile('<'), '<')
+        r.add_implicit_resolver(self.py_constructor._pos_tag, re.compile('/'), '/')
+        r.add_implicit_resolver(self.py_constructor._mergepos_tag, re.compile('<'), '<')
 
         if interpret_as_Clipppy:
             r.add_path_resolver(f'!py:{Clipppy.__name__}', [])
 
         c: Constructor = self.constructor
-        # TODO: FORCE DEPTH!!
         c.deep_construct = True
 
         c.add_multi_constructor('!py:', self.py_constructor.construct)

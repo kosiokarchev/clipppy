@@ -1,76 +1,104 @@
 from __future__ import annotations
 
+from _weakref import ReferenceType
 from contextlib import nullcontext
-from typing import Any, Callable, ClassVar, Generic, Mapping, Type, Union
+from typing import (Any, Callable, final, Generic, Iterable, Mapping, Optional, Type, TYPE_CHECKING, Union)
 
 from frozendict import frozendict
 from pyro.contrib.autoname import scope
 from pyro.distributions.torch_distribution import TorchDistributionMixin
 
+from .infinite import *
 from .sampler import AbstractSampler, Sampler
-from .wrapper import _cls, _T, Wrapper
+from .wrapper import _cls, _T, CallableWrapper, Wrapper
 
 
 __all__ = 'stochastic',
 
 
+@final
 class Capsule(Generic[_T]):
-    always_include_self: ClassVar = False
-    value: _T
+    _value: Union[ReferenceType[_T], _T]
+    __slots__ = '_value', 'lifetime', 'remaining'
 
-    def __init__(self, *arg_capsules: Capsule, **kwarg_capsules: Capsule):
-        self.arg_capsules = arg_capsules
-        self.kwarg_capsules = kwarg_capsules
+    def __init__(self, lifetime: int = 1):
+        self.lifetime = lifetime
+        self.remaining = 0
 
-    def fill(self, value):
-        if self.always_include_self or not (self.arg_capsules or self.kwarg_capsules):
-            self.value = value
-        for capsule, val in zip(self.arg_capsules, value):
-            capsule.value = val
-        for key in self.kwarg_capsules.keys() & value.keys():
-            self.kwarg_capsules[key].value = value[key]
+    @property
+    def value(self) -> _T:
+        ret = self._value() if isinstance(self._value, ReferenceType) else self._value
+        self.remaining -= 1
+        if self.remaining < 1 and not isinstance(self._value, ReferenceType):
+            try:
+                self._value = ReferenceType(self._value)
+            except TypeError:
+                pass
+        return ret
 
+    @value.setter
+    def value(self, val: _T):
+        self._value = val
+        self.remaining = self.lifetime
 
-class ACapsule(Capsule):
-    always_include_self = True
-
-
-_SpecT = Union[Sampler, Any]
-
-# _ExpandSentinel = NewType('_ExpandSentinel', object)
-# expand_sentinel: Final = _ExpandSentinel(object())
-#
-# _SpecKT: TypeAlias = str
-# _SpecVT = Union[Sampler, TorchDistributionMixin, Callable[[], 'SpecT']]
-# _SpecT = Mapping[_SpecKT, _SpecVT]
-#
-# def expanded_items(m: Mapping[Union[Any, _ExpandSentinel], Union[Any, Callable[[], Mapping[]]]]):
-#     for key, value in m.items():
-#         if key is expand_sentinel:
-#             yield
-#         yield (key, value)
+    def __repr__(self):
+        return f'<Capsule: {getattr(self, "_value", None)!r}>'
 
 
-class StochasticWrapper(Wrapper):
-    __slots__ = 'stochastic_specs', 'stochastic_capsule', 'stochastic_name'
+class Encapsulator(CallableWrapper[_T]):
+    __slots__ = 'capsule', 'capsule_args', 'capsule_kwargs'
 
-    def __new__(cls: Type[_cls], obj: _T = Wrapper._no_object, specs: Mapping[str, _SpecT] = frozendict(),
-                capsule: Capsule = None, name: str = None):
-        self = super().__new__(cls, obj, specs, capsule, name)
+    def __init__(self, obj, /, *capsule_args: Capsule, **capsule_kwargs: Capsule):
+        super().__init__(obj)
+        self.capsule: Optional[Capsule] = None
+        self.capsule_args = capsule_args
+        self.capsule_kwargs = capsule_kwargs
 
-        if obj is not Wrapper._no_object:
+    def __call__(self, *args, **kwargs):
+        value = super().__call__(*args, **kwargs)
+        if self.capsule:
+            self.capsule.value = value
+        if self.capsule_args:
+            for capsule, val in zip(self.capsule_args, value):
+                capsule.value = val
+        if self.capsule_kwargs:
+            for key in self.capsule_kwargs.keys() & value.keys():
+                self.capsule_kwargs[key].value = value[key]
+        return value
+
+
+class AllEncapsulator(Encapsulator[_T]):
+    def __init__(self, obj, capsule: Capsule, /, *capsule_args: Capsule, **capsule_kwargs: Capsule):
+        super().__init__(obj, *capsule_args, **capsule_kwargs)
+        self.capsule = capsule
+
+
+_SpecT = Union[Sampler, Capsule, TorchDistributionMixin, Any]
+
+
+class Stochastic(AllEncapsulator[_T]):
+    __slots__ = 'stochastic_specs', 'stochastic_name'
+
+    if TYPE_CHECKING:
+        def __new__(cls: Type[_cls], obj: _T, *args, **kwargs): ...
+    else:
+        def _init__(self: _cls, obj: _T, specs: Mapping[str, _SpecT] = frozendict(), name: str = None,
+                    capsule: Capsule = None, capsule_args: Iterable[Capsule] = (),
+                    capsule_kwargs: Mapping[str, Capsule] = frozendict()):
             self.stochastic_specs = specs
-            self.stochastic_capsule = capsule
             self.stochastic_name = name
+            super().__init__(obj, capsule, *capsule_args, **capsule_kwargs)
 
-        return self
-
-    expand: ClassVar = object()
+        __init__ = _init__
 
     def __call__(self, *args, **kwargs):
         with scope(prefix=self.stochastic_name) if self.stochastic_name else nullcontext():
             return super().__call__(*args, **kwargs, **{
-                name: (spec() if isinstance(spec, AbstractSampler) else spec)
+                name: (
+                    spec() if isinstance(spec, AbstractSampler) else
+                    spec.value if isinstance(spec, Capsule) else
+                    Sampler(spec, name=name) if isinstance(spec, TorchDistributionMixin)
+                    else spec)
                 for name, spec in self.stochastic_specs.items()
                 if name not in kwargs
             })
@@ -79,8 +107,11 @@ class StochasticWrapper(Wrapper):
         return (f'"{self.stochastic_name}": ' if self.stochastic_name else '') + super().__repr__()
 
 
+s = Stochastic(lambda: None)
+
+
 def stochastic(obj: Callable, specs: Mapping[str, Union[_SpecT, TorchDistributionMixin]],
-               capsule: Capsule = None, name: str = None):
+               name: str = None):
     r"""
     Make a StochasticWrapper from a dict of specs that can be:
        - full-blown `AbstractSampler`\ s
@@ -89,9 +120,9 @@ def stochastic(obj: Callable, specs: Mapping[str, Union[_SpecT, TorchDistributio
     If you really want to pass a distribution to the wrapper as-is,
     use `StochasticWrapper._wrap`.
     """
-    return StochasticWrapper(obj=obj, specs={
+    return Stochastic(obj=obj, specs={
         name: (spec.set_name(name) if isinstance(spec, AbstractSampler)
                else Sampler(spec, name=name) if isinstance(spec, TorchDistributionMixin)
                else spec)
         for name, spec in specs.items()
-    }, capsule=capsule, name=name)
+    }, name=name)

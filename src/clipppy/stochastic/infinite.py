@@ -1,4 +1,4 @@
-from functools import partial, wraps
+from functools import partialmethod
 
 import torch
 from pyro import distributions as dist
@@ -34,5 +34,9 @@ class SemiInfiniteUniform(InfiniteUniform):
         return torch.where(value < 0., value.new_full((), -float('inf')), value.new_zeros(()))
 
 
-InfiniteSampler = wraps(Sampler)(partial(Sampler, d=InfiniteUniform()))
-SemiInfiniteSampler = wraps(Sampler)(partial(Sampler, d=SemiInfiniteUniform()))
+class InfiniteSampler(Sampler):
+    __init__ = partialmethod(Sampler.__init__, InfiniteUniform())
+
+
+class SemiInfiniteSampler(Sampler):
+    __init__ = partialmethod(Sampler.__init__, SemiInfiniteUniform())
