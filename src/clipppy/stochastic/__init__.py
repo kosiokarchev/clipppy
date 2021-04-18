@@ -3,6 +3,7 @@ from __future__ import annotations
 from _weakref import ReferenceType
 from contextlib import nullcontext
 from typing import (Any, Callable, final, Generic, Iterable, Mapping, Optional, Type, TYPE_CHECKING, Union)
+from warnings import warn
 
 from frozendict import frozendict
 from pyro.contrib.autoname import scope
@@ -13,7 +14,7 @@ from .sampler import AbstractSampler, Sampler
 from .wrapper import _cls, _T, CallableWrapper, Wrapper
 
 
-__all__ = 'stochastic',
+__all__ = 'Stochastic',
 
 
 @final
@@ -73,7 +74,7 @@ class AllEncapsulator(Encapsulator[_T]):
         self.capsule = capsule
 
 
-_SpecT = Union[Sampler, Capsule, TorchDistributionMixin, Any]
+_SpecT = Union[AbstractSampler, Capsule, TorchDistributionMixin, Any]
 
 
 class Stochastic(AllEncapsulator[_T]):
@@ -85,7 +86,12 @@ class Stochastic(AllEncapsulator[_T]):
         def _init__(self: _cls, obj: _T, specs: Mapping[str, _SpecT] = frozendict(), name: str = None,
                     capsule: Capsule = None, capsule_args: Iterable[Capsule] = (),
                     capsule_kwargs: Mapping[str, Capsule] = frozendict()):
-            self.stochastic_specs = specs
+            self.stochastic_specs = {
+                name: (spec.set_name(name) if isinstance(spec, AbstractSampler)
+                       else Sampler(spec, name=name) if isinstance(spec, TorchDistributionMixin)
+                       else spec)
+                for name, spec in specs.items()
+            }
             self.stochastic_name = name
             super().__init__(obj, capsule, *capsule_args, **capsule_kwargs)
 
@@ -107,22 +113,8 @@ class Stochastic(AllEncapsulator[_T]):
         return (f'"{self.stochastic_name}": ' if self.stochastic_name else '') + super().__repr__()
 
 
-s = Stochastic(lambda: None)
-
-
-def stochastic(obj: Callable, specs: Mapping[str, Union[_SpecT, TorchDistributionMixin]],
-               name: str = None):
-    r"""
-    Make a StochasticWrapper from a dict of specs that can be:
-       - full-blown `AbstractSampler`\ s
-       - `TorchDistributionMixin`\ s that will be wrapped in `Sampler`\ s
-       - any other value that will be passed as-is
-    If you really want to pass a distribution to the wrapper as-is,
-    use `StochasticWrapper._wrap`.
-    """
-    return Stochastic(obj=obj, specs={
-        name: (spec.set_name(name) if isinstance(spec, AbstractSampler)
-               else Sampler(spec, name=name) if isinstance(spec, TorchDistributionMixin)
-               else spec)
-        for name, spec in specs.items()
-    }, name=name)
+if not TYPE_CHECKING:
+    def __getattr__(name):
+        if name in ('StochasticWrapper', 'stochastic'):
+            warn(f'Use \'Stochastic\' instead of \'{name}\', which will soon be unavailable', FutureWarning)
+            return Stochastic

@@ -1,26 +1,23 @@
+from itertools import starmap
+from typing import Any, MutableMapping
+
 import torch
-from ruamel import yaml as yaml
+from more_itertools import consume
 
-from .constructor import YAMLConstructor
-from ..stochastic import stochastic
-
-
-class PrefixedTensorYAMLConstructor(YAMLConstructor):
-    @classmethod
-    def construct(cls, loader: yaml.Loader, suffix: str, node: yaml.Node, **kwargs):
-        if suffix == 'default':
-            kwargs = {'dtype': torch.get_default_dtype(),
-                      'device': torch._C._get_default_device(),
-                      **kwargs}
-        else:
-            kwargs = {'dtype': getattr(torch, suffix), **kwargs}
-        if not isinstance(kwargs['dtype'], torch.dtype):
-            raise ValueError(f'In tag \'!torch:{suffix}\', \'{suffix}\' is not a valid torch.dtype.')
-
-        return super().construct(torch.tensor, loader, node, **kwargs)
+from ..stochastic import Stochastic
 
 
-class PrefixedStochasticYAMLConstructor(YAMLConstructor):
-    @classmethod
-    def construct(cls, loader: yaml.Loader, suffix: str, node: yaml.Node, **kwargs):
-        return super().construct(stochastic, loader, node, name=suffix)
+def tensor_prefix(suffix: str, kwargs: MutableMapping[str, Any]):
+    consume(starmap(kwargs.setdefault, (
+        (('dtype', torch.get_default_dtype()), ('device', torch._C._get_default_device()))
+        if suffix == 'default' else (('dtype', getattr(torch, suffix)),)
+    )))
+    if not isinstance(kwargs['dtype'], torch.dtype):
+        raise ValueError(f'In tag \'!torch:{suffix}\', \'{suffix}\' is not a valid torch.dtype.')
+
+    return torch.tensor, kwargs
+
+
+def stochastic_prefix(suffix: str, kwargs: MutableMapping[str, Any]):
+    kwargs.setdefault('name', suffix)
+    return Stochastic, kwargs
