@@ -3,12 +3,13 @@ from __future__ import annotations
 import collections.abc
 from inspect import isclass, Parameter
 from itertools import chain, repeat, starmap
-from types import GenericAlias
-from typing import Callable, ClassVar, get_args, get_origin, Iterable, Mapping, MutableMapping, Optional, Type, TypeVar
+from types import GenericAlias, NoneType
+from typing import (
+    Callable, ClassVar, get_args, get_origin, Iterable, Mapping, MutableMapping, Optional, Type, TypeVar, Union)
 from warnings import warn
 
 from more_itertools import consume
-from ruamel.yaml import Node, MappingNode, ScalarNode, SequenceNode
+from ruamel.yaml import MappingNode, Node, ScalarNode, SequenceNode
 
 from . import resolver
 from ..utils import Sentinel
@@ -96,11 +97,15 @@ class TaggerMixin:
                 if issubclass(origin, collections.abc.Iterable) and isinstance(node, SequenceNode) else
                 ()
             )))
-
-            return self.tag_node(node, origin)
-        else:  # Union, etc...
-            # TODO: Maybe handle Union??
+        elif origin is Union:
+            if len(args := get_args(hint)) == 2 and args[1] is NoneType:
+                origin = args[0]  # Optional[...]
+            else:  # TODO: Maybe handle Union??
+                return node
+        else:
             return node
+
+        return self.tag_node(node, origin)
 
     def tag_from_param(self, node: Node, param: Optional[Parameter]):
         if param is None or self.is_explicit_tagged(node):
