@@ -17,9 +17,9 @@ from .prefixed import stochastic_prefix, tensor_prefix
 # TODO: .resolver comes before .constructor!
 from .resolver import ClipppyResolver, ImplicitClipppyResolver
 from .constructor import ClipppyConstructor as CC
-from ..stochastic import Stochastic
 from ..stochastic.infinite import InfiniteSampler, SemiInfiniteSampler
 from ..stochastic.sampler import Param, Sampler
+from ..stochastic.stochastic import Stochastic
 from ..templating import TemplateWithDefaults
 
 
@@ -110,10 +110,8 @@ CC.add_multi_constructor('!tensor:', CC.apply_prefixed(tensor_prefix))
 # TODO: Needs to be handled better?
 CC.type_to_tag[torch.Tensor] = '!tensor'
 
-for typ in (Param, Sampler, InfiniteSampler, SemiInfiniteSampler):
+for typ in (Stochastic, Param, Sampler, InfiniteSampler, SemiInfiniteSampler):
     CC.add_constructor(f'!{typ.__name__}', CC.apply(typ))
-# TODO: merge when replace stochastic -> Stochastic
-CC.add_constructor('!Stochastic', CC.apply(Stochastic))
 CC.add_multi_constructor('!Stochastic:', CC.apply_prefixed(stochastic_prefix))
 
 
@@ -124,6 +122,8 @@ def __getattr__(name):
 
 
 def _register_globals():
+    from .hooks import _  # make sure hooks are registered
+
     from .. import clipppy, stochastic, guide, helpers
     for mod in (clipppy, stochastic, guide, helpers):
         CC.builtins.update(**{a: getattr(mod, a) for a in mod.__all__})

@@ -3,7 +3,7 @@ from functools import partialmethod
 import torch
 from pyro import distributions as dist
 
-from clipppy.stochastic.sampler import Sampler
+from .sampler import Sampler
 
 
 __all__ = 'InfiniteUniform', 'SemiInfiniteUniform', 'InfiniteSampler', 'SemiInfiniteSampler'

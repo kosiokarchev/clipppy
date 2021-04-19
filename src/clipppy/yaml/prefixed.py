@@ -4,7 +4,7 @@ from typing import Any, MutableMapping
 import torch
 from more_itertools import consume
 
-from ..stochastic import Stochastic
+from ..stochastic.stochastic import Stochastic
 
 
 def tensor_prefix(suffix: str, kwargs: MutableMapping[str, Any]):

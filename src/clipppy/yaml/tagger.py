@@ -3,7 +3,7 @@ from __future__ import annotations
 import collections.abc
 from inspect import isclass, Parameter
 from itertools import chain, repeat, starmap
-from types import GenericAlias, NoneType
+from types import GenericAlias
 from typing import (
     Callable, ClassVar, get_args, get_origin, Iterable, Mapping, MutableMapping, Optional, Type, TypeVar, Union)
 from warnings import warn
@@ -44,7 +44,8 @@ class TaggerMixin:
     resolver: resolver.ClipppyResolver
 
     def is_default_tagged(self, node: Node):
-        return isinstance(node.tag, str) and node.tag == self.resolver.resolve(type(node), node.value, (True, False))
+        return (isinstance(node.tag, str) and not isinstance(node.value, Sentinel)
+                and node.tag == self.resolver.resolve(type(node), node.value, (True, False)))
 
     def is_explicit_tagged(self, node: Node):
         return not self.is_default_tagged(node)
@@ -98,7 +99,7 @@ class TaggerMixin:
                 ()
             )))
         elif origin is Union:
-            if len(args := get_args(hint)) == 2 and args[1] is NoneType:
+            if len(args := get_args(hint)) == 2 and args[1] is type(None):
                 origin = args[0]  # Optional[...]
             else:  # TODO: Maybe handle Union??
                 return node

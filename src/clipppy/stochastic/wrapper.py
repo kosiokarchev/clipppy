@@ -1,14 +1,15 @@
 from __future__ import annotations
 
-import types
 from abc import ABC, abstractmethod
 from copy import copy
 from functools import update_wrapper
 from itertools import starmap
+from types import FunctionType
 from typing import cast, ClassVar, Generic, MutableMapping, Type, TypeVar, Union
 
-from frozendict import frozendict
 from more_itertools import consume
+
+from ..utils import copy_function
 
 
 _T = TypeVar('_T')
@@ -17,7 +18,7 @@ _cls = TypeVar('_cls')
 
 class FunctionWrapper:
     """def functions and lambdas in python are special..."""
-    def __init__(self, func: types.FunctionType):
+    def __init__(self, func: FunctionType):
         self.func = func
         update_wrapper(self, func)
 
@@ -31,9 +32,15 @@ class Wrapper(Generic[_T]):
 
     def __init_subclass__(cls, final=False, **kwargs):
         super().__init_subclass__(**kwargs)
+
+        # TODO: Hack type-checker (PyCharm) better
+        if hasattr(cls, '_init__'):
+            cls.__init__ = cls._init__
+            # del cls._init__
+
         if not final:
             cls._wrapped_registry = {}
-            cls.__new__ = update_wrapper(copy(cls.__new__), cls.__init__)
+            cls.__new__ = update_wrapper(copy_function(cls.__new__), cls.__init__)
 
     def __class_getitem__(cls, item: Type):
         if isinstance(item, TypeVar):
@@ -42,8 +49,8 @@ class Wrapper(Generic[_T]):
             cls._wrapped_registry[item] = cast(Type[cls], type(f'{cls.__name__}[{item.__name__}]', (cls, item), {}, final=True))
         return cls._wrapped_registry[item]
 
-    def __new__(cls: Type[_cls], obj: _T, *args, **kwargs) -> Union[_cls, _T]:
-        if isinstance(obj, types.FunctionType):
+    def __new__(cls: Type[_cls], obj: _T, /, *args, **kwargs) -> Union[_cls, _T]:
+        if isinstance(obj, FunctionType):
             obj = FunctionWrapper(obj)
 
         self: Union[Wrapper, _T] = object.__new__(cls[type(obj)])
@@ -76,7 +83,7 @@ class CallableWrapper(Wrapper[_T], ABC):
             return self._call__
         return super().__getattribute__(item)
 
-    def __init__(self, obj, *args, **kwargs):
+    def __init__(self, obj, /, *args, **kwargs):
         self._call__ = update_wrapper(copy(type(self).__call__), type(obj).__call__)
 
     @abstractmethod

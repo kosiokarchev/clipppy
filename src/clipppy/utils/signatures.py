@@ -7,6 +7,7 @@ from functools import wraps
 
 from inspect import Parameter, Signature
 from itertools import repeat
+from typing import Iterable, Mapping
 
 
 def is_variadic(param: Parameter) -> bool:
@@ -37,7 +38,7 @@ def signature(obj, *args, **kwargs) -> Signature:
     glob = (obj.__globals__ if isinstance(obj, types.FunctionType)
             else vars(sys.modules[obj.__module__]))
     return sig.replace(
-        parameters=[p.replace(annotation=eval(p.annotation, {}, glob))
+        parameters=[p.replace(annotation=eval(p.annotation, {'Iterable': Iterable, 'Mapping': Mapping}, glob))  # wtf, Guido...
                     if isinstance(p.annotation, str) else p
                     for p in sig.parameters.values()],
         return_annotation=eval(sig.return_annotation, {}, glob)
