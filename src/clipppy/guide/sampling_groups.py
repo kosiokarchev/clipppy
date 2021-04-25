@@ -23,7 +23,7 @@ class DeltaSamplingGroup(SamplingGroup):
     # Emulate EasyGuide's map_estimate implementation
     include_det_jac = False
 
-    def _sample(self, infer) -> torch.Tensor:
+    def _sample(self) -> torch.Tensor:
         return tp.cast(torch.Tensor, self.loc)
 
 

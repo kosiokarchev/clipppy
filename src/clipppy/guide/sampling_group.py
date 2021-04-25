@@ -38,6 +38,12 @@ class SamplingGroup(PyroModule, metaclass=_AbstractPyroModuleMeta):
             transform = biject_to(site['infer'].get('support', site['fn'].support))
             self.transforms[name] = transform
 
+            try:  # torch >= 1.8?
+                if isinstance(self.transforms[name], torch.distributions.IndependentTransform):
+                    self.transforms[name] = self.transforms[name].base_transform
+            except AttributeError:
+                pass
+
             self.event_shapes[name] = site['fn'].event_shape
             batch_shape = site['fn'].batch_shape
 
@@ -96,7 +102,7 @@ class SamplingGroup(PyroModule, metaclass=_AbstractPyroModuleMeta):
         return torch.Size([sum(self.sizes.values())])
 
     @abstractmethod
-    def _sample(self, infer) -> torch.Tensor: ...
+    def _sample(self) -> torch.Tensor: ...
 
     # By default, include constraining transformation's Jacobian factor
     include_det_jac = True
@@ -111,7 +117,7 @@ class SamplingGroup(PyroModule, metaclass=_AbstractPyroModuleMeta):
             for z, tr in zip(self.unpacker(guide_z), self.transforms.values())
         ), dim=-1)
 
-    def unpack(self, group_z: torch.Tensor, guide: 'Guide' = None) -> tp.Dict[str, torch.Tensor]:
+    def unpack(self, group_z: torch.Tensor) -> tp.Dict[str, torch.Tensor]:
         model_zs = {}
         for pos, (name, fn, frames), transform in zip(
             # lazy cumsum!! python ftw!
@@ -133,14 +139,7 @@ class SamplingGroup(PyroModule, metaclass=_AbstractPyroModuleMeta):
                 log_density = 0.
 
             delta = dist.Delta(x, log_density=log_density, event_dim=fn.event_dim)
-
-            with ExitStack() as stack:
-                if guide is not None:
-                    for frame in frames:
-                        plate = guide.plate(frame.name)
-                        if plate not in runtime._PYRO_STACK:
-                            stack.enter_context(plate)
-                model_zs[name] = pyro.sample(name, delta)
+            model_zs[name] = pyro.sample(name, delta)
 
         return model_zs
 
@@ -154,12 +153,11 @@ class SamplingGroup(PyroModule, metaclass=_AbstractPyroModuleMeta):
             ret.enter_context(torch.no_grad())
             return ret
 
-    def forward(self, guide: 'Guide' = None, infer: dict = None) -> tp.Tuple[torch.Tensor, tp.Dict[str, torch.Tensor]]:
-        with pyro.poutine.infer_config(
-                config_fn=lambda site: dict(**(infer if infer is not None else {}), is_auxiliary=True)):
-            with self.grad_context:
-                group_z = self._sample(infer)
-                return group_z, self.unpack(group_z, guide)
+    def forward(self) -> tp.Tuple[torch.Tensor, tp.Dict[str, torch.Tensor]]:
+        with self.grad_context:
+            with pyro.poutine.infer_config(config_fn=lambda site: dict(is_auxiliary=True)):
+                group_z = self._sample()
+            return group_z, self.unpack(group_z)
 
     def extra_repr(self) -> str:
         return f'{len(self.sites)} sites, {self.event_shape}'
@@ -189,5 +187,5 @@ class LocatedSamplingGroupWithPrior(SamplingGroup):
         return self.prior()
 
     @pyro.nn.pyro_method
-    def _sample(self, infer) -> torch.Tensor:
+    def _sample(self) -> torch.Tensor:
         return self.guide_z

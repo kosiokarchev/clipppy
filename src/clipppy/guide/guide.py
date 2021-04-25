@@ -81,10 +81,11 @@ class BaseGuide(PyroModule):
 class Guide(BaseGuide):
     children: tp.Callable[[], tp.Iterable[SamplingGroup]]
 
-    def __init__(self, *specs: GroupSpec, model=None, name=''):
+    def __init__(self, *specs: GroupSpec, model=None, name='', add_noise=None):
         super().__init__(model=model, name=name)
 
         self.specs: tp.Iterable[GroupSpec] = specs
+        self.add_noise = add_noise or {}
 
     def setup(self, *args, **kwargs) -> tp.Dict[str, SamplingGroup]:
         old_children = super().setup(*args, **kwargs)
@@ -103,6 +104,7 @@ class Guide(BaseGuide):
 
     def guide(self, *args, **kwargs) -> tp.Dict[str, torch.Tensor]:
         # Union of all model samples dicts from self.children
-        return dict(item
+        return dict((key, val + torch.normal(0., self.add_noise[key], val.shape)
+                     if key in self.add_noise else val)
                     for group in self.children() if group.active
-                    for item in group(*args, **kwargs)[1].items())
+                    for key, val in group(*args, **kwargs)[1].items())
