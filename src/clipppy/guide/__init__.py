@@ -1,3 +1,5 @@
+from torch.distributions import ComposeTransform
+
 from .group_spec import GroupSpec
 from .guide import Guide
 from .sampling_groups import (
@@ -5,6 +7,25 @@ from .sampling_groups import (
     MultivariateNormalSamplingGroup, PartialMultivariateNormalSamplingGroup
 )
 from ..globals import register_globals
+
+
+def fix_transform(t):
+    if isinstance(t, ComposeTransform):
+        for p in t.parts:
+            fix_transform(p)
+        return
+    if not hasattr(t, '_event_dim'):
+        t._event_dim = 0
+    print('fixed', t)
+
+
+def fix_guide(g: Guide):
+    for group in g.children():
+        for t in group.transforms.values():
+            fix_transform(t)
+            fix_transform(t.inv)
+    return g
+
 
 __all__ = ('DeltaSamplingGroup', 'DiagonalNormalSamplingGroup', 'MultivariateNormalSamplingGroup',
            'PartialMultivariateNormalSamplingGroup', 'GroupSpec', 'Guide')

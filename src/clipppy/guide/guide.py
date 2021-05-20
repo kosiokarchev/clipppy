@@ -81,6 +81,8 @@ class BaseGuide(PyroModule):
 class Guide(BaseGuide):
     children: tp.Callable[[], tp.Iterable[SamplingGroup]]
 
+    add_noise = {}  # for backward compatibility
+
     def __init__(self, *specs: GroupSpec, model=None, name='', add_noise=None):
         super().__init__(model=model, name=name)
 
