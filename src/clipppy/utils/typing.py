@@ -2,7 +2,7 @@ import abc
 import sys
 import types
 from collections.abc import Callable
-from typing import get_args, get_origin, Iterable, NewType, TypedDict, TypeVar
+from typing import get_args, get_origin, Iterable, NewType, Pattern, TypedDict, TypeVar, Union
 
 import torch
 from pyro import distributions as dist
@@ -44,6 +44,7 @@ if sys.version_info < (3, 9):
 
     types.GenericAlias = GenericAlias
 
+_Regex = Union[str, Pattern]
 
 _Site = TypedDict('_Site', {
     'name': str, 'fn': dist.TorchDistribution, 'mask': torch.Tensor,
