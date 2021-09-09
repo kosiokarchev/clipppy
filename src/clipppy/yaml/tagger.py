@@ -109,7 +109,7 @@ class TaggerMixin:
         return self.tag_node(node, origin)
 
     def tag_from_param(self, node: Node, param: Optional[Parameter]):
-        if param is None or self.is_explicit_tagged(node):
+        if not isinstance(node, Node) or param is None or self.is_explicit_tagged(node):
             return node
 
         if param.annotation is param.empty:

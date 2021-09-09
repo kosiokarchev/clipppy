@@ -10,7 +10,7 @@ from warnings import warn
 from more_itertools import consume, side_effect
 from ruamel.yaml import Constructor, MappingNode, Node, ScalarNode, SequenceNode
 
-from . import resolver
+from . import resolver as resolver_
 from .scope import ScopeMixin
 from .tagger import NodeTypeMismatchError, TaggerMixin
 from ..utils import Sentinel
@@ -30,7 +30,7 @@ class ClipppyConstructor(ScopeMixin, TaggerMixin, Constructor):
     free_signature = Signature((Parameter('args', Parameter.VAR_POSITIONAL),
                                 Parameter('kwargs', Parameter.VAR_KEYWORD)))
 
-    resolver: resolver.ClipppyResolver
+    resolver: resolver_.ClipppyResolver
 
     def bind_scalar(self, node: ScalarNode, signature: Signature):
         if node.value is Sentinel.call:
@@ -47,20 +47,20 @@ class ClipppyConstructor(ScopeMixin, TaggerMixin, Constructor):
         pos_params = iter_positional(signature)
         args, kwargs = [], {}
         for key, val in node.value:  # type: Union[Node, str], Union[Node, Iterable]
-            if key.value == '__args':
+            if isinstance(key, Node) and key.value == '__args':
                 key.tag = self.resolver._mergepos_tag
                 warn('Using \'__args\' for parameter expansion is deprecated'
                      ' and will soon be considered an ordinary keyword argument.'
                      f' Consider using \'<\' instead.', FutureWarning)
 
-            if key.tag == self.resolver._pos_tag:
+            if self.resolver.is_pos(key):
                 args.append(self.construct_object(self.tag_from_param(val, next(pos_params, None))))
-            elif key.tag == self.resolver._mergepos_tag:
+            elif self.resolver.is_mergepos(key):
                 if is_default_seq := self.is_default_tagged(val):
                     consume(starmap(self.tag_from_param, zip(val.value, pos_params)))
                 val = self.construct_object(val)
                 args.extend(val if is_default_seq else side_effect(partial(next, pos_params), val))
-            elif key.tag == self.resolver._merge_tag:
+            elif self.resolver.is_merge(key):
                 if val.tag in (self.resolver.DEFAULT_SCALAR_TAG, self.resolver.DEFAULT_SEQUENCE_TAG):
                     raise NodeTypeMismatchError(f'Expected {MappingNode} for \'{key}\', but got {val}.')
                 elif self.is_default_tagged(val):
@@ -90,7 +90,14 @@ class ClipppyConstructor(ScopeMixin, TaggerMixin, Constructor):
                 raise TypeError(Sentinel.sentinel, args, kwargs)
 
     def construct_object(self, node, deep=True):
-        return super().construct_object(node, deep)
+        return super().construct_object(node, deep) if isinstance(node, Node) else node
+
+    _type_hook_t = Callable[[Node, 'ClipppyConstructor'], Optional[Union[Node, Any]]]
+    type_hooks: MutableMapping[Union[Type, Callable, Any], _type_hook_t] = {}
+
+    @classmethod
+    def add_type_hook(cls, obj, hook: _type_hook_t):
+        cls.type_hooks[obj] = hook
 
     @classmethod
     def construct(cls, obj, loader: ClipppyConstructor, node: Node, **kwargs):
@@ -99,6 +106,12 @@ class ClipppyConstructor(ScopeMixin, TaggerMixin, Constructor):
         except (TypeError, ValueError):
             signature = cls.free_signature
         try:
+            if obj in loader.type_hooks:
+                ret = loader.type_hooks[obj](node, loader)
+                if isinstance(ret, Node):
+                    node = ret
+                elif ret is not None:
+                    return ret
             signature = loader.bind(node, signature)
         except TypeError as e:
             if e.args and e.args[0] is Sentinel.sentinel:
@@ -113,12 +126,11 @@ class ClipppyConstructor(ScopeMixin, TaggerMixin, Constructor):
             return obj
         else:
             signature.apply_defaults()
-            signature.arguments.update(kwargs)
 
-            try:
-                return obj(*signature.args, **signature.kwargs)
-            except:
-                raise TypeError(f'''Could not instantiate\nobj: {obj}\n*args: {signature.args}\n**kwargs: {signature.kwargs}.''')
+            # try:
+            return obj(*signature.args, **{**signature.kwargs, **kwargs})
+            # except Exception as e:
+            #     raise TypeError(f'''Could not instantiate\nobj: {obj}\n*args: {signature.args}\n**kwargs: {signature.kwargs}.''')
 
 
     @classmethod

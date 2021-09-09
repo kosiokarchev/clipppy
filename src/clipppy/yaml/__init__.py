@@ -44,7 +44,6 @@ def determine_scope(scope: Union[Mapping[str, Any], FrameType] = None):
     return ChainMap(scope.f_locals, scope.f_globals, scope.f_builtins)
 
 
-
 class ClipppyYAML(YAML):
     @lru_cache(typed=True)
     def _load_file(self, loader: Callable, *args, **kwargs):
@@ -54,17 +53,17 @@ class ClipppyYAML(YAML):
     def eval(loader: CC, node: Node):
         return eval(node.value, {}, loader.scope)
 
-    @staticmethod
-    def npy(loader: CC, node: Node) -> np.ndarray:
-        return loader.loader._load_file(np.load, node.value)
-
-    def npz(self, fname: str, key: str = None) -> np.ndarray:
-        data = self._load_file(np.load, fname)
-        return data if key is None else data[key]
-
-    @wraps(np.loadtxt)
+    @wraps(staticmethod(np.loadtxt), assigned=('__annotations__',), updated=())
     def txt(self, *args, **kwargs):
         return self._load_file(np.loadtxt, *args, **kwargs)
+
+    @wraps(staticmethod(np.load), assigned=('__annotations__',), updated=())
+    def npy(self, *args, **kwargs):
+        return self._load_file(np.load, *args, **kwargs)
+
+    def npz(self, fname: str, key: str = None, **kwargs) -> np.ndarray:
+        data = self._load_file(np.load, fname, **kwargs)
+        return data if key is None else data[key]
 
     def pt(self, fname: str, key: str = None, **kwargs):
         data = self._load_file(torch.load, fname, **kwargs)
@@ -100,9 +99,8 @@ CC.add_constructor('!import', CC.apply_bound(CC.import_))
 CC.add_multi_constructor('!py:', CC.apply_bound_prefixed(CC.resolve_name))
 
 CC.add_constructor('!eval', ClipppyYAML.eval)
-CC.add_constructor('!npy', ClipppyYAML.npy)
 
-for func in (ClipppyYAML.npz, ClipppyYAML.txt, ClipppyYAML.pt):
+for func in (ClipppyYAML.txt, ClipppyYAML.npy, ClipppyYAML.npz, ClipppyYAML.pt):
     CC.add_constructor(f'!{func.__name__}', CC.apply_bound(func, _cls=ClipppyYAML))
 
 CC.add_constructor('!tensor', CC.apply(torch.tensor))

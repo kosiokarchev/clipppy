@@ -50,31 +50,17 @@ class ScopeMixin:
             while True:
                 try:
                     for stmt in ast.parse(spec).body:
-                        if isinstance(stmt, ast.Import):
-                            for names in stmt.names:
-                                if names.asname is None:
-                                    res[names.name] = __import__(names.name)
-                                else:
-                                    res[names.asname] = import_module(names.name)
-                        elif isinstance(stmt, ast.ImportFrom):
-                            mod = import_module(stmt.module)
-                            for names in stmt.names:
-                                if names.name == '*':
-                                    for name in getattr(mod, '__all__',
-                                                        [key for key in vars(mod) if not key.startswith('_')]):
-                                        res[name] = getattr(mod, name)
-                                else:
-                                    res[names.asname if names.asname is not None else names.name] = getattr(mod, names.name)
+                        if isinstance(stmt, (ast.Import, ast.ImportFrom)):
+                            exec(compile(ast.Module([stmt], []), '', 'exec'), {}, res)
                         else:
-                            raise SyntaxError('Only import/import from statements are allowed.')
+                            raise SyntaxError('Only import (from) statements are allowed.')
+                    break
                 except SyntaxError as e:
                     if not spec.startswith('import'):
                         spec = 'import ' + spec
                         continue  # retry
                     else:
                         raise e
-                else:
-                    break
         self.scope.update(res)
 
 

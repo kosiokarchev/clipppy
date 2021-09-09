@@ -1,18 +1,28 @@
 from __future__ import annotations
 
 import re
-from typing import Type
+from functools import partial
+from typing import Type, Union
 
 from ruamel.yaml import MappingNode, Node, ScalarNode, SequenceNode, VersionedResolver
 
 from .constructor import ClipppyConstructor
 from ..clipppy import Clipppy
+from ..utils import Sentinel
+
+
+def _key_is(key: Union[Node, Sentinel], spval: Sentinel, tag: str):
+    return key is spval or isinstance(key, Node) and key.tag == tag
 
 
 class ClipppyResolver(VersionedResolver):
-    _pos_tag = 'tag:org,2002:pos'
-    _mergepos_tag = 'tag:org,2002:mergepos'
-    _merge_tag = 'tag:org,2002:merge'
+    _pos_tag = 'tag:clipppy:pos'
+    _mergepos_tag = 'tag:clipppy:mergepos'
+    _merge_tag = 'tag:yaml.org,2002:merge'
+
+    is_pos = partial(_key_is, spval=Sentinel.pos, tag=_pos_tag)
+    is_mergepos = partial(_key_is, spval=Sentinel.mergepos, tag=_mergepos_tag)
+    is_merge = partial(_key_is, spval=Sentinel.merge, tag=_merge_tag)
 
     # bugfix
     def resolve(self, kind: Type[Node], value, implicit: tuple[bool, bool]):

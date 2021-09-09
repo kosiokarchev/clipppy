@@ -33,7 +33,7 @@ class Template(string.Template):
 
 
 class TemplateWithDefaults(Template):
-    braceidpattern = Template.idpattern + r')(\s*(?:|=\s*(?P<opening_brace>\()?(?P<default>([^\\]|\\(\\|\)))*?)(?(opening_brace)\)|)\s*)\s*'
+    braceidpattern = Template.idpattern + r')(?:|\s*=\s*(?P<paren>\()?(?P<default>(?:[^\\]|\\(?:\\|\)))*?)(?(paren)\)|)\s*'
 
     def safe_convert(self, mo: re.Match, mapping: Mapping[str, str]):
         if mo.group('default') is not None:

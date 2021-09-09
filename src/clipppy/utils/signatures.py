@@ -1,5 +1,6 @@
 __all__ = 'is_variadic', 'get_param_for_name'
 
+import builtins
 import inspect
 import sys
 import types
@@ -36,7 +37,7 @@ def signature(obj, *args, **kwargs) -> Signature:
     """Poor man's attempt at fixing string annotations..."""
     sig = inspect.signature(obj, *args, **kwargs)
     glob = (obj.__globals__ if isinstance(obj, types.FunctionType)
-            else vars(sys.modules[obj.__module__]))
+            else vars(sys.modules[obj.__module__] if hasattr(obj, '__module__') else builtins))
     return sig.replace(
         parameters=[p.replace(annotation=eval(p.annotation, {'Iterable': Iterable, 'Mapping': Mapping}, glob))  # wtf, Guido...
                     if isinstance(p.annotation, str) else p

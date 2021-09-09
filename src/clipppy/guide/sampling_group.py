@@ -40,6 +40,12 @@ class SamplingGroup(PyroModule, metaclass=_AbstractPyroModuleMeta):
             transform = biject_to(site['infer'].get('support', site['fn'].support))
             self.transforms[name] = transform
 
+            try:  # torch >= 1.8?
+                if isinstance(self.transforms[name], torch.distributions.IndependentTransform):
+                    self.transforms[name] = self.transforms[name].base_transform
+            except AttributeError:
+                pass
+
             self.event_shapes[name] = site['fn'].event_shape
             batch_shape = site['fn'].batch_shape
 
@@ -57,10 +63,10 @@ class SamplingGroup(PyroModule, metaclass=_AbstractPyroModuleMeta):
 
             self.inits[name] = init
 
-            # TODO: Wait for better days to come...:
-            # _ if (_:=site.get('mask', None)) is not None....
-            mask = site['infer'].get('mask', site.get('mask', getattr(site['fn'], '_mask', None)))
-            if mask is None:
+            # mask = site['infer'].get('mask', site.get('mask', getattr(site['fn'], '_mask', None)))
+            # if mask is None:
+            #     mask = init.new_full([], True, dtype=torch.bool)
+            if (mask := site.get('mask', None)) is None:
                 mask = init.new_full([], True, dtype=torch.bool)
             self.masks[name] = mask.expand_as(init)
 
