@@ -1,33 +1,27 @@
-import ast
-import builtins as __builtins__
 import inspect
 import io
 import os
-import re
 from collections import ChainMap
 from contextlib import contextmanager
 from functools import lru_cache, wraps
-from importlib import import_module
 from pathlib import Path
 from types import FrameType
-from typing import Any, AnyStr, Callable, ClassVar, Dict, Mapping, MutableMapping, TextIO, Union
+from typing import Any, AnyStr, Callable, Mapping, TextIO, Union
 from warnings import warn
 
 import numpy as np
 import torch
-from ruamel.yaml import Constructor, Node, Resolver, YAML
+from ruamel.yaml import Node, YAML
 
-from .constructor import YAMLConstructor
-from .prefixed import PrefixedStochasticYAMLConstructor, PrefixedTensorYAMLConstructor
-from .py import PyYAMLConstructor
-from .. import Clipppy
-from ..stochastic import stochastic as Stochastic
+from .prefixed import stochastic_prefix, tensor_prefix
+# TODO: .resolver comes before .constructor!
+from .resolver import ClipppyResolver, ImplicitClipppyResolver
+from .constructor import ClipppyConstructor as CC
 from ..stochastic.infinite import InfiniteSampler, SemiInfiniteSampler
 from ..stochastic.sampler import Param, Sampler
+from ..stochastic.stochastic import Stochastic
 from ..templating import TemplateWithDefaults
 
-
-__builtins__ = vars(__builtins__)  # ensure this, since the standard does not guarantee it
 
 __all__ = 'ClipppyYAML',
 
@@ -52,65 +46,17 @@ def determine_scope(scope: Union[Mapping[str, Any], FrameType] = None):
 
 
 class ClipppyYAML(YAML):
-    builtins: ClassVar[Mapping[str, Any]] = ChainMap({}, globals(), __builtins__)
-    _scope: MutableMapping[str, Any] = None
-
-    @property
-    def scope(self):
-        if self._scope is None:
-            self.scope = {}
-        return self._scope
-
-    @scope.setter
-    def scope(self, scope: Mapping[str, Any]):
-        self._scope = ChainMap(scope, self.builtins)
-
-    # sys.version_info >= (3, 8) TODO: true?
-    # spec: Union[str, TypedDict('', **{'from': str, 'import': Union[str, Sequence[str]]}, total=False)]
-    def import_(self, *specs: Union[str, Dict]):
-        res = {}
-        for spec in specs:
-            if not isinstance(spec, str):
-                spec = f'from {spec["from"]} import {spec["import"] if isinstance(spec["import"], str) else ", ".join(spec["import"])}'
-            while True:
-                try:
-                    for stmt in ast.parse(spec).body:
-                        if isinstance(stmt, ast.Import):
-                            for names in stmt.names:
-                                if names.asname is None:
-                                    res[names.name] = __import__(names.name)
-                                else:
-                                    res[names.asname] = import_module(names.name)
-                        elif isinstance(stmt, ast.ImportFrom):
-                            mod = import_module(stmt.module)
-                            for names in stmt.names:
-                                if names.name == '*':
-                                    for name in getattr(mod, '__all__',
-                                                        [key for key in vars(mod) if not key.startswith('_')]):
-                                        res[name] = getattr(mod, name)
-                                else:
-                                    res[names.asname if names.asname is not None else names.name] = getattr(mod, names.name)
-                        else:
-                            raise SyntaxError('Only import/import from statements are allowed.')
-                except SyntaxError as e:
-                    if not spec.startswith('import'):
-                        spec = 'import ' + spec
-                        continue  # retry
-                    else:
-                        raise e
-                else:
-                    break
-        self.scope.update(res)
-
     @lru_cache(typed=True)
     def _load_file(self, loader: Callable, *args, **kwargs):
         return loader(*args, **kwargs)
 
-    def eval(self, loader, node: Node):
-        return eval(node.value, {}, self.scope)
+    @staticmethod
+    def eval(loader: CC, node: Node):
+        return eval(node.value, {}, loader.scope)
 
-    def npy(self, loader, node: Node) -> np.ndarray:
-        return self._load_file(np.load, node.value)
+    @staticmethod
+    def npy(loader: CC, node: Node) -> np.ndarray:
+        return loader.loader._load_file(np.load, node.value)
 
     def npz(self, fname: str, key: str = None) -> np.ndarray:
         data = self._load_file(np.load, fname)
@@ -133,52 +79,40 @@ class ClipppyYAML(YAML):
         if force_templating or kwargs:
             stream = io.StringIO(TemplateWithDefaults(stream.read()).safe_substitute(**kwargs))
 
-        self.scope = determine_scope(scope)
+        self.constructor.scope = determine_scope(scope)
 
         with cwd(self.base_dir or path.parent):
             return super().load(stream)
 
-    @classmethod
-    def register_globals(cls, **kwargs):
-        cls.builtins.update(kwargs)
+    resolver: ClipppyResolver
+    constructor: CC
 
     def __init__(self, base_dir: Union[os.PathLike, AnyStr] = None, interpret_as_Clipppy=True):
         self.base_dir = base_dir if base_dir is not None else None
 
-        super().__init__(typ='unsafe')
-        self.py_constructor = PyYAMLConstructor(self)
+        super().__init__(typ='unsafe', pure=True)
 
-        r: Resolver = self.resolver
-        r.add_implicit_resolver(self.py_constructor._args_tag, re.compile('<'), '<')
+        self.Resolver = ImplicitClipppyResolver if interpret_as_Clipppy else ClipppyResolver
+        self.Constructor = CC
 
-        if interpret_as_Clipppy:
-            r.add_path_resolver(f'!py:{Clipppy.__name__}', [])
 
-        c: Constructor = self.constructor
-        # TODO: FORCE DEPTH!!
-        c.deep_construct = True
+CC.add_constructor('!import', CC.apply_bound(CC.import_))
+CC.add_multi_constructor('!py:', CC.apply_bound_prefixed(CC.resolve_name))
 
-        c.add_multi_constructor('!py:', self.py_constructor.construct)
-        c.add_constructor('!import', YAMLConstructor.apply(self.import_))
+CC.add_constructor('!eval', ClipppyYAML.eval)
+CC.add_constructor('!npy', ClipppyYAML.npy)
 
-        c.add_constructor('!eval', self.eval)
-        c.add_constructor('!npy', self.npy)
-        c.add_constructor('!npz', YAMLConstructor.apply(self.npz))
-        c.add_constructor('!txt', YAMLConstructor.apply(self.txt))
-        c.add_constructor('!pt', YAMLConstructor.apply(self.pt))
+for func in (ClipppyYAML.npz, ClipppyYAML.txt, ClipppyYAML.pt):
+    CC.add_constructor(f'!{func.__name__}', CC.apply_bound(func, _cls=ClipppyYAML))
 
-        c.add_constructor('!tensor', YAMLConstructor.apply(torch.tensor))
-        c.add_multi_constructor('!tensor:', PrefixedTensorYAMLConstructor.construct)
-        # TODO: Needs to be handled better?
-        YAMLConstructor.type_to_tag[torch.Tensor] = '!tensor'
+CC.add_constructor('!tensor', CC.apply(torch.tensor))
+CC.add_multi_constructor('!tensor:', CC.apply_prefixed(tensor_prefix))
+# TODO: Needs to be handled better?
+CC.type_to_tag[torch.Tensor] = '!tensor'
 
-        c.add_constructor('!Stochastic', YAMLConstructor.apply(Stochastic))
-        c.add_multi_constructor('!Stochastic:', PrefixedStochasticYAMLConstructor.construct)
-
-        c.add_constructor('!Param', YAMLConstructor.apply(Param))
-        c.add_constructor('!Sampler', YAMLConstructor.apply(Sampler))
-        c.add_constructor('!InfiniteSampler', YAMLConstructor.apply(InfiniteSampler))
-        c.add_constructor('!SemiInfiniteSampler', YAMLConstructor.apply(SemiInfiniteSampler))
+for typ in (Stochastic, Param, Sampler, InfiniteSampler, SemiInfiniteSampler):
+    CC.add_constructor(f'!{typ.__name__}', CC.apply(typ))
+CC.add_multi_constructor('!Stochastic:', CC.apply_prefixed(stochastic_prefix))
 
 
 def __getattr__(name):
@@ -188,9 +122,12 @@ def __getattr__(name):
 
 
 def _register_globals():
+    from .hooks import _  # make sure hooks are registered
+
     from .. import clipppy, stochastic, guide, helpers
     for mod in (clipppy, stochastic, guide, helpers):
-        ClipppyYAML.register_globals(**{a: getattr(mod, a) for a in mod.__all__})
+        CC.builtins.update(**{a: getattr(mod, a) for a in mod.__all__})
+    CC.builtins.update({'torch': torch, 'np': np, 'numpy': np})
 
 
 _register_globals()

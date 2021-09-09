@@ -2,7 +2,7 @@ import abc
 import sys
 import types
 from collections.abc import Callable
-from typing import get_args, get_origin, Iterable, NewType, Pattern, TypedDict, TypeVar, Union
+from typing import get_args, get_origin, Iterable, NewType, Optional, Pattern, Protocol, runtime_checkable, Type, TypedDict, TypeVar, Union
 
 import torch
 from pyro import distributions as dist
@@ -43,6 +43,18 @@ if sys.version_info < (3, 9):
             return get_origin(instance) and get_args(instance)
 
     types.GenericAlias = GenericAlias
+
+
+@runtime_checkable
+class Descriptor(Protocol[_T, _VT]):
+    def __get__(self, instance: Optional[_T], owner: Type[_T]) -> _VT: ...
+
+
+@runtime_checkable
+class GetSetDescriptor(Protocol[_T, _VT]):
+    def __get__(self, instance: Optional[_T], owner: Type[_T]) -> _VT: ...
+    def __set__(self, instance: Optional[_T], value: _VT): ...
+
 
 _Regex = Union[str, Pattern]
 
