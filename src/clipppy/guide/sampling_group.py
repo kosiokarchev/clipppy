@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from abc import ABCMeta, abstractmethod
 from contextlib import ExitStack
 from functools import lru_cache

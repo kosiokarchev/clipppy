@@ -59,7 +59,7 @@ class Wrapper(Generic[_T]):
         return self
 
     # super().__init__'s should stop here
-    __init__ = lambda *args, **kwargs: None
+    def __init__(self, *args, **kwargs): pass
 
     __slots__ = '_wrapped_obj', '_call__'
 

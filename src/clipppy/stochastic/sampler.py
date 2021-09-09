@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from abc import ABC
 from dataclasses import dataclass, field
 from functools import partial
@@ -15,6 +17,7 @@ from torch.distributions.constraints import Constraint
 from ..utils import _T, _Tin, _Tout, Sentinel
 
 
+__api__ = 'AbstractSampler', 'Sampler', 'Param', 'PseudoSampler'
 __all__ = 'Sampler', 'Param', 'PseudoSampler'
 
 
@@ -93,7 +96,7 @@ class Sampler(_Sampler):
 
     @property
     def distribution(self) -> _Distribution:
-        """Call ``self.d`` until a `_Distribution` pops out."""
+        # Call ``self.d`` until a ``_Distribution`` pops out.
         return first_true(iterate(methodcaller('__call__'), self.d),
                           pred=_Distribution.__instancecheck__)
 

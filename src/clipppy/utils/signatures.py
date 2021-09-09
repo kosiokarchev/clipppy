@@ -1,4 +1,4 @@
-__all__ = 'is_variadic', 'get_param_for_name'
+from __future__ import annotations
 
 import builtins
 import inspect
@@ -9,6 +9,9 @@ from functools import wraps
 from inspect import Parameter, Signature
 from itertools import repeat
 from typing import Iterable, Mapping
+
+
+__all__ = 'is_variadic', 'get_param_for_name'
 
 
 def is_variadic(param: Parameter) -> bool:

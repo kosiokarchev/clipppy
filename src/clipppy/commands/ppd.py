@@ -1,10 +1,12 @@
+from __future__ import annotations
+
 from typing import TypedDict
 
 import pyro
 import pyro.poutine
 import torch
 
-from .Command import SamplingCommand
+from .command import SamplingCommand
 from ..guide import Guide
 from ..utils.typing import _Model
 

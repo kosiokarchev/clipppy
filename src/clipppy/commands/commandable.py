@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 from functools import lru_cache
 from typing import Any, get_type_hints, Mapping, Optional, Type
 
-from .Command import Command
+from .command import Command
 
 
 class ProxyDict(dict):

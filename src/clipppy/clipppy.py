@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Mapping
 
 import pyro
@@ -5,7 +7,7 @@ import pyro.infer
 import pyro.optim
 import torch
 
-from .commands.Commandable import Commandable
+from .commands.commandable import Commandable
 from .commands.fit import Fit
 from .commands.mock import Mock
 from .commands.ppd import PPD
@@ -18,16 +20,7 @@ from .utils.typing import _Model
 __all__ = 'Clipppy',
 
 
-
 class Clipppy(Commandable):
-    """
-    Attributes
-    ----------
-    model
-        A callable that acts as a generative model.
-    guide
-        A callable that acts as a guide. Preferably a :any:`Guide`.
-    """
     def __init__(self,
                  model: _Model = noop,
                  guide: Guide = Guide(),

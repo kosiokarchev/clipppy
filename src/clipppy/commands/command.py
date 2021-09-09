@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 import inspect
-import typing as tp
 from abc import ABC, abstractmethod
 from contextlib import nullcontext
 from functools import lru_cache
+from typing import Any, ContextManager, get_type_hints, Iterable, Union
 
 import pyro
 
@@ -18,21 +20,20 @@ class Command(ABC):
     defaults. Next, when an instance is created, the constructor takes
     arbitrary keyword arguments that will be set as *instance* attributes
     overriding the defaults. Finally, when a class instance is called, any
-    possible parameters that are included in the ``**kwargs`` parameter are
-    extracted and set on the instance before execution of the `forward` method,
-    which should be overridden to provide the actual command implementation.
+    possible parameters that are included in the :python:``**kwargs`` parameter
+    are extracted and set on the instance before execution of the
+    `~Command.forward` method, which should be overridden to provide the actual
+    command implementation.
 
     Commands also support "binding" keyword parameters in much the same way
     as `functools.partial`, through the `boundkwargs` property. The provided
-    keywords are then always included in the `forward` call, if the forward
-    call has explicit parameters with the same names.
-
-    Attributes
-    ----------
-    boundkwargs
-        A dictionary of values to be forwarded to each call of `forward`,
-        if there are exact name matches in its signature.
+    keywords are then always included in the `~Command.forward` call, if the
+    forward call has explicit parameters with the same names.
     """
+
+    boundkwargs: dict
+    """A dictionary of values to be forwarded to each call of `forward`,
+       if there are exact name matches in its signature."""
 
     no_call = Sentinel.no_call
     """Special value to be used to indicate that instead of calling an object,
@@ -40,17 +41,17 @@ class Command(ABC):
 
     @property
     @lru_cache()
-    def attr_names(self) -> tp.List[str]:
-        return list(tp.get_type_hints(type(self)).keys())
+    def attr_names(self) -> list[str]:
+        return list(get_type_hints(type(self)).keys())
 
-    def setattr(self, kwargs: tp.Dict[str, tp.Any]):
+    def setattr(self, kwargs: dict[str, Any]):
         for key in list(key for key in kwargs if key in self.attr_names):
             setattr(self, key, kwargs.pop(key))
         return kwargs
 
     def __init__(self, **kwargs):
         self.setattr(kwargs)
-        self.boundkwargs: tp.Dict = {}
+        self.boundkwargs: dict = {}
 
     @abstractmethod
     def forward(self, *args, **kwargs):
@@ -72,12 +73,11 @@ class Command(ABC):
         # Needed to avoid binding functions that are saved as properties
         # upon attribute access. Properties should be annotated!
         cls = type(self)
-        if name != '__dict__' and name not in self.__dict__ and name in tp.get_type_hints(cls):
+        if name != '__dict__' and name not in self.__dict__ and name in get_type_hints(cls):
             return getattr(cls, name)
         return super().__getattribute__(name)
 
-    # Common attributes:
-    plate_stack: tp.Union[tp.Iterable[int], tp.ContextManager] = nullcontext()
+    plate_stack: Union[Iterable[int], ContextManager] = nullcontext()
     """A stack of plates or an iterable of ints.
 
        Either one or multiple plates (as returned by `pyro.plate
@@ -88,7 +88,7 @@ class Command(ABC):
 
     @property
     def plate(self) -> pyro.plate:
-        return (self.plate_stack if isinstance(self.plate_stack, tp.ContextManager)
+        return (self.plate_stack if isinstance(self.plate_stack, ContextManager)
                 else pyro.plate_stack('plate', self.plate_stack))
 
 

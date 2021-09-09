@@ -1,9 +1,15 @@
+import os
 import sys
 from operator import is_, itemgetter
+from pathlib import Path
+from warnings import catch_warnings, filterwarnings
 
-from pytest import raises
+import numpy as np
+import torch
+from pytest import fixture, raises
 
 from clipppy import loads
+from clipppy.yaml import cwd
 
 
 SOME_GLOBAL_VARIABLE = 42
@@ -50,6 +56,12 @@ def test_templating():
     assert loads('$, $123') == '$, $123'
 
 
+def test_paths(tmp_path: Path):
+    cwd = os.getcwd()
+    assert cwd != str(tmp_path)
+    assert loads('!py:os.getcwd []', base_dir=tmp_path) == str(tmp_path)
+    assert os.getcwd() == cwd
+
 
 def test_py():
     SOME_LOCAL_VARIABLE = 26
@@ -83,11 +95,11 @@ def test_import():
         _: !import
             - import torch
             - import numpy as np
-            - from matplotlib import pyplot as plt
+            - from urllib import request as req
         __: !import os.path as ospath
         a: [!py:torch.linspace , !py:np.linspace ]
     ''', scope=scope) == {'_': None, '__': None, 'a': [sys.modules['torch'].linspace, sys.modules['numpy'].linspace]}
-    assert itemgetter('torch', 'np', 'plt', 'ospath')(scope) == itemgetter('torch', 'numpy', 'matplotlib.pyplot', 'os.path')(sys.modules)
+    assert itemgetter('torch', 'np', 'req', 'ospath')(scope) == itemgetter('torch', 'numpy', 'urllib.request', 'os.path')(sys.modules)
 
     with raises(SyntaxError):
         loads('!import 3+4')
@@ -112,48 +124,53 @@ def test_eval():
     assert loads('!eval math.pi / 2') == math.pi / 2
 
 
-def test_loaders():
-    import numpy as np
-    import torch
+class TestWithFiles:
+    @fixture(scope='class', autouse=True)
+    def chdir(self):
+        with cwd(Path(__file__).parent):
+            yield
 
-    assert (loads('!txt res/data.txt') == np.loadtxt('res/data.txt')).all()
-    rcp = loads(r'!txt {/: res/data.txt, dtype: !py:np.float32 , unpack: true}')
-    assert len(rcp) == 2 and rcp[0].dtype is np.dtype(np.float32)
+    def test_loaders(self):
+        assert (loads('!txt res/data.txt') == np.loadtxt('res/data.txt')).all()
+        rcp = loads(r'!txt {/: res/data.txt, dtype: !py:np.float32 , unpack: true}')
+        assert len(rcp) == 2 and rcp[0].dtype is np.dtype(np.float32)
 
-    assert all((_ == __).all() for _ in loads('''
-        - !npy res/data.npy
-        - !npy {/: res/data.npy, allow_pickle: false}
-    ''') for __ in [np.load('res/data.npy')])
+        assert all((_ == __).all() for _ in loads('''
+            - !npy res/data.npy
+            - !npy {/: res/data.npy, allow_pickle: false}
+        ''') for __ in [np.load('res/data.npy')])
 
-    assert all((_ == __).all() for _ in loads('''
-        - !npz [res/data.npz, somekey]
-        - !npz {/: res/data.npz, /: somekey, allow_pickle: false}
-        - !py:operator.getitem [!npz res/data.npz, somekey]
-    ''') for __ in [np.load('res/data.npz')['somekey']])
+        assert all((_ == __).all() for _ in loads('''
+            - !npz [res/data.npz, somekey]
+            - !npz {/: res/data.npz, /: somekey, allow_pickle: false}
+            - !py:operator.getitem [!npz res/data.npz, somekey]
+        ''') for __ in [np.load('res/data.npz')['somekey']])
 
-    assert all((_ == __).all() for _ in loads('''
-        - !pt [res/data.pt, somekey]
-        - !pt {/: res/data.pt, /: somekey, map_location: cpu}
-        - !py:operator.getitem [!pt res/data.pt, somekey]
-    ''') for __ in [torch.load('res/data.pt')['somekey']])
+        assert all((_ == __).all() for _ in loads('''
+            - !pt [res/data.pt, somekey]
+            - !pt {/: res/data.pt, /: somekey, map_location: cpu}
+            - !py:operator.getitem [!pt res/data.pt, somekey]
+        ''') for __ in [torch.load('res/data.pt')['somekey']])
 
+    def test_tensor(self):
+        res = loads('!tensor 42')
+        assert torch.is_tensor(res) and res.shape == torch.Size() and res == 42
+        assert loads('!tensor [42]').shape == torch.Size()
+        assert (loads('!tensor [[1, 2, 3, 4]]') == torch.tensor([1, 2, 3, 4])).all()
 
-def test_tensor():
-    import torch
+        ddtype = torch.get_default_dtype()
 
-    res = loads('!tensor 42')
-    assert torch.is_tensor(res) and res.shape == torch.Size() and res == 42
-    assert loads('!tensor [42]').shape == torch.Size()
-    assert (loads('!tensor [[1, 2, 3, 4]]') == torch.tensor([1, 2, 3, 4])).all()
+        torch.set_default_dtype(torch.float32)
 
-    ddtype = torch.get_default_dtype()
+        assert all(_.dtype is torch.float64 for _ in loads('''
+            - !tensor {/: !npz [res/data.npz, somekey], dtype: !py:torch.float64 }
+            - !tensor:float64 [!npz [res/data.npz, somekey]]
+        '''))
+        with catch_warnings():
+            filterwarnings('ignore', message='To copy construct from a tensor', category=UserWarning)
+            assert loads('!tensor:default [!tensor:float64 42]').dtype is torch.get_default_dtype()
 
-    torch.set_default_dtype(torch.float32)
+        torch.set_default_dtype(ddtype)
 
-    assert all(_.dtype is torch.float64 for _ in loads('''
-        - !tensor {/: !npz [res/data.npz, somekey], dtype: !py:torch.float64 }
-        - !tensor:float64 [!npz [res/data.npz, somekey]]
-    '''))
-    assert loads('!tensor:default [!tensor:float64 42]').dtype is torch.get_default_dtype()
-
-    torch.set_default_dtype(ddtype)
+        with raises(ValueError, match=r'not a valid torch\.dtype'):
+            loads('!tensor:gibberish 42')

@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import inspect
 import io
 import os
 from collections import ChainMap
 from contextlib import contextmanager
-from functools import lru_cache, wraps
+from functools import lru_cache, partial, wraps
 from pathlib import Path
 from types import FrameType
 from typing import Any, AnyStr, Callable, Mapping, TextIO, Union
@@ -17,7 +19,7 @@ from .prefixed import stochastic_prefix, tensor_prefix
 # TODO: .resolver comes before .constructor!
 from .resolver import ClipppyResolver, ImplicitClipppyResolver
 from .constructor import ClipppyConstructor as CC
-from ..stochastic.infinite import InfiniteSampler, SemiInfiniteSampler
+from ..stochastic.infinite import InfiniteUniform, SemiInfiniteUniform
 from ..stochastic.sampler import Param, Sampler
 from ..stochastic.stochastic import Stochastic
 from ..templating import TemplateWithDefaults
@@ -108,8 +110,10 @@ CC.add_multi_constructor('!tensor:', CC.apply_prefixed(tensor_prefix))
 # TODO: Needs to be handled better?
 CC.type_to_tag[torch.Tensor] = '!tensor'
 
-for typ in (Stochastic, Param, Sampler, InfiniteSampler, SemiInfiniteSampler):
+for typ in (Stochastic, Param, Sampler):
     CC.add_constructor(f'!{typ.__name__}', CC.apply(typ))
+CC.add_constructor('!InfiniteSampler', CC.apply(partial(Sampler, d=InfiniteUniform())))
+CC.add_constructor('!SemiInfiniteSampler', CC.apply(partial(Sampler, d=SemiInfiniteUniform())))
 CC.add_multi_constructor('!Stochastic:', CC.apply_prefixed(stochastic_prefix))
 
 

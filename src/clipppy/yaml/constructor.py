@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from functools import partial, partialmethod, wraps
 from inspect import BoundArguments, cleandoc, Parameter, Signature
 from itertools import starmap
@@ -156,5 +157,12 @@ class ClipppyConstructor(ScopeMixin, TaggerMixin, Constructor):
     apply_bound_prefixed = wraps(apply)(partialmethod(apply, func=construct_bound, _func=construct_prefixed))
 
 
-_constructT = Union[Callable[[Any, ClipppyConstructor, str, Node, ...], Any], Callable[[Any, ClipppyConstructor, Node, ...], Any]]
+# TODO: python 3.9
+_constructT = (
+    Union[Callable[[Any, ClipppyConstructor, str, Node], Any],
+          Callable[[Any, ClipppyConstructor, Node], Any]]
+    if sys.version_info < (3, 9) else
+    Union[Callable[[Any, ClipppyConstructor, str, Node, ...], Any],
+          Callable[[Any, ClipppyConstructor, Node, ...], Any]]
+)
 _constructDescriptorT = Descriptor[ClipppyConstructor, _constructT]

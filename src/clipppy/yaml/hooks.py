@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from ruamel.yaml import Node, SequenceNode
 
 from .constructor import ClipppyConstructor

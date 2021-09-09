@@ -5,7 +5,7 @@ from inspect import isclass, Parameter
 from itertools import chain, repeat, starmap
 from types import GenericAlias
 from typing import (
-    Callable, ClassVar, get_args, get_origin, Iterable, Mapping, MutableMapping, Optional, Type, TypeVar, Union)
+    Callable, ClassVar, Dict, get_args, get_origin, Iterable, Mapping, MutableMapping, Optional, Type, TypeVar, Union)
 from warnings import warn
 
 from more_itertools import consume
@@ -19,7 +19,8 @@ _KT = TypeVar('_KT')
 _VT = TypeVar('_VT')
 
 
-class PerKeyDefaultDict(dict[_KT, _VT]):
+# TODO: python 3.9: Dict -> dict
+class PerKeyDefaultDict(Dict[_KT, _VT]):
     default_factory: Optional[Callable[[_KT], _VT]] = None
 
     def __init__(self, default_factory: Callable[[_KT], _VT] = None, *args, **kwargs):

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from _weakref import ReferenceType
 from typing import final, Generic, Optional, Type, TYPE_CHECKING, Union
 

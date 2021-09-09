@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import contextlib
 from typing import Any, Callable, Iterable, Mapping, Optional, Type, Union
 
@@ -8,7 +10,7 @@ import torch
 from pyro.infer import SVI, Trace_ELBO
 from tqdm.auto import tqdm
 
-from .Command import Command
+from .command import Command
 from ..utils import noop
 from ..utils.typing import _Guide, _Model
 

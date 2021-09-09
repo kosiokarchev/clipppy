@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import builtins as __builtins__
 import ast
 import threading
@@ -26,6 +28,7 @@ class ScopeMixin:
     builtins: ClassVar[Mapping[str, Any]] = ChainMap(_make_globals(), __builtins__)
 
     class TLocal(Protocol):
+        """"""
         scope: MutableMapping[str, Any]
 
     _tlocal: TLocal = threading.local()

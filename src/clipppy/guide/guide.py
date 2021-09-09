@@ -1,9 +1,5 @@
-"""
-Guide functionality mostly copied from pyro.contrib.easyguide
-with little alterations of some annoying bits and cosmetic improvement.
-Also, with some new functionality.
-Edit: *inspired* by easyguide, but probably nothing like it anymore.
-"""
+from __future__ import annotations
+
 from typing import Any, Callable, Iterable, MutableMapping, Optional
 
 import pyro

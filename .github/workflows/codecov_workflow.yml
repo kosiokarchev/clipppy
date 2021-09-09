@@ -1,0 +1,16 @@
+name: GitHub workflow
+on: push
+jobs:
+  workflow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v2
+        with:
+          python-version: 3.8
+      - run: |
+          pip install -e .[testing]
+      - run: |
+          pip install pytest pytest-cov
+          pytest --cov-report=xml --cov=clipppy
+      - uses: codecov/codecov-action@v1
