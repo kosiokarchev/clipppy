@@ -6,7 +6,7 @@ from typing import Any, AnyStr, Mapping, TextIO, Union
 from .clipppy import Clipppy
 from .yaml import ClipppyYAML, determine_scope
 
-
+__version__ = '0.0.42'
 __all__ = 'load_config', 'loads', 'Clipppy', 'ClipppyYAML'
 
 
