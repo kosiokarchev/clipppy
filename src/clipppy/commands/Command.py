@@ -6,7 +6,7 @@ from functools import lru_cache
 
 import pyro
 
-from ..utils import dict_union
+from ..utils import Sentinel
 
 
 class Command(ABC):
@@ -34,7 +34,7 @@ class Command(ABC):
         if there are exact name matches in its signature.
     """
 
-    no_call = object()
+    no_call = Sentinel.no_call
     """Special value to be used to indicate that instead of calling an object,
        it should be returned as is."""
 
@@ -61,10 +61,10 @@ class Command(ABC):
         kwargs = self.setattr(kwargs)
         allowed = inspect.signature(self.forward).parameters
         try:
-            return self.forward(*args, **dict_union(
-                {key: value for key, value in self.boundkwargs.items() if key in allowed},
-                kwargs
-            ))
+            return self.forward(*args, **{
+                **{key: value for key, value in self.boundkwargs.items() if key in allowed},
+                **kwargs
+            })
         finally:
             self.setattr(oldkwargs)
 

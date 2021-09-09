@@ -1,4 +1,4 @@
-import typing as tp
+from typing import TypedDict
 
 import pyro
 import pyro.poutine
@@ -19,8 +19,8 @@ class PPD(SamplingCommand):
     """File to load a guide from, or `None` to use the guide in the config."""
 
     def forward(self, model: _Model, guide: Guide, *args, **kwargs)\
-            -> tp.TypedDict('ppd', {'guide_trace': pyro.poutine.Trace,
-                                    'model_trace': pyro.poutine.Trace}, total=False):
+            -> TypedDict('ppd', {'guide_trace': pyro.poutine.Trace,
+                                 'model_trace': pyro.poutine.Trace}, total=False):
         # TODO: better guide loading
         if self.guidefile is not None:
             guide = torch.load(self.guidefile)

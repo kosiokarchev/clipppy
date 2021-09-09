@@ -1,4 +1,4 @@
-import typing as tp
+from typing import get_args, Iterable, Literal
 
 import click
 import torch
@@ -20,7 +20,7 @@ class LazyMultiCommand(click.MultiCommand):
         ctx.ensure_object(Clipppy)
         return ctx.obj
 
-    def list_commands(self, ctx: click.Context) -> tp.Iterable[str]:
+    def list_commands(self, ctx: click.Context) -> Iterable[str]:
         return self.ctx_to_obj(ctx).commands.keys()
 
     def get_command(self, ctx: click.Context, cmd_name: str) -> click.Command:
@@ -36,7 +36,7 @@ class LazyMultiCommand(click.MultiCommand):
 
 
 # TODO: migrate to 3.8
-device_literal = tp.Literal.__getitem__(
+device_literal = Literal.__getitem__(
     (None, 'cpu') + (
         torch.cuda.is_available()
         and (('cuda',) + tuple(f'cuda:{i}' for i in range(torch.cuda.device_count())))
@@ -49,7 +49,7 @@ device_literal = tp.Literal.__getitem__(
 @click.pass_context
 def cli(ctx: click.Context, config: autocli._ExistingFile, device: device_literal = None):
     # print(locals())
-    assert device in tp.get_args(device_literal)
+    assert device in get_args(device_literal)
     if device in ('cpu', None):
         torch.set_default_tensor_type(torch.FloatTensor)
     else:
