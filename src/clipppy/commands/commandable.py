@@ -1,7 +1,9 @@
-import typing as tp
-from functools import lru_cache
+from __future__ import annotations
 
-from .Command import Command
+from functools import lru_cache
+from typing import Any, get_type_hints, Mapping, Optional, Type
+
+from .command import Command
 
 
 class ProxyDict(dict):
@@ -26,15 +28,15 @@ class ProxyDict(dict):
 class Commandable:
     @property
     @lru_cache()
-    def commands(self) -> tp.Mapping[str, tp.Any]:
-        return tp.get_type_hints(type(self))
+    def commands(self) -> Mapping[str, Any]:
+        return get_type_hints(type(self))
 
-    def get_cmd_cls(self, name: str) -> tp.Optional[tp.Type[Command]]:
+    def get_cmd_cls(self, name: str) -> Optional[Type[Command]]:
         # sys.version_info >= (3, 8)
         cmd = self.commands.get(name, None)
         return cmd if cmd is not None and issubclass(cmd, Command) else None
 
-    def register_cmd_cls(self, name: str, cls: tp.Type[Command]):
+    def register_cmd_cls(self, name: str, cls: Type[Command]):
         type(self).__annotations__[name] = cls
 
     def __setattr__(self, key, value):

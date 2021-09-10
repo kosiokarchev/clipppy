@@ -1,36 +1,42 @@
+from __future__ import annotations
+
 import ast
 import builtins
 import inspect
 import re
-import typing as tp
 from itertools import filterfalse
+from typing import (Any, Callable, cast, get_args, get_origin, get_type_hints, Iterable, Literal, Mapping, NewType,
+                    Optional,
+                    Sequence, Tuple, Type,
+                    TypedDict,
+                    Union)
 
 import click
 from more_itertools import always_iterable, always_reversible, first
 
-from .utils import dict_union, tryme
+from .utils import tryme
 from .utils.signatures import is_variadic
 
-__all__ = ('_File', '_ExistingFile', '_Dir', '_Dir',
-           'AutoCLI', 'acli')
+
+__all__ = '_File', '_ExistingFile', '_Dir', '_Dir', 'AutoCLI', 'acli'
 
 
 class EvalParamType(click.ParamType):
     name = 'EVAL'
 
-    def convert(self, value: tp.Union[str, tp.Any], param, ctx) -> tp.Any:
+    def convert(self, value: Union[str, Any], param, ctx) -> Any:
         return (isinstance(value, str) and eval(value, vars(builtins))
                 or isinstance(value, ObjectContainer) and value.o
                 or value)
 
 
-_File = tp.NewType('_File', str)
-_ExistingFile = tp.NewType('_ExistingFile', str)
-_Dir = tp.NewType('_Dir', str)
-_ExistingDir = tp.NewType('_ExistingDir', str)
+_File = NewType('_File', str)
+_ExistingFile = NewType('_ExistingFile', str)
+_Dir = NewType('_Dir', str)
+_ExistingDir = NewType('_ExistingDir', str)
 
 click_types_map = {
-    tp.Union: EvalParamType(),
+    Union: EvalParamType(),
     bool: bool,
     _File: click.Path(file_okay=True, dir_okay=False),
     _ExistingFile: click.Path(exists=True, file_okay=True, dir_okay=False),
@@ -57,10 +63,10 @@ class ParameterWithDoc(inspect.Parameter):
         """Modifies ``param`` in-place!"""
         param.__class__ = cls
         param.doc = doc
-        return tp.cast(ParameterWithDoc, param)
+        return cast(ParameterWithDoc, param)
 
 
-def get_attribute_doc(clsasts: tp.Union[tp.Iterable[ast.ClassDef], ast.ClassDef], name) -> tp.Optional[str]:
+def get_attribute_doc(clsasts: Union[Iterable[ast.ClassDef], ast.ClassDef], name) -> Optional[str]:
     return re.sub(r'\n+', '\n', re.sub(r'([^\n])\n([^\n])', r'\1 \2', inspect.cleandoc(first((
         ret for clsast in always_iterable(clsasts, base_type=ast.ClassDef) if clsast is not None
         for members in (clsast.body,)
@@ -73,10 +79,10 @@ def get_attribute_doc(clsasts: tp.Union[tp.Iterable[ast.ClassDef], ast.ClassDef]
 
 
 class DocumentedSignature(inspect.Signature):
-    parameters: tp.Mapping[str, ParameterWithDoc]
+    parameters: Mapping[str, ParameterWithDoc]
 
     @classmethod
-    def from_callable(cls, obj: tp.Callable[..., tp.Any], *, follow_wrapped: bool = ...) -> 'DocumentedSignature':
+    def from_callable(cls, obj: Callable[..., Any], *, follow_wrapped: bool = ...) -> 'DocumentedSignature':
         sig = super().from_callable(obj, follow_wrapped=follow_wrapped)
         for param in sig.parameters.values():
             # TODO: Actual doc extraction for function parameters
@@ -86,13 +92,13 @@ class DocumentedSignature(inspect.Signature):
         return sig
 
     @classmethod
-    def from_command(cls, ocls: tp.Union[tp.Type, tp.Any]) -> 'DocumentedSignature':
+    def from_command(cls, ocls: Union[Type, Any]) -> 'DocumentedSignature':
         if not isinstance(ocls, type):
             ocls = type(ocls)
-        annotations = tp.get_type_hints(ocls)
+        annotations = get_type_hints(ocls)
 
         clsasts = [
-            tp.cast(ast.ClassDef, tryme(lambda: ast.parse(inspect.getsource(_cls)).body[0]))
+            cast(ast.ClassDef, tryme(lambda: ast.parse(inspect.getsource(_cls)).body[0]))
             for _cls in ocls.__mro__
         ]
         return cls([
@@ -127,29 +133,31 @@ class AutoCLI:
 
         self._registry = {}
 
-    def annotation_to_click(self, ann) -> tp.TypedDict('', {'type': tp.Union[click.ParamType, tp.Tuple], 'multiple': bool}, total=False):
+    _atc_type = TypedDict('_atc_type', dict(type=Union[click.ParamType, Tuple], multiple=bool), total=False)
+
+    def annotation_to_click(self, ann) -> _atc_type:
         try:
-            origin = tp.get_origin(ann) or ann
+            origin = get_origin(ann) or ann
             if origin in click_types_map:
                 return {'type': click_types_map[origin]}
 
-            elif origin is tp.Literal:
-                choices = [None if a is None else str(a) for a in tp.get_args(ann)]
+            elif origin is Literal:
+                choices = [None if a is None else str(a) for a in get_args(ann)]
                 return {'type': click.Choice(choices),
                         'metavar': f'[{"|".join(filterfalse(lambda x: (x is None), choices))}]'}
-            elif origin is tp.Tuple:
-                return {'type': tuple(self.annotation_to_click(a)['type'] for a in tp.get_args(ann))}
-            elif issubclass(origin, (tp.get_origin(tp.Iterable), tp.get_origin(tp.Sequence)))\
+            elif origin is Tuple:
+                return {'type': tuple(self.annotation_to_click(a)['type'] for a in get_args(ann))}
+            elif issubclass(origin, (get_origin(Iterable), get_origin(Sequence)))\
                     and not issubclass(origin, str)\
-                    and not issubclass(origin, tp.Mapping):
-                return {'type': self.annotation_to_click(tp.get_args(ann)[0])['type'], 'multiple': True}
+                    and not issubclass(origin, Mapping):
+                return {'type': self.annotation_to_click(get_args(ann)[0])['type'], 'multiple': True}
             else:
                 return {'type': click.types.convert_type(origin, EvalParamType())}
         except Exception as e:
             print(e, ann)
             return {}
 
-    def parameter_to_click(self, param: ParameterWithDoc) -> tp.Optional[click.Parameter]:
+    def parameter_to_click(self, param: ParameterWithDoc) -> Optional[click.Parameter]:
         if param.annotation is click.Context or is_variadic(param):
             return None
 
@@ -158,17 +166,14 @@ class AutoCLI:
         annkwargs = self.annotation_to_click(param.annotation)
         return (
             param.default is not param.empty
-            and click.Option(**dict_union(
-                self.option_kwargs, annkwargs,
-                param_decls=[(is_bool and param.default) and f'--{name}/--no-{name}' or f'--{name}', param.name],
-                is_flag=is_bool,
-                default=param.default if not callable(param.default) else ObjectContainer(param.default),
-                help=(param.doc or self.option_kwargs.get('help', '') or '').split('\n', 1)[0]
-            ))
-            or click.Argument(**dict_union(
-                self.argument_kwargs, annkwargs,
-                required=True, param_decls=[name],
-            ))
+            and click.Option(**{
+                **self.option_kwargs, **annkwargs, **dict(
+                    param_decls=[(is_bool and param.default) and f'--{name}/--no-{name}' or f'--{name}', param.name],
+                    is_flag=is_bool,
+                    default=param.default if not callable(param.default) else ObjectContainer(param.default),
+                    help=(param.doc or self.option_kwargs.get('help', '') or '').split('\n', 1)[0]
+                )})
+            or click.Argument(**{**self.argument_kwargs, **annkwargs, 'required': True, 'param_decls': [name]})
         )
 
     def sigs_to_click(self, *sigs: DocumentedSignature):
@@ -180,13 +185,13 @@ class AutoCLI:
             if click_param is not None
         }
 
-    def annotated_class(self, obj, follow_wrapped=True) -> tp.Mapping[str, click.Parameter]:
+    def annotated_class(self, obj, follow_wrapped=True) -> Mapping[str, click.Parameter]:
         return self.sigs_to_click(
             DocumentedSignature.from_command(obj),
             DocumentedSignature.from_callable(obj, follow_wrapped=follow_wrapped)
         )
 
-    def function(self, func, follow_wrapped=True) -> tp.Mapping[str, click.Parameter]:
+    def function(self, func, follow_wrapped=True) -> Mapping[str, click.Parameter]:
         return self.sigs_to_click(
             DocumentedSignature.from_callable(func, follow_wrapped=follow_wrapped)
         )

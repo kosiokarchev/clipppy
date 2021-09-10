@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 import contextlib
-import typing as tp
+from typing import Any, Callable, Iterable, Mapping, Optional, Type, Union
 
 import numpy as np
 import pyro.infer
@@ -8,8 +10,8 @@ import torch
 from pyro.infer import SVI, Trace_ELBO
 from tqdm.auto import tqdm
 
-from .Command import Command
-from ..utils import dict_union, noop
+from .command import Command
+from ..utils import noop
 from ..utils.typing import _Guide, _Model
 
 
@@ -38,13 +40,13 @@ class Fit(Command):
     """Number of most recents steps to use for calculating various
        averaged quantities (average rate, mean loss...)."""
 
-    optimizer_cls: tp.Union[tp.Type[pyro.optim.PyroOptim],
-                            tp.Callable[[tp.Dict], pyro.optim.PyroOptim]]\
+    optimizer_cls: Union[Type[pyro.optim.PyroOptim],
+                         Callable[[Mapping], pyro.optim.PyroOptim]]\
         = pyro.optim.Adam
     """The class of `PyroOptim <pyro.optim.optim.PyroOptim>` to
        instantiate (or a function that acts like it)."""
 
-    optimizer_args: tp.Optional[tp.Dict] = {}
+    optimizer_args: Optional[Mapping] = {}
     """The (keyword!) arguments to pass to ``optimizer_cls``.
 
        Will be updated with the standalone ``lr`` passed, unless it is ``noop``.
@@ -52,17 +54,17 @@ class Fit(Command):
        Pass the special value `Command.no_call` to avoid instantiating
        ``optimizer_cls`` and use it directly."""
 
-    loss_cls: tp.Union[tp.Type[pyro.infer.ELBO], tp.Callable[..., torch.Tensor]]\
+    loss_cls: Union[Type[pyro.infer.ELBO], Callable[..., torch.Tensor]]\
         = Trace_ELBO
     """The loss class to instantiate."""
 
-    loss_args: tp.Dict = {}
+    loss_args: Mapping = {}
     """Arguments for the ``loss_cls`` constructor.
 
        Pass the special value `Command.no_call` to avoid instantiating
        ``load_cls`` and use it directly."""
 
-    callback: tp.Callable[[int, float, tp.Mapping[str, tp.Any]], tp.Any] = None
+    callback: Callable[[int, float, Mapping[str, Any]], Any] = None
     """Callback to be executed after each step.
 
        Signature should be ``callback(i, loss, locals)``, where ``i`` is the
@@ -79,11 +81,11 @@ class Fit(Command):
         """
         return (self.optimizer_cls if self.optimizer_args is Command.no_call
                 else self.optimizer_cls(
-            self.optimizer_args if self.lr is noop else
-            dict_union(self.optimizer_args, {'lr': self.lr})))
+                    self.optimizer_args if self.lr is noop else
+                    {**self.optimizer_args, 'lr': self.lr}))
 
     @property
-    def lossfunc(self) -> tp.Union[pyro.infer.ELBO, tp.Callable[..., torch.Tensor]]:
+    def lossfunc(self) -> Union[pyro.infer.ELBO, Callable[..., torch.Tensor]]:
         """
         Construct a loss as ``loss_cls(**loss_args)`` or simply return
         `loss_cls` if `loss_args` is `Command.no_call`.
@@ -91,7 +93,7 @@ class Fit(Command):
         return (self.loss_cls if self.loss_args is self.no_call
                 else self.loss_cls(**self.loss_args))
 
-    def converged(self, slope: float, windowed_losses: tp.Iterable[float] = None):
+    def converged(self, slope: float, windowed_losses: Iterable[float] = None):
         """
         Indicate whether the fit is considered converged.
 

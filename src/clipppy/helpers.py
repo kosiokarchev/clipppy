@@ -1,25 +1,26 @@
-import typing
+from __future__ import annotations
+
+from functools import partial
+from typing import Type
 
 import pyro.optim
 import torch
 
-from .globals import register_globals
-from .utils import dict_union
 
-__all__ = ('scheduled_optimizer', 'scheduled_optimizer_callback', 'scheduled_optimizer_callback_with_loss')
+__all__ = 'scheduled_optimizer', 'scheduled_optimizer_callback', 'scheduled_optimizer_callback_with_loss'
 
 
-def scheduled_optimizer(lr_scheduler_cls: typing.Type[pyro.optim.PyroLRScheduler],
-                        optimizer_cls: typing.Type[torch.optim.lr_scheduler._LRScheduler],
+def _scheduled_optimizer(lr_scheduler_cls, optimizer_cls, scheduler_kwargs, clip_args, optim_args):
+    return pyro.optim.PyroLRScheduler(
+        lr_scheduler_cls, {'optimizer': optimizer_cls, 'optim_args': optim_args, **scheduler_kwargs},
+        clip_args=clip_args
+    )
+
+
+def scheduled_optimizer(lr_scheduler_cls: Type[pyro.optim.PyroLRScheduler],
+                        optimizer_cls: Type[torch.optim.lr_scheduler._LRScheduler],
                         clip_args=None, **scheduler_kwargs):
-    scheduler_kwargs = dict_union({'verbose': True}, scheduler_kwargs)
-
-    def _(optim_args):
-        return pyro.optim.PyroLRScheduler(
-            lr_scheduler_cls, {'optimizer': optimizer_cls, 'optim_args': optim_args, **scheduler_kwargs},
-            clip_args=clip_args
-        )
-    return _
+    return partial(_scheduled_optimizer, lr_scheduler_cls, optimizer_cls, {**{'verbose': True, **scheduler_kwargs}}, clip_args)
 
 
 class _call_forwarding(type):
@@ -43,6 +44,3 @@ class scheduled_optimizer_callback_with_loss(scheduled_optimizer_callback):
     @staticmethod
     def _get_args(i, loss, locs):
         return loss,
-
-
-register_globals(**{a: globals()[a] for a in __all__ if a in globals()})

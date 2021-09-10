@@ -1,8 +1,10 @@
-import typing as tp
+from __future__ import annotations
+
 from abc import ABCMeta, abstractmethod
 from contextlib import ExitStack
 from functools import lru_cache
 from operator import itemgetter
+from typing import cast, Iterable, Mapping, MutableMapping, Union
 
 import pyro
 import torch
@@ -12,6 +14,7 @@ from pyro.nn import PyroModule, PyroParam, PyroSample
 from pyro.poutine import runtime
 from torch.distributions import biject_to
 
+from . import guide as _guide
 from ..utils import enumlstrip, to_tensor
 from ..utils.pyro import no_grad_msgr
 from ..utils.typing import _Site
@@ -61,26 +64,26 @@ class SamplingGroup(PyroModule, metaclass=_AbstractPyroModuleMeta):
 
             self.inits[name] = init
 
-            # TODO: Wait for better days to come...:
-            # _ if (_:=site.get('mask', None)) is not None....
-            mask = site['infer'].get('mask', site.get('mask', getattr(site['fn'], '_mask', None)))
-            if mask is None:
+            # mask = site['infer'].get('mask', site.get('mask', getattr(site['fn'], '_mask', None)))
+            # if mask is None:
+            #     mask = init.new_full([], True, dtype=torch.bool)
+            if (mask := site.get('mask', None)) is None:
                 mask = init.new_full([], True, dtype=torch.bool)
             self.masks[name] = mask.expand_as(init)
 
             self.sizes[name] = int(self.masks[name].sum())
 
-    def __init__(self, sites: tp.Iterable[_Site], name='', *args, **kwargs):
+    def __init__(self, sites: Iterable[_Site], name='', *args, **kwargs):
         super().__init__(name)
 
-        self.sites: tp.Mapping[str, _Site] = {site['name']: site for site in sites}
-        self.event_shapes: tp.MutableMapping[str, torch.Size] = {}
-        self.batch_shapes: tp.MutableMapping[str, torch.Size] = {}
-        self.sizes: tp.MutableMapping[str, int] = {}
-        self.transforms: tp.MutableMapping[str, transforms.Transform] = {}
+        self.sites: Mapping[str, _Site] = {site['name']: site for site in sites}
+        self.event_shapes: MutableMapping[str, torch.Size] = {}
+        self.batch_shapes: MutableMapping[str, torch.Size] = {}
+        self.sizes: MutableMapping[str, int] = {}
+        self.transforms: MutableMapping[str, transforms.Transform] = {}
 
-        self.masks: tp.MutableMapping[str, torch.Tensor] = {}
-        self.inits: tp.MutableMapping[str, torch.Tensor] = {}
+        self.masks: MutableMapping[str, torch.Tensor] = {}
+        self.inits: MutableMapping[str, torch.Tensor] = {}
 
         self._process_prototype()
 
@@ -94,7 +97,7 @@ class SamplingGroup(PyroModule, metaclass=_AbstractPyroModuleMeta):
     @property
     @lru_cache()
     def mask(self) -> torch.BoolTensor:
-        return tp.cast(torch.BoolTensor,
+        return cast(torch.BoolTensor,
                        torch.cat([m.flatten() for m in self.masks.values()]))
 
     @property
@@ -107,7 +110,7 @@ class SamplingGroup(PyroModule, metaclass=_AbstractPyroModuleMeta):
     # By default, include constraining transformation's Jacobian factor
     include_det_jac = True
 
-    def unpacker(self, arr: torch.Tensor) -> tp.Iterable[torch.Tensor]:
+    def unpacker(self, arr: torch.Tensor) -> Iterable[torch.Tensor]:
         for pos, size in zip((s for s in [0] for x in self.sizes.values() for s in [x+s]), self.sizes.values()):
             yield arr[..., pos-size:pos]
 
@@ -117,7 +120,7 @@ class SamplingGroup(PyroModule, metaclass=_AbstractPyroModuleMeta):
             for z, tr in zip(self.unpacker(guide_z), self.transforms.values())
         ), dim=-1)
 
-    def unpack(self, group_z: torch.Tensor) -> tp.Dict[str, torch.Tensor]:
+    def unpack(self, group_z: torch.Tensor, guide: _guide.Guide = None) -> MutableMapping[str, torch.Tensor]:
         model_zs = {}
         for pos, (name, fn, frames), transform in zip(
             # lazy cumsum!! python ftw!
@@ -139,7 +142,14 @@ class SamplingGroup(PyroModule, metaclass=_AbstractPyroModuleMeta):
                 log_density = 0.
 
             delta = dist.Delta(x, log_density=log_density, event_dim=fn.event_dim)
-            model_zs[name] = pyro.sample(name, delta)
+
+            with ExitStack() as stack:
+                if guide is not None:
+                    for frame in frames:
+                        plate = guide.plate(frame.name)
+                        if plate not in runtime._PYRO_STACK:
+                            stack.enter_context(plate)
+                model_zs[name] = pyro.sample(name, delta)
 
         return model_zs
 
@@ -153,11 +163,12 @@ class SamplingGroup(PyroModule, metaclass=_AbstractPyroModuleMeta):
             ret.enter_context(torch.no_grad())
             return ret
 
-    def forward(self) -> tp.Tuple[torch.Tensor, tp.Dict[str, torch.Tensor]]:
-        with self.grad_context:
-            with pyro.poutine.infer_config(config_fn=lambda site: dict(is_auxiliary=True)):
-                group_z = self._sample()
-            return group_z, self.unpack(group_z)
+    def forward(self, guide: _guide.Guide = None, infer: dict = None) -> tuple[torch.Tensor, MutableMapping[str, torch.Tensor]]:
+        with pyro.poutine.infer_config(
+                config_fn=lambda site: dict(**(infer if infer is not None else {}), is_auxiliary=True)):
+            with self.grad_context:
+                group_z = self._sample(infer)
+                return group_z, self.unpack(group_z, guide)
 
     def extra_repr(self) -> str:
         return f'{len(self.sites)} sites, {self.event_shape}'
@@ -169,11 +180,11 @@ class LocatedSamplingGroupWithPrior(SamplingGroup):
         self.loc = PyroParam(self.init[self.mask], event_dim=1)
 
     @staticmethod
-    def _scale_diagonal(scale: tp.Union[torch.Tensor, float], jac: torch.Tensor):
+    def _scale_diagonal(scale: Union[torch.Tensor, float], jac: torch.Tensor):
         return to_tensor(scale).to(jac).expand_as(jac) / jac
 
     @staticmethod
-    def _scale_matrix(scale: tp.Union[torch.Tensor, float], jac: torch.Tensor):
+    def _scale_matrix(scale: Union[torch.Tensor, float], jac: torch.Tensor):
         scale = to_tensor(scale).to(jac)
         if not scale.shape[-2:] == 2*(jac.shape[-1],):
             scale = dist.util.eye_like(jac, jac.shape[-1]) * scale.expand_as(jac).unsqueeze(-2)
@@ -187,5 +198,5 @@ class LocatedSamplingGroupWithPrior(SamplingGroup):
         return self.prior()
 
     @pyro.nn.pyro_method
-    def _sample(self) -> torch.Tensor:
+    def _sample(self, infer) -> torch.Tensor:
         return self.guide_z

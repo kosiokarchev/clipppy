@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import torch
 
 if not hasattr(torch.Tensor, '_numpy'):

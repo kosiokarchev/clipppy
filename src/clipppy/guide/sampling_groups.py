@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import re
-import typing as tp
+from itertools import chain
+from typing import cast, Mapping, Union
 
 import torch
 from more_itertools import partition
@@ -8,7 +11,8 @@ from pyro.distributions import constraints
 from pyro.nn import PyroParam, PyroSample
 
 from ..guide.sampling_group import LocatedSamplingGroupWithPrior, SamplingGroup
-from ..utils import _nomatch, dict_union
+from ..utils import _nomatch
+from ..utils.typing import _Site
 
 
 # This should be the same as EasyGuide's map_estimate,
@@ -23,12 +27,12 @@ class DeltaSamplingGroup(SamplingGroup):
     # Emulate EasyGuide's map_estimate implementation
     include_det_jac = False
 
-    def _sample(self) -> torch.Tensor:
-        return tp.cast(torch.Tensor, self.loc)
+    def _sample(self, infer) -> torch.Tensor:
+        return cast(torch.Tensor, self.loc)
 
 
 class DiagonalNormalSamplingGroup(LocatedSamplingGroupWithPrior):
-    def __init__(self, sites, name='', init_scale: tp.Union[torch.Tensor, float] = 1., *args, **kwargs):
+    def __init__(self, sites, name='', init_scale: Union[torch.Tensor, float] = 1., *args, **kwargs):
         super().__init__(sites, name, *args, **kwargs)
 
         self.scale = PyroParam(self._scale_diagonal(init_scale, self.jacobian(self.loc)),
@@ -39,7 +43,7 @@ class DiagonalNormalSamplingGroup(LocatedSamplingGroupWithPrior):
 
 
 class MultivariateNormalSamplingGroup(LocatedSamplingGroupWithPrior):
-    def __init__(self, sites, name='', init_scale: tp.Union[torch.Tensor, float] = 1., *args, **kwargs):
+    def __init__(self, sites, name='', init_scale: Union[torch.Tensor, float] = 1., *args, **kwargs):
         super().__init__(sites, name, *args, **kwargs)
 
         self.scale_tril = PyroParam(self._scale_matrix(init_scale, self.jacobian(self.loc)),
@@ -51,17 +55,21 @@ class MultivariateNormalSamplingGroup(LocatedSamplingGroupWithPrior):
 
 class PartialMultivariateNormalSamplingGroup(LocatedSamplingGroupWithPrior):
     def __init__(self, sites, name='', diag=_nomatch,
-                 init_scale_full: tp.Union[torch.Tensor, float] = 1.,
-                 init_scale_diag: tp.Union[torch.Tensor, float] = 1.,
+                 init_scale_full: Union[torch.Tensor, float] = 1.,
+                 init_scale_diag: Union[torch.Tensor, float] = 1.,
                  *args, **kwargs):
         self.diag_pattern = re.compile(diag)
-        self.sites_full, self.sites_diag = ({site['name']: site for site in _}
-                                            for _ in partition(lambda _: self.diag_pattern.match(_['name']), sites))
+        self.sites_full, self.sites_diag = (
+            {site['name']: site for site in _}
+            for _ in partition(lambda _: self.diag_pattern.match(_['name']), sites)
+        )  # type: Mapping[str, _Site]
 
-        super().__init__(dict_union(self.sites_full, self.sites_diag).values(), name, *args, **kwargs)
+        super().__init__(chain(self.sites_full.values(), self.sites_diag.values()), name, *args, **kwargs)
 
-        self.size_full, self.size_diag = (sum(self.sizes[site] for site in _)
-                                          for _ in (self.sites_full, self.sites_diag))
+        self.size_full, self.size_diag = (
+            sum(self.sizes[site] for site in _)
+            for _ in (self.sites_full, self.sites_diag)
+        )  # type: int
 
         jac = self.jacobian(self.loc)
 

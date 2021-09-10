@@ -1,15 +1,22 @@
-import os
-import typing as tp
+from __future__ import annotations
 
-from .Clipppy import Clipppy
-from .yaml import ClipppyYAML
+from importlib import import_module
+from typing import TYPE_CHECKING
 
-__all__ = 'load_config', 'Clipppy', 'ClipppyYAML'
+if TYPE_CHECKING:
+    from ._clipppy import *
 
 
-def load_config(path_or_stream: tp.Union[os.PathLike, str, tp.TextIO],
-                base_dir: tp.Union[os.PathLike, tp.AnyStr] = None,
-                interpret_as_Clipppy=True,
-                force_templating=True, **kwargs) -> tp.Union[Clipppy, tp.Any]:
-    return (ClipppyYAML(base_dir=base_dir, interpret_as_Clipppy=interpret_as_Clipppy)
-            .load(path_or_stream, force_templating=force_templating, **kwargs))
+__version__ = '0.42.0a.dev2'
+__all__ = 'load_config', 'loads', 'Clipppy', 'ClipppyYAML', '__version__'
+
+
+def __getattr__(name):
+    if name in __all__:
+        globals().update(vars(import_module('._clipppy', __name__)))
+        return globals()[name]
+    raise AttributeError(f'module {__name__} has no attribute {name}')
+
+
+def __dir__():
+    return __all__

@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 import re
 import string
-import typing
 from collections import ChainMap
 from functools import partial
+from typing import Mapping
 
 from frozendict import frozendict
 
@@ -10,7 +12,7 @@ _sentinel_dict = frozendict()
 
 
 class Template(string.Template):
-    def safe_convert(self, mo: re.Match, mapping: typing.Mapping[str, str]):
+    def safe_convert(self, mo: re.Match, mapping: Mapping[str, str]):
         named = mo.group('named') or mo.group('braced')
         if named is not None:
             try:
@@ -33,9 +35,9 @@ class Template(string.Template):
 
 
 class TemplateWithDefaults(Template):
-    braceidpattern = Template.idpattern + r')(\s*(?:|=\s*(?P<opening_brace>\()?(?P<default>([^\\]|\\(\\|\)))*?)(?(opening_brace)\)|)\s*)\s*'
+    braceidpattern = Template.idpattern + r')(?:|\s*=\s*(?P<paren>\()?(?P<default>(?:[^\\]|\\(?:\\|\)))*?)(?(paren)\)|)\s*'
 
-    def safe_convert(self, mo: re.Match, mapping: typing.Mapping[str, str]):
+    def safe_convert(self, mo: re.Match, mapping: Mapping[str, str]):
         if mo.group('default') is not None:
             mapping = ChainMap(mapping, {mo.group('braced'): mo.group('default').replace(r'\)', ')').replace(r'\\', '\\')})
         return super().safe_convert(mo, mapping)

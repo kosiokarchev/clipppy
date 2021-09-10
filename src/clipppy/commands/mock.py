@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 import pyro
 import pyro.poutine
 import torch
 
-from .Command import SamplingCommand
+from .command import SamplingCommand
 from ..utils.pyro import init_msgr
 from ..utils.typing import _Model
 
