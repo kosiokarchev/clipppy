@@ -117,15 +117,8 @@ CC.add_constructor('!SemiInfiniteSampler', CC.apply(partial(Sampler, d=SemiInfin
 CC.add_multi_constructor('!Stochastic:', CC.apply_prefixed(stochastic_prefix))
 
 
-def __getattr__(name):
-    if name == 'MyYAML':
-        warn('\'MyYAML\' was renamed to \'ClipppyYAML\' and will soon be unavailable.', FutureWarning)
-        return ClipppyYAML
-
-
 def _register_globals():
-    from .hooks import _  # make sure hooks are registered
-
+    from . import hooks
     from .. import clipppy, stochastic, guide, helpers
     for mod in (clipppy, stochastic, guide, helpers):
         CC.builtins.update(**{a: getattr(mod, a) for a in mod.__all__})
@@ -134,3 +127,10 @@ def _register_globals():
 
 _register_globals()
 del _register_globals
+
+
+def __getattr__(name):
+    if name == 'MyYAML':
+        warn('\'MyYAML\' was renamed to \'ClipppyYAML\' and will soon be unavailable.', FutureWarning)
+        return ClipppyYAML
+    raise AttributeError(f'module {__name__} has no attribute {name}')

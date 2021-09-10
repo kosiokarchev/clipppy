@@ -17,5 +17,3 @@ def stochastic_specs_hook(node: Node, constructor: ClipppyConstructor):
 
 
 ClipppyConstructor.add_type_hook(StochasticSpecs, stochastic_specs_hook)
-
-_ = None  # from .hooks import _  : * does not work in local scopes
