@@ -27,4 +27,4 @@ def loads(string: str, **kwargs):
 
 
 def load_config(*args, **kwargs) -> Clipppy:
-    return load(*args, scope=determine_scope(kwargs.pop('scope', None)), interpret_as_clipppy=True, **kwargs)
+    return load(*args, scope=determine_scope(kwargs.pop('scope', None)), interpret_as_Clipppy=True, **kwargs)

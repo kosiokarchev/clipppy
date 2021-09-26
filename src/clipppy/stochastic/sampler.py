@@ -4,7 +4,6 @@ from abc import ABC
 from dataclasses import dataclass, field
 from functools import partial
 from itertools import filterfalse
-from operator import methodcaller
 from typing import Any, Callable, Generic, Iterable, Literal, Mapping, Union
 
 import pyro
@@ -14,7 +13,7 @@ from pyro.distributions.torch_distribution import TorchDistributionMixin as _Dis
 from pyro.poutine import infer_config
 from torch.distributions.constraints import Constraint
 
-from ..utils import _T, _Tin, _Tout, Sentinel
+from ..utils import _T, _Tin, _Tout, caller, Sentinel
 
 
 __api__ = 'AbstractSampler', 'Sampler', 'Param', 'PseudoSampler'
@@ -50,6 +49,24 @@ class Effect(PseudoSampler[Any, _Tin], Generic[_Tin, _Tout]):
 class UnbindEffect(Effect[torch.Tensor, torch.Tensor]):
     def __init__(self, func, dim=-1):
         super().__init__(partial(torch.unbind, dim=dim), func)
+
+
+@dataclass
+class MultiEffect(AbstractSampler, Generic[_Tout]):
+    effect: Callable[..., _Tout]
+    arg_funcs: Iterable[Callable[[], Any]]
+    kwarg_funcs: Mapping[str, Callable[[], Any]]
+
+    def __init__(self, effect: Callable[..., _Tout], *arg_funcs: Callable[[], Any], **kwarg_funcs: Callable[[], Any]):
+        self.effect = effect
+        self.arg_funcs = arg_funcs
+        self.kwarg_funcs = kwarg_funcs
+
+    def __call__(self) -> _Tout:
+        return self.effect(
+            *(func for func in self.arg_funcs),
+            **{name: func() for name, func in self.kwarg_funcs.items()}
+        )
 
 
 @dataclass
@@ -97,7 +114,7 @@ class Sampler(_Sampler):
     @property
     def distribution(self) -> _Distribution:
         # Call ``self.d`` until a ``_Distribution`` pops out.
-        return first_true(iterate(methodcaller('__call__'), self.d),
+        return first_true(iterate(caller, self.d),
                           pred=_Distribution.__instancecheck__)
 
     def __call__(self):

@@ -125,10 +125,10 @@ class ClipppyConstructor(ScopeMixin, TaggerMixin, Constructor):
         if signature is None:
             return obj
         else:
-            signature.apply_defaults()
+            signature = signature.signature.bind_partial(*signature.args, **{**signature.kwargs, **kwargs})
 
             # try:
-            return obj(*signature.args, **{**signature.kwargs, **kwargs})
+            return obj(*signature.args, **signature.kwargs)
             # except Exception as e:
             #     raise TypeError(f'''Could not instantiate\nobj: {obj}\n*args: {signature.args}\n**kwargs: {signature.kwargs}.''')
 

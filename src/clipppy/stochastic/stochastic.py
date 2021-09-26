@@ -46,7 +46,7 @@ class StochasticSpecs:
     def __init__(self, **kwargs: _SpecVT):
         self.specs: Iterable[tuple[_SpecKT, _SpecVT]] = [(
             name,
-            spec.set_name(strname) if isinstance(spec, NamedSampler)
+            (spec.set_name(strname) if spec.name is None else spec) if isinstance(spec, NamedSampler)
             else Sampler(spec, name=strname) if isinstance(spec, TorchDistributionMixin)
             else PseudoSampler(spec) if callable(spec) and not isinstance(spec, PseudoSampler)
             else spec
@@ -74,11 +74,12 @@ class Stochastic(StochasticScope[_T]):
     if TYPE_CHECKING:
         def __new__(cls: Type[_cls], obj: _T, *args, **kwargs) -> Union[_cls, _T]: ...
 
-    def _init__(self, obj, specs: StochasticSpecs = None, name: str = None,
+    def _init__(self, obj, specs: StochasticSpecs = None,
                 capsule: Capsule = None, capsule_args: Iterable[Capsule] = (),
-                capsule_kwargs: Mapping[str, Capsule] = frozendict()):
+                capsule_kwargs: Mapping[str, Capsule] = frozendict(),
+                name: str = None):
         self.stochastic_specs = specs
-        super()._init__(obj, name, capsule, *capsule_args, **capsule_kwargs)
+        super()._init__(obj, name=name, capsule=capsule, capsule_args=capsule_args, capsule_kwargs=capsule_kwargs)
 
     def __call__(self, *args, **kwargs):
         return super().__call__(*args, **kwargs, **{

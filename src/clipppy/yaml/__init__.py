@@ -15,12 +15,13 @@ import numpy as np
 import torch
 from ruamel.yaml import Node, YAML
 
-from .prefixed import stochastic_prefix, tensor_prefix
+from .prefixed import named_prefix, tensor_prefix
 # TODO: .resolver comes before .constructor!
 from .resolver import ClipppyResolver, ImplicitClipppyResolver
 from .constructor import ClipppyConstructor as CC
+from ..stochastic.capsule import AllEncapsulator, Encapsulator
 from ..stochastic.infinite import InfiniteUniform, SemiInfiniteUniform
-from ..stochastic.sampler import Param, Sampler
+from ..stochastic.sampler import Effect, MultiEffect, Param, PseudoSampler, Sampler, UnbindEffect
 from ..stochastic.stochastic import Stochastic
 from ..templating import TemplateWithDefaults
 
@@ -110,11 +111,14 @@ CC.add_multi_constructor('!tensor:', CC.apply_prefixed(tensor_prefix))
 # TODO: Needs to be handled better?
 CC.type_to_tag[torch.Tensor] = '!tensor'
 
-for typ in (Stochastic, Param, Sampler):
+for typ in (AllEncapsulator, Encapsulator, Stochastic,
+            Param, Sampler, PseudoSampler, Effect, UnbindEffect, MultiEffect):
     CC.add_constructor(f'!{typ.__name__}', CC.apply(typ))
 CC.add_constructor('!InfiniteSampler', CC.apply(partial(Sampler, d=InfiniteUniform())))
 CC.add_constructor('!SemiInfiniteSampler', CC.apply(partial(Sampler, d=SemiInfiniteUniform())))
-CC.add_multi_constructor('!Stochastic:', CC.apply_prefixed(stochastic_prefix))
+
+for typ in (Sampler, Param, Stochastic):
+    CC.add_multi_constructor(f'!{typ.__name__}:', CC.apply_prefixed(partial(named_prefix, typ)))
 
 
 def _register_globals():
