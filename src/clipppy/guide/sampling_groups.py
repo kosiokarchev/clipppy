@@ -11,8 +11,7 @@ from pyro.distributions import constraints
 from pyro.nn import PyroParam, PyroSample
 
 from ..guide.sampling_group import LocatedSamplingGroupWithPrior, SamplingGroup
-from ..utils import _nomatch
-from ..utils.typing import _Site
+from ..utils.typing import _Site, AnyRegex
 
 
 # This should be the same as EasyGuide's map_estimate,
@@ -54,11 +53,11 @@ class MultivariateNormalSamplingGroup(LocatedSamplingGroupWithPrior):
 
 
 class PartialMultivariateNormalSamplingGroup(LocatedSamplingGroupWithPrior):
-    def __init__(self, sites, name='', diag=_nomatch,
+    def __init__(self, sites, name='', diag=AnyRegex(),  # no match
                  init_scale_full: Union[torch.Tensor, float] = 1.,
                  init_scale_diag: Union[torch.Tensor, float] = 1.,
                  *args, **kwargs):
-        self.diag_pattern = re.compile(diag)
+        self.diag_pattern = AnyRegex.get(diag)
         self.sites_full, self.sites_diag = (
             {site['name']: site for site in _}
             for _ in partition(lambda _: self.diag_pattern.match(_['name']), sites)

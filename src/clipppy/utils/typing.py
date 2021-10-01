@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import abc
+import re
 import sys
 import types
 from collections.abc import Callable
 from typing import get_args, get_origin, Iterable, NewType, Optional, Pattern, Protocol, runtime_checkable, Type, TypedDict, TypeVar, Union
+
+from more_itertools import collapse
 
 import torch
 from pyro import distributions as dist
@@ -58,7 +61,17 @@ class GetSetDescriptor(Protocol[_T, _VT]):
     def __set__(self, instance: Optional[_T], value: _VT): ...
 
 
-_Regex = Union[str, Pattern]
+class AnyRegex:
+    def __init__(self, *patterns: Union[str, Pattern]):
+        self.patterns = tuple(map(re.compile, patterns))
+
+    @classmethod
+    def get(cls, *args) -> AnyRegex:
+        return args[0] if isinstance(args[0], AnyRegex) else AnyRegex(*collapse(args))
+
+    def match(self, value: str, *args, **kwargs):
+        return any(p.match(value, *args, **kwargs) for p in self.patterns)
+
 
 _Site = TypedDict('_Site', {
     'name': str, 'fn': dist.TorchDistribution, 'mask': torch.Tensor,
