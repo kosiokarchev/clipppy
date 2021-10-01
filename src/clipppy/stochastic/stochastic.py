@@ -32,9 +32,12 @@ class StochasticScope(AllEncapsulator[_T]):
         self.stochastic_name = name
         super().__init__(obj, capsule, *capsule_args, **capsule_kwargs)
 
+    def _scoped_call(self, *args, **kwargs):
+        return super().__call__(*args, **kwargs)
+
     def __call__(self, *args, **kwargs):
         with scope(prefix=self.stochastic_name) if self.stochastic_name else nullcontext():
-            return super().__call__(*args, **kwargs)
+            return self._scoped_call(*args, **kwargs)
 
 
 _SpecKT = Union[str, Literal[Sentinel.merge], Collection[str]]
@@ -78,11 +81,11 @@ class Stochastic(StochasticScope[_T]):
                 capsule: Capsule = None, capsule_args: Iterable[Capsule] = (),
                 capsule_kwargs: Mapping[str, Capsule] = frozendict(),
                 name: str = None):
-        self.stochastic_specs = specs
+        self.stochastic_specs = specs if isinstance(specs, StochasticSpecs) else StochasticSpecs(**specs)
         super()._init__(obj, name=name, capsule=capsule, capsule_args=capsule_args, capsule_kwargs=capsule_kwargs)
 
-    def __call__(self, *args, **kwargs):
-        return super().__call__(*args, **kwargs, **{
+    def _scoped_call(self, *args, **kwargs):
+        return super()._scoped_call(*args, **kwargs, **{
             key: (val() if isinstance(val, AbstractSampler) else
                   Sampler(val)() if isinstance(val, TorchDistributionMixin)
                   else val)

@@ -21,7 +21,8 @@ from .resolver import ClipppyResolver, ImplicitClipppyResolver
 from .constructor import ClipppyConstructor as CC
 from ..stochastic.capsule import AllEncapsulator, Encapsulator
 from ..stochastic.infinite import InfiniteUniform, SemiInfiniteUniform
-from ..stochastic.sampler import Effect, MultiEffect, Param, PseudoSampler, Sampler, UnbindEffect
+from ..stochastic.sampler import (Context, Deterministic, Effect, Factor, MultiEffect, Param, PseudoSampler, Sampler,
+                                  UnbindEffect)
 from ..stochastic.stochastic import Stochastic
 from ..templating import TemplateWithDefaults
 
@@ -118,12 +119,14 @@ CC.add_multi_constructor('!tensor:', CC.apply_prefixed(tensor_prefix))
 CC.type_to_tag[torch.Tensor] = '!tensor'
 
 for typ in (AllEncapsulator, Encapsulator, Stochastic,
-            Param, Sampler, PseudoSampler, Effect, UnbindEffect, MultiEffect):
+            Param, Sampler, Context, Deterministic, PseudoSampler,
+            Effect, UnbindEffect, MultiEffect):
     CC.add_constructor(f'!{typ.__name__}', CC.apply(typ))
 CC.add_constructor('!InfiniteSampler', CC.apply(partial(Sampler, d=InfiniteUniform())))
 CC.add_constructor('!SemiInfiniteSampler', CC.apply(partial(Sampler, d=SemiInfiniteUniform())))
 
-for typ in (Sampler, Param, Stochastic):
+# TODO: suffixed tags for all subclasses of NamedSampler
+for typ in (Sampler, Param, Deterministic, Factor, Stochastic):
     CC.add_multi_constructor(f'!{typ.__name__}:', CC.apply_prefixed(partial(named_prefix, typ)))
 
 

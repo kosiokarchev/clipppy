@@ -74,6 +74,7 @@ class AnyRegex:
 
 
 _Site = TypedDict('_Site', {
+    'done': bool,
     'name': str, 'fn': dist.TorchDistribution, 'mask': torch.Tensor,
     'value': torch.Tensor, 'type': str, 'infer': dict,
     'cond_indep_stack': Iterable[CondIndepStackFrame]
