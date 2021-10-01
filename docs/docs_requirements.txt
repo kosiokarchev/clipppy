@@ -1,1 +1,6 @@
 sphinx-autoapi
+ipykernel
+myst_parser
+nbsphinx
+sphinx_gallery
+sphinx_copybutton

@@ -26,7 +26,7 @@ import clipppy
 project = 'CLIPPPY'
 copyright = '2021, Kosio Karchev'
 author = 'Kosio Karchev'
-release = str(clipppy.__version__)
+version = release = str(clipppy.__version__)
 
 
 # -- General configuration ---------------------------------------------------
@@ -42,14 +42,13 @@ extensions = [
     'sphinx.ext.todo',
     # 'sphinx.ext.viewcode',
     'autoapi.extension',
-    'recommonmark',
+    'sphinx_copybutton',
+    'myst_parser',
+    'nbsphinx', 'sphinx_gallery.load_style',
+    'IPython.sphinxext.ipython_console_highlighting',
     '_ext.regex_lexer',
     '_ext.any_tilde'
 ]
-
-todo_include_todos = True
-
-autodoc_typehints = 'signature'
 
 intersphinx_mapping = {
     'numpy': ('https://numpy.org/doc/stable/', None),
@@ -59,6 +58,10 @@ intersphinx_mapping = {
 }
 
 napoleon_google_docstring = False
+
+todo_include_todos = True
+
+autodoc_typehints = 'signature'
 
 autoapi_dirs = ['../../src/clipppy']
 autoapi_file_patterns = ['*.pyi', '*.py']
@@ -74,6 +77,13 @@ autoapi_options = [
 autoapi_member_order = 'groupwise'
 autoapi_keep_files = True
 
+nbsphinx_execute_arguments = [
+    "--InlineBackend.figure_formats={'svg'}",
+    "--InlineBackend.rc=figure.dpi=96",
+]
+nbsphinx_execute = 'auto'
+nbsphinx_codecell_lexer = 'python3'
+
 default_role = 'any'
 
 # Add any paths that contain templates here, relative to this directory.
@@ -83,12 +93,15 @@ templates_path = ['_templates']
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
 root_doc = 'index'
-exclude_patterns = ['userguide/*/*']
+exclude_patterns = [
+    'userguide/*'
+]
 
 trim_footnote_reference_space = True
 
 # language=rst
-rst_prolog = '''
+rst_prolog = nbsphinx_prolog = '''
+.. default-role:: any
 .. |Clipppy| replace:: Clipppy
 .. |citation needed| replace:: `[citation needed]`:superscript:
 .. _ruamel.yaml: https://yaml.readthedocs.io/en/latest/

@@ -22,6 +22,7 @@ And finally, the eponimous :mod:`~clipppy.cli` module handles the loading of YAM
    :caption: Contents:
 
    userguide
+   examples
    devguide
 
 

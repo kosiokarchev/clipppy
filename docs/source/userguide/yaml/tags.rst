@@ -68,6 +68,8 @@ Secondly, YAML introduces the idea of *tags* (and |Clipppy| takes it maybe a bit
     :yaml:`!eval`
         Evaluate the node contents as a Python expression. Basically, this is God mode, although you're still limited to a single expression (not even a statement) since the contents are simply passed on to the built-in `python:eval` function. But a Python God is supposed to be able to do anything in a single expression\ |citation needed|.
 
+        .. warning:: It is currently not possible to define a lambda expression that makes use of global variables inside an `\!eval`, like :yaml:`!eval "lambda: torch.ones(...)"`. The reason is that the `scope <Scopes>`_ is kept in a `~collections.ChainMap` that is inadmissible in `eval`\ 's ``globals`` parameter... Instead, it goes in the ``locals``, but that is not remembered by a :python:`lambda`...
+
     :yaml:`!txt`
         Load a text file with numerical data. This is a thin wrapper around `numpy.loadtxt` and as such expects the contents of the node to be valid arguments for it: see `From Node to Signature`_. The particular most frequently used signatures are ::
 
@@ -90,7 +92,7 @@ Secondly, YAML introduces the idea of *tags* (and |Clipppy| takes it maybe a bit
 
             !npz [data.npz, somekey]  # or {fname: data.npz, key: somekey}
 
-        is the same as :python:`numpy.load('data.npz')['somekey']`. Otherwise the opened `NpzFile` will be returned as is::
+        is the same as :python:`numpy.load('data.npz')['somekey']`. Otherwise, the opened `NpzFile` will be returned as is::
 
             !npz data.npz  # same as np.load('data.npz')
 
@@ -102,7 +104,7 @@ Secondly, YAML introduces the idea of *tags* (and |Clipppy| takes it maybe a bit
         Load a PyTorch archive through `torch.load`. Has the same semantics as `\!npz`::
 
             - !pt data.pt             # torch.load('data.pt')
-            - !pt [data.pt, somekey]  # torch.load('data.pt')[somekey]
+            - !pt [data.pt, somekey]  # torch.load('data.pt')['somekey']
             - !pt                     # torch.load('data.pt', map_location='cuda', **kwargs)['somekey']
                 fname: data.pt
                 key: somekey  # optional
@@ -110,6 +112,17 @@ Secondly, YAML introduces the idea of *tags* (and |Clipppy| takes it maybe a bit
                 # any other keyword arguments will go into kwargs
 
         Note that `torch.load` can save any Python object, so it is not guaranteed that indexing :python:`torch.load('data.pt')['somekey']` is sensible.
+
+    :yaml:`!trace`
+        Extract values from a saved `pyro.poutine.Trace`. Assuming a trace containing sites ``a`` and ``b`` was saved to ``trace.pt`` via :python:`torch.save(trace, 'trace.pt')`, one can retrieve the values either one at a time::
+
+            !trace [trace.pt, a]
+
+        (equivalent to :python:`torch.load('trace.pt').nodes['a']`) or at multiple sites::
+
+            !trace [trace.pt, [a, b]]  # -> {'a': ..., 'b': ...}
+
+        which will return a dictionary of values as above. Additional keyword arguments are also accepted and passed on to `torch.load` as in `\!pt`. Note, though, that for `\!trace` the second (``key``) argument is required.
 
     :yaml:`!tensor`
         Explicitly construct a `torch.Tensor` via the `torch.tensor` function. The simplest use case is to convert a list of numbers\ [#simplesttensor]_ to a tensor::
