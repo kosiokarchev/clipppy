@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from functools import lru_cache, partial, wraps
 from pathlib import Path
 from types import FrameType
-from typing import Any, AnyStr, Callable, Mapping, TextIO, Union
+from typing import Any, AnyStr, Callable, Iterable, Mapping, TextIO, Union
 from warnings import warn
 
 import numpy as np
@@ -72,6 +72,12 @@ class ClipppyYAML(YAML):
         data = self._load_file(torch.load, fname, **kwargs)
         return data if key is None else data[key]
 
+    def trace(self, fname, key: Union[str, Iterable[str]], **kwargs):
+        trace = self._load_file(torch.load, fname, **kwargs)
+        return trace.nodes[key]['value'] if isinstance(key, str) else {
+            k: trace.nodes[k]['value'] for k in key
+        }
+
     def load(self, path_or_stream: Union[os.PathLike, str, TextIO], force_templating=True,
              scope: Union[Mapping[str, Any], FrameType] = None, **kwargs):
         is_a_stream = isinstance(path_or_stream, io.IOBase)
@@ -103,7 +109,7 @@ CC.add_multi_constructor('!py:', CC.apply_bound_prefixed(CC.resolve_name))
 
 CC.add_constructor('!eval', ClipppyYAML.eval)
 
-for func in (ClipppyYAML.txt, ClipppyYAML.npy, ClipppyYAML.npz, ClipppyYAML.pt):
+for func in (ClipppyYAML.txt, ClipppyYAML.npy, ClipppyYAML.npz, ClipppyYAML.pt, ClipppyYAML.trace):
     CC.add_constructor(f'!{func.__name__}', CC.apply_bound(func, _cls=ClipppyYAML))
 
 CC.add_constructor('!tensor', CC.apply(torch.tensor))
