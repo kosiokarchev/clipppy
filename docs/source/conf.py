@@ -66,16 +66,20 @@ autodoc_typehints = 'signature'
 autoapi_dirs = ['../../src/clipppy']
 autoapi_file_patterns = ['*.pyi', '*.py']
 autoapi_ignore = [
-    '**/contrib.py',
-    '**/autocli.py',
-    '**/cli.py',
+    '**/clipppy/contrib.py',
+    '**/clipppy/autocli.py',
+    '**/clipppy/cli.py',
+    '**/clipppy/distributions/*',
+    # '**/clipppy/**/sampler.py'
 ]
 autoapi_options = [
     'members', 'undoc-members', 'private-members', 'special-members',
-    'show-inheritance', 'show-inheritance-diagram',
+    # 'show-inheritance',
+    # 'show-inheritance-diagram',
 ]
 autoapi_member_order = 'groupwise'
 autoapi_keep_files = True
+autoapi_template_dir = '_autoapi_templates'
 
 nbsphinx_execute_arguments = [
     "--InlineBackend.figure_formats={'svg'}",
@@ -106,6 +110,8 @@ rst_prolog = nbsphinx_prolog = '''
 .. |citation needed| replace:: `[citation needed]`:superscript:
 .. _ruamel.yaml: https://yaml.readthedocs.io/en/latest/
 .. _pyrofit: https://github.com/cweniger/pyrofit-core
+.. |Pyro| replace:: `Pyro`_
+.. _Pyro: https://pyro.ai
 
 .. |builtinsvar| replace:: `ClipppyYAML.constructor`\ ``.``\ `~ScopeMixin.builtins`
 .. |scopevar| replace:: `ClipppyYAML.constructor`\ ``.``\ `~ScopeMixin.scope`
