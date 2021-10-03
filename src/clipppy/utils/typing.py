@@ -51,6 +51,11 @@ if sys.version_info < (3, 9):
 
 
 @runtime_checkable
+class SupportsItems(Protocol[_KT, _VT]):
+    def items(self) -> Iterable[tuple[_KT, _VT]]: ...
+
+
+@runtime_checkable
 class Descriptor(Protocol[_T, _VT]):
     def __get__(self, instance: Optional[_T], owner: Type[_T]) -> _VT: ...
 

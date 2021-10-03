@@ -15,16 +15,17 @@ import numpy as np
 import torch
 from ruamel.yaml import Node, YAML
 
-from .prefixed import named_prefix, tensor_prefix
 # TODO: .resolver comes before .constructor!
 from .resolver import ClipppyResolver, ImplicitClipppyResolver
 from .constructor import ClipppyConstructor as CC
+from .prefixed import named_prefix, tensor_prefix
+from .templating import TemplateWithDefaults
 from ..stochastic.capsule import AllEncapsulator, Encapsulator
 from ..stochastic.infinite import InfiniteUniform, SemiInfiniteUniform
-from ..stochastic.sampler import (Context, Deterministic, Effect, Factor, MultiEffect, Param, PseudoSampler, Sampler,
-                                  UnbindEffect)
+from ..stochastic.sampler import (
+    Context, Deterministic, Effect, Factor, MultiEffect, Param, PseudoSampler,
+    Sampler, UnbindEffect)
 from ..stochastic.stochastic import Stochastic
-from ..templating import TemplateWithDefaults
 
 
 __all__ = 'ClipppyYAML',

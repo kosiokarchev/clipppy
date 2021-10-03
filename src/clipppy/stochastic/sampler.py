@@ -14,7 +14,8 @@ from pyro.poutine import infer_config
 from torch.distributions.constraints import Constraint
 
 from ..utils import _T, _Tin, _Tout, caller, Sentinel
-from ..utils.distributions.extra_independent import ExtraIndependent
+from ..utils.distributions.extra_dimensions import ExtraIndependent
+
 
 
 __api__ = 'AbstractSampler', 'Sampler', 'Param', 'PseudoSampler'
