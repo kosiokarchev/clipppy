@@ -19,10 +19,12 @@ _T = TypeVar('_T')
 _cls = TypeVar('_cls')
 
 
-__all__ = 'Stochastic', 'StochasticSpecs'
+__all__ = 'Stochastic', 'StochasticSpecs', 'StochasticScope'
 
 
 class StochasticScope(AllEncapsulator[_T]):
+    """A wrapper that introduces a `pyro.contrib.autoname.scope`."""
+
     __slots__ = 'stochastic_name'
 
     if TYPE_CHECKING:
@@ -49,6 +51,36 @@ _SpecVT = Union[_SpecVVT, Capsule, SupportsItems[str, _SpecVVT], Callable[[], Su
 
 
 class StochasticSpecs:
+    r"""A "mapping" of parameter names to "specifications" used in `Stochastic`.
+
+    When a `StochasticSpecs` is created, it is provided with a mapping from
+    names to "specifiations". Each "specification" can be one of
+        - an instance of `AbstractSampler`. In that case, its name is set to the
+          corresponding key if the specification is a `NamedSampler`;
+        - a `~pyro.distributions.torch_distribution.TorchDistributionMixin`.
+          It is wrapped in a `Sampler`, which is also named;
+        - a `callable` (that is not an `AbstractSampler`). It is wrapped in a
+          `PseudoSampler`.
+        - any other value is not modified.
+
+    To support merging specifications from multiple mappings, a key can also be
+        - `Sentinel.merge`: the specification is then assumed to be a mapping
+          (in fact, `SupportsItems`) and its items merged in;
+        - or a collection of strings that are either extracted from the
+          specification if it is a mapping, or are zipped against it if it is
+          another iterable of values.
+    In both cases, if the specification is callable, it is **called**, and the
+    resulting object is used for merging.
+
+    Notes
+    -----
+    `StochasticSpecs` is primarily intended to be automatically created by
+    |Clipppy|'s YAML perser, which contains a hook for transforming the YAML
+    merge magic key (`<<`) into the `Sentinel.merge` token. Additionally, the
+    logic is such as to allow easy specification of `Capsule`\ s in YAML: their
+    `~Capsule.value`\ s are then automatically extracted by the rules outlined
+    above.
+    """
     def __init__(self, specs: Union[SupportsItems[_SpecKT, _SpecVT], Iterable[_SpecKT, _SpecVT]] = (), /, **kwargs: _SpecVT):
         self.specs: Iterable[tuple[_SpecKT, _SpecVT]] = [(
             name,
@@ -63,9 +95,14 @@ class StochasticSpecs:
         ]
 
     def items(self) -> Iterable[tuple[str, _SpecVVT]]:
+        r"""Iterate the key-"specification" pairs via `iter`\ ``(self)``.
+
+        Provided for compatibiility with other mappings (i.e. with the
+        `SupportsItems` protocol)."""
         return iter(self)
 
     def __iter__(self):
+        """Iterate the key-"specification" pairs."""
         for key, val in self.specs:
             if isinstance(key, str):
                 yield key, val
@@ -76,6 +113,23 @@ class StochasticSpecs:
 
 
 class Stochastic(StochasticScope[_T]):
+    """A wrapper that generates (possibly stochastic) parameters for each invokation.
+
+    A `Stochastic` is similar to `~functools.partial` in that it supplies some
+    or all parameters to the underlying callable. The main differences are two:
+    first, `Stochastic` supports **only keyword** parameters; and secondly,
+    whereas the parameters that `~functools.partial` passes are invariant,
+    `Stochastic` generates them anew for each invokation.
+
+    More specifically, `Stochastic` uses a `StochasticSpecs.items` to supply
+    key-"specification" pairs. If a specification is an `AbstractSampler`, it
+    is **called**, and the returned value is set to the given key. If it is a
+    `~pyro.distributions.torch_distribution.TorchDistributionMixin`, it is
+    wrapped in a `Sampler` with the key as name, and then called. If the
+    specification is none of these, it is passed as-is (like in
+    `~functools.partial`).
+    """
+
     __slots__ = 'stochastic_specs'
 
     if TYPE_CHECKING:
