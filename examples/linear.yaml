@@ -1,17 +1,13 @@
 _: !import
-  - {from: pyro, import: distributions as dist}
-  - {from: examples.minimal, import: linear}
-clipppy:
-  conditioning:
-    y: !tensor [[1., 2., 3., 4, 5.]]
-  model: !Stochastic
-    - !py:linear
-    - x: !tensor [[1., 2., 3., 4., 5.]]
-      a: !py:dist.Uniform [-10., 10.]
-      b: !py:dist.Uniform [-10., 10.]
-#    a:
-#      sample: [dist.Uniform, -10., 10.]
-#      init: 0.
-#    b:
-#      sample: [dist.Uniform, -10., 10.]
-#      init: 0.
+  - from models import linear
+  - from pyro.distributions import Uniform
+conditioning:
+  obs: !pt linear_data.pt
+model: !Stochastic
+  - !py:linear
+  - x: !py:torch.linspace [0, 1, 101]
+    a: !py:Uniform [-10., 10]
+    b: !py:Uniform [0., 20.]
+    err: !tensor 1
+guide:
+  - cls: MultivariateNormalSamplingGroup

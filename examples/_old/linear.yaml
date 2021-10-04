@@ -1,0 +1,17 @@
+_: !import
+  - {from: pyro, import: distributions as dist}
+  - {from: minimal, import: linear}
+clipppy:
+  conditioning:
+    y: !tensor [[1., 2., 3., 4, 5.]]
+  model: !Stochastic
+    - !py:linear
+    - x: !tensor [[1., 2., 3., 4., 5.]]
+      a: !py:dist.Uniform [-10., 10.]
+      b: !py:dist.Uniform [-10., 10.]
+#    a:
+#      sample: [dist.Uniform, -10., 10.]
+#      init: 0.
+#    b:
+#      sample: [dist.Uniform, -10., 10.]
+#      init: 0.

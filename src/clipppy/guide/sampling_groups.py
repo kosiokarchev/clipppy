@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import re
+from functools import cached_property
 from itertools import chain
 from typing import cast, Mapping, Union
 
@@ -8,11 +8,10 @@ import torch
 from more_itertools import partition
 from pyro import distributions as dist
 from pyro.distributions import constraints
-from pyro.nn import PyroParam, PyroSample
+from pyro.nn import pyro_method, PyroParam, PyroSample
 
 from ..guide.sampling_group import LocatedSamplingGroupWithPrior, SamplingGroup
-from ..utils import _nomatch
-from ..utils.typing import _Site
+from ..utils.typing import _Site, AnyRegex
 
 
 # This should be the same as EasyGuide's map_estimate,
@@ -27,7 +26,7 @@ class DeltaSamplingGroup(SamplingGroup):
     # Emulate EasyGuide's map_estimate implementation
     include_det_jac = False
 
-    def _sample(self, infer) -> torch.Tensor:
+    def _sample(self, infer=None) -> torch.Tensor:
         return cast(torch.Tensor, self.loc)
 
 
@@ -54,11 +53,11 @@ class MultivariateNormalSamplingGroup(LocatedSamplingGroupWithPrior):
 
 
 class PartialMultivariateNormalSamplingGroup(LocatedSamplingGroupWithPrior):
-    def __init__(self, sites, name='', diag=_nomatch,
+    def __init__(self, sites, name='', diag=AnyRegex(),  # no match
                  init_scale_full: Union[torch.Tensor, float] = 1.,
                  init_scale_diag: Union[torch.Tensor, float] = 1.,
                  *args, **kwargs):
-        self.diag_pattern = re.compile(diag)
+        self.diag_pattern = AnyRegex.get(diag)
         self.sites_full, self.sites_diag = (
             {site['name']: site for site in _}
             for _ in partition(lambda _: self.diag_pattern.match(_['name']), sites)
@@ -79,15 +78,32 @@ class PartialMultivariateNormalSamplingGroup(LocatedSamplingGroupWithPrior):
         self.scale_diag = PyroParam(self._scale_diagonal(init_scale_diag, jac[self.size_full:]),
                                     event_dim=1, constraint=constraints.positive)
 
-        self.guide_z_aux = PyroSample(dist.Normal(self.loc.new_zeros(()), 1.).expand(self.event_shape).to_event(1))
+    @cached_property
+    def unit_normal(self):
+        return dist.Normal(self.loc.new_zeros(()), 1.)
+
+    @PyroSample
+    def guide_z_aux_full(self):
+        return self.unit_normal.expand(torch.Size([self.size_full])).to_event(1)
+
+    @PyroSample
+    def guide_z_aux_diag(self):
+        return self.unit_normal.expand(torch.Size([self.size_diag])).to_event(1)
+
+    @pyro_method
+    def sample_full(self):
+        with self.grad_context:
+            return self.unpack(
+                self.loc[:self.size_full] + (self.scale_full @ self.guide_z_aux_full.unsqueeze(-1)).squeeze(-1),
+                self.sites_full, guiding=False)
 
     @property
     def half_log_det(self):
         return self.scale_full.diagonal(dim1=-2, dim2=-1).log().sum(-1) + self.scale_diag.log().sum(-1)
 
     def prior(self):
-        z_aux = self.guide_z_aux
-        zfull, zdiag = z_aux[..., :self.size_full, None], z_aux[..., self.size_full:]
+        zfull = self.guide_z_aux_full.unsqueeze(-1)
+        zdiag = self.guide_z_aux_diag
         return dist.Delta(self.loc + torch.cat((
             (self.scale_full @ zfull).squeeze(-1),
             (self.scale_cross @ zfull).squeeze(-1) + self.scale_diag * zdiag

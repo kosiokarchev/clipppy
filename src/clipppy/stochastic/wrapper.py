@@ -50,7 +50,7 @@ class Wrapper(Generic[_T]):
         return cls._wrapped_registry[item]
 
     def __new__(cls: Type[_cls], obj: _T, /, *args, **kwargs) -> Union[_cls, _T]:
-        if isinstance(obj, FunctionType):
+        if isinstance(obj, (FunctionType, type)):
             obj = FunctionWrapper(obj)
 
         self: Union[Wrapper, _T] = object.__new__(cls[type(obj)])

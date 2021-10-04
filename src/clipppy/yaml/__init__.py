@@ -8,21 +8,24 @@ from contextlib import contextmanager
 from functools import lru_cache, partial, wraps
 from pathlib import Path
 from types import FrameType
-from typing import Any, AnyStr, Callable, Mapping, TextIO, Union
+from typing import Any, AnyStr, Callable, Iterable, Mapping, TextIO, Union
 from warnings import warn
 
 import numpy as np
 import torch
 from ruamel.yaml import Node, YAML
 
-from .prefixed import stochastic_prefix, tensor_prefix
 # TODO: .resolver comes before .constructor!
 from .resolver import ClipppyResolver, ImplicitClipppyResolver
 from .constructor import ClipppyConstructor as CC
+from .prefixed import named_prefix, tensor_prefix
+from .templating import TemplateWithDefaults
+from ..stochastic.capsule import AllEncapsulator, Encapsulator
 from ..stochastic.infinite import InfiniteUniform, SemiInfiniteUniform
-from ..stochastic.sampler import Param, Sampler
+from ..stochastic.sampler import (
+    Context, Deterministic, Effect, Factor, MultiEffect, Param, PseudoSampler,
+    Sampler, UnbindEffect)
 from ..stochastic.stochastic import Stochastic
-from ..templating import TemplateWithDefaults
 
 
 __all__ = 'ClipppyYAML',
@@ -71,6 +74,12 @@ class ClipppyYAML(YAML):
         data = self._load_file(torch.load, fname, **kwargs)
         return data if key is None else data[key]
 
+    def trace(self, fname, key: Union[str, Iterable[str]], **kwargs):
+        trace = self._load_file(torch.load, fname, **kwargs)
+        return trace.nodes[key]['value'] if isinstance(key, str) else {
+            k: trace.nodes[k]['value'] for k in key
+        }
+
     def load(self, path_or_stream: Union[os.PathLike, str, TextIO], force_templating=True,
              scope: Union[Mapping[str, Any], FrameType] = None, **kwargs):
         is_a_stream = isinstance(path_or_stream, io.IOBase)
@@ -102,7 +111,7 @@ CC.add_multi_constructor('!py:', CC.apply_bound_prefixed(CC.resolve_name))
 
 CC.add_constructor('!eval', ClipppyYAML.eval)
 
-for func in (ClipppyYAML.txt, ClipppyYAML.npy, ClipppyYAML.npz, ClipppyYAML.pt):
+for func in (ClipppyYAML.txt, ClipppyYAML.npy, ClipppyYAML.npz, ClipppyYAML.pt, ClipppyYAML.trace):
     CC.add_constructor(f'!{func.__name__}', CC.apply_bound(func, _cls=ClipppyYAML))
 
 CC.add_constructor('!tensor', CC.apply(torch.tensor))
@@ -110,22 +119,20 @@ CC.add_multi_constructor('!tensor:', CC.apply_prefixed(tensor_prefix))
 # TODO: Needs to be handled better?
 CC.type_to_tag[torch.Tensor] = '!tensor'
 
-for typ in (Stochastic, Param, Sampler):
+for typ in (AllEncapsulator, Encapsulator, Stochastic,
+            Param, Sampler, Context, Deterministic, PseudoSampler,
+            Effect, UnbindEffect, MultiEffect):
     CC.add_constructor(f'!{typ.__name__}', CC.apply(typ))
 CC.add_constructor('!InfiniteSampler', CC.apply(partial(Sampler, d=InfiniteUniform())))
 CC.add_constructor('!SemiInfiniteSampler', CC.apply(partial(Sampler, d=SemiInfiniteUniform())))
-CC.add_multi_constructor('!Stochastic:', CC.apply_prefixed(stochastic_prefix))
 
-
-def __getattr__(name):
-    if name == 'MyYAML':
-        warn('\'MyYAML\' was renamed to \'ClipppyYAML\' and will soon be unavailable.', FutureWarning)
-        return ClipppyYAML
+# TODO: suffixed tags for all subclasses of NamedSampler
+for typ in (Sampler, Param, Deterministic, Factor, Stochastic):
+    CC.add_multi_constructor(f'!{typ.__name__}:', CC.apply_prefixed(partial(named_prefix, typ)))
 
 
 def _register_globals():
-    from .hooks import _  # make sure hooks are registered
-
+    from . import hooks
     from .. import clipppy, stochastic, guide, helpers
     for mod in (clipppy, stochastic, guide, helpers):
         CC.builtins.update(**{a: getattr(mod, a) for a in mod.__all__})
@@ -134,3 +141,10 @@ def _register_globals():
 
 _register_globals()
 del _register_globals
+
+
+def __getattr__(name):
+    if name == 'MyYAML':
+        warn('\'MyYAML\' was renamed to \'ClipppyYAML\' and will soon be unavailable.', FutureWarning)
+        return ClipppyYAML
+    raise AttributeError(f'module {__name__} has no attribute {name}')

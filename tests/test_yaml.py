@@ -152,6 +152,15 @@ class TestWithFiles:
             - !py:operator.getitem [!pt res/data.pt, somekey]
         ''') for __ in [torch.load('res/data.pt')['somekey']])
 
+    def test_trace(self):
+        nodes = torch.load('res/trace.pt').nodes
+        for key in 'abc':
+            assert loads(f'!trace [res/trace.pt, {key}]') == nodes[key]['value']
+
+        assert loads('!trace [res/trace.pt, [a, b]]') == {
+            'a': nodes['a']['value'], 'b': nodes['b']['value']
+        }
+
     def test_tensor(self):
         res = loads('!tensor 42')
         assert torch.is_tensor(res) and res.shape == torch.Size() and res == 42

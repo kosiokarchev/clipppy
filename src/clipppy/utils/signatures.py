@@ -11,7 +11,7 @@ from itertools import repeat
 from typing import Iterable, Mapping
 
 
-__all__ = 'is_variadic', 'get_param_for_name'
+__all__ = 'is_variadic', 'iter_positional', 'get_kwargs', 'get_param_for_name', 'signature'
 
 
 def is_variadic(param: Parameter) -> bool:
@@ -26,19 +26,21 @@ def iter_positional(s: Signature):
             yield from repeat(param)
 
 
-def get_kwargs(signature: Signature, default=Parameter('_', kind=Parameter.VAR_KEYWORD)) -> Parameter:
+def get_kwargs(sig: Signature, default=Parameter('_', kind=Parameter.VAR_KEYWORD)) -> Parameter:
     return next(filter(lambda param: param.kind == param.VAR_KEYWORD,
-                       reversed(signature.parameters.values())), default)
+                       reversed(sig.parameters.values())), default)
 
 
-def get_param_for_name(signature: Signature, name: str):
-    return signature.parameters.get(name, get_kwargs(signature))
+def get_param_for_name(sig: Signature, name: str):
+    return sig.parameters.get(name, get_kwargs(sig))
 
 
 @wraps(inspect.signature)
 def signature(obj, *args, **kwargs) -> Signature:
     """Poor man's attempt at fixing string annotations..."""
     sig = inspect.signature(obj, *args, **kwargs)
+    if isinstance(obj, type):
+        obj = obj.__init__
     glob = (obj.__globals__ if isinstance(obj, types.FunctionType)
             else vars(sys.modules[obj.__module__] if hasattr(obj, '__module__') else builtins))
     return sig.replace(

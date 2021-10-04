@@ -20,6 +20,10 @@ def itemsetter(value=None, *keys, **kwargs):
     return _itemsetter
 
 
+def caller(obj):
+    return obj()
+
+
 def compose(*funcs: Callable[[_Tin], Union[_Tin, _Tout]]) -> Callable[[_Tin], _Tout]:
     return lambda arg: last(arg for arg in (arg,) for f in always_reversible(collapse(funcs)) for arg in (f(arg),))
 

@@ -1,20 +1,24 @@
 from __future__ import annotations
 
-from typing import Any, Callable, Iterable, MutableMapping, Optional
+from abc import abstractmethod
+from functools import partial
+from typing import Any, Callable, Iterable, Mapping, MutableMapping, Optional
 
 import pyro
 import torch
+from frozendict import frozendict
 from pyro import poutine
 from pyro.infer.autoguide.guides import prototype_hide_fn
 from pyro.nn import PyroModule
-from pyro.poutine.indep_messenger import CondIndepStackFrame
+from torch import Tensor
 
 from .group_spec import GroupSpec
 from .sampling_group import SamplingGroup
-from ..utils.pyro import init_msgr
+from ..utils.pyro import AbstractPyroModuleMeta, init_msgr
+from ..utils.typing import _Site
 
 
-class BaseGuide(PyroModule):
+class BaseGuide(PyroModule, metaclass=AbstractPyroModuleMeta):
     """"""
     def __init__(self, model=None, name=''):
         super().__init__(name)
@@ -23,48 +27,40 @@ class BaseGuide(PyroModule):
 
         self.prototype_trace: Optional[pyro.poutine.Trace] = None
 
-        self.frames: MutableMapping[str, CondIndepStackFrame] = {}
-        self.plates: MutableMapping[str, pyro.plate] = {}
-
         self.is_setup = False
 
     def _setup_prototype(self, *args, **kwargs):
         # run the model so we can inspect its structure
-        with poutine.block():
-            with poutine.trace() as trace:
-                with poutine.block(hide_fn=prototype_hide_fn):
-                    with init_msgr:
-                        self.model(*args, **kwargs)
+        with poutine.trace() as trace:
+            with poutine.block(hide_fn=prototype_hide_fn):
+                with init_msgr:
+                    self.model(*args, **kwargs)
         self.prototype_trace = trace.trace
 
-        for name, site in self.prototype_trace.iter_stochastic_nodes():
-            for frame in site["cond_indep_stack"]:
-                if not frame.vectorized:
-                    raise NotImplementedError("EasyGuide does not support sequential pyro.plate")
-                self.frames[frame.name] = frame
+    @staticmethod
+    def _set_init(site: _Site, init: Mapping[str, Tensor]):
+        if site['name'] in init:
+            site['value'] = init[site['name']]
+        return site['infer']
 
-    def setup(self, *args, **kwargs) -> MutableMapping[str, Any]:
+    def setup(self, *args, init: Mapping[str, Tensor] = frozendict(), **kwargs) -> MutableMapping[str, Any]:
         old_children = dict(self.named_children())
         for child in old_children:
             delattr(self, child)
 
+        # TODO: custom InitMessenger class
+        with pyro.poutine.infer_config(config_fn=partial(self._set_init, init=init)):
+            self._setup_prototype(*args, **kwargs)
         self.is_setup = True
-        self._setup_prototype(*args, **kwargs)
         return old_children
 
-    def plate(self, name, size=None, subsample_size=None, subsample=None, *args, **kwargs):
-        if name not in self.plates:
-            self.plates[name] = pyro.plate(name, size, subsample_size, subsample, *args, **kwargs)
-        return self.plates[name]
-
-    def guide(self, *args, **kwargs) -> MutableMapping[str, torch.Tensor]:
-        raise NotImplementedError
+    @abstractmethod
+    def guide(self, *args, **kwargs) -> MutableMapping[str, torch.Tensor]: ...
 
     def forward(self, *args, **kwargs):
         if not self.is_setup:
             self.setup(*args, **kwargs)
         result = self.guide(*args, **kwargs)
-        self.plates.clear()
         return result
 
     def __getstate__(self):
@@ -77,13 +73,16 @@ class BaseGuide(PyroModule):
 class Guide(BaseGuide):
     children: Callable[[], Iterable[SamplingGroup]]
 
-    def __init__(self, *specs: GroupSpec, model=None, name=''):
+    add_noise = {}  # for backward compatibility
+
+    def __init__(self, *specs: GroupSpec, model=None, name='', add_noise=None):
         super().__init__(model=model, name=name)
 
         self.specs: Iterable[GroupSpec] = specs
+        self.add_noise = add_noise or {}
 
-    def setup(self, *args, **kwargs) -> MutableMapping[str, SamplingGroup]:
-        old_children = super().setup(*args, **kwargs)
+    def setup(self, *args, init: Mapping[str, Tensor] = frozendict(), **kwargs) -> MutableMapping[str, SamplingGroup]:
+        old_children = super().setup(*args, init=init, **kwargs)
 
         sites = [site for name, site in self.prototype_trace.iter_stochastic_nodes()]
         for spec in self.specs:
@@ -99,6 +98,7 @@ class Guide(BaseGuide):
 
     def guide(self, *args, **kwargs) -> MutableMapping[str, torch.Tensor]:
         # Union of all model samples dicts from self.children
-        return dict(item
+        return dict((key, val + torch.normal(0., self.add_noise[key], val.shape)
+                     if key in self.add_noise else val)
                     for group in self.children() if group.active
-                    for item in group()[1].items())
+                    for key, val in group()[1].items())

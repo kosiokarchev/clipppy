@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from abc import ABCMeta, abstractmethod
+from abc import abstractmethod
 from contextlib import ExitStack
 from functools import lru_cache
 from operator import itemgetter
@@ -9,37 +9,21 @@ from typing import cast, Iterable, Mapping, MutableMapping, Union
 import pyro
 import torch
 from pyro import distributions as dist
-from pyro.distributions import transforms
+from pyro.distributions import constraints, transforms
 from pyro.nn import PyroModule, PyroParam, PyroSample
-from pyro.poutine import runtime
 from torch.distributions import biject_to
 
-from . import guide as _guide
-from ..utils import enumlstrip, to_tensor
-from ..utils.pyro import no_grad_msgr
+from ..utils import to_tensor
+from ..utils.pyro import AbstractPyroModuleMeta, no_grad_msgr
 from ..utils.typing import _Site
 
 
-class _AbstractPyroModuleMeta(type(PyroModule), ABCMeta):
-    """"""
-    def __getattr__(self, item):
-        if item.startswith('_pyro_prior_'):
-            return getattr(self, item.lstrip('_pyro_prior_')).prior
-        return super().__getattr__(item)
-
-
-class SamplingGroup(PyroModule, metaclass=_AbstractPyroModuleMeta):
+class SamplingGroup(PyroModule, metaclass=AbstractPyroModuleMeta):
     """"""
     def _process_prototype(self):
-        common_dims = set(f.dim
-                          for site in self.sites.values()
-                          for f in site['cond_indep_stack']
-                          if f.vectorized)
-        rightmost_common_dim = max(common_dims, default=-float('inf'))
-
         for name, site in self.sites.items():
-            transform = biject_to(site['infer'].get('support', site['fn'].support))
-            self.transforms[name] = transform
+            self.supports[name] = support = site['infer'].get('support', site['fn'].support)
+            self.transforms[name] = transform = biject_to(support)
 
             try:  # torch >= 1.8?
                 if isinstance(self.transforms[name], torch.distributions.IndependentTransform):
@@ -47,19 +31,7 @@ class SamplingGroup(PyroModule, metaclass=_AbstractPyroModuleMeta):
             except AttributeError:
                 pass
 
-            self.event_shapes[name] = site['fn'].event_shape
-            batch_shape = site['fn'].batch_shape
-
-            self.batch_shapes[name] = torch.Size(
-                enumlstrip(batch_shape, lambda i, x: x == 1 or i-len(batch_shape) in common_dims))
-            if len(self.batch_shapes[name]) > -rightmost_common_dim:
-                raise ValueError(
-                    'grouping expects all per-site plates to be right of all common plates, '
-                    f'but found a per-site plate {-len(self.batch_shapes[name])} '
-                    f'on left at site {site["name"]!r}')
-
-            shape = self.batch_shapes[name] + self.event_shapes[name]
-
+            self.shapes[name] = shape = site['fn'].batch_shape + site['fn'].event_shape
             init = transform.inv(site['value'].__getitem__((0,)*(site['value'].ndim - len(shape))).expand(shape))
 
             self.inits[name] = init
@@ -77,9 +49,9 @@ class SamplingGroup(PyroModule, metaclass=_AbstractPyroModuleMeta):
         super().__init__(name)
 
         self.sites: Mapping[str, _Site] = {site['name']: site for site in sites}
-        self.event_shapes: MutableMapping[str, torch.Size] = {}
-        self.batch_shapes: MutableMapping[str, torch.Size] = {}
+        self.shapes: MutableMapping[str, torch.Size] = {}
         self.sizes: MutableMapping[str, int] = {}
+        self.supports: MutableMapping[str, constraints.Constraint] = {}
         self.transforms: MutableMapping[str, transforms.Transform] = {}
 
         self.masks: MutableMapping[str, torch.Tensor] = {}
@@ -98,14 +70,14 @@ class SamplingGroup(PyroModule, metaclass=_AbstractPyroModuleMeta):
     @lru_cache()
     def mask(self) -> torch.BoolTensor:
         return cast(torch.BoolTensor,
-                       torch.cat([m.flatten() for m in self.masks.values()]))
+                    torch.cat([m.flatten() for m in self.masks.values()]))
 
     @property
     def event_shape(self) -> torch.Size:
         return torch.Size([sum(self.sizes.values())])
 
     @abstractmethod
-    def _sample(self, infer) -> torch.Tensor: ...
+    def _sample(self, infer: dict = None) -> torch.Tensor: ...
 
     # By default, include constraining transformation's Jacobian factor
     include_det_jac = True
@@ -120,37 +92,31 @@ class SamplingGroup(PyroModule, metaclass=_AbstractPyroModuleMeta):
             for z, tr in zip(self.unpacker(guide_z), self.transforms.values())
         ), dim=-1)
 
-    def unpack(self, group_z: torch.Tensor, guide: _guide.Guide = None) -> MutableMapping[str, torch.Tensor]:
-        model_zs = {}
-        for pos, (name, fn, frames), transform in zip(
-            # lazy cumsum!! python ftw!
-            (s for s in [0] for x in self.sizes.values() for s in [x+s]),
-            map(itemgetter('name', 'fn', 'cond_indep_stack'), self.sites.values()),
-            self.transforms.values()
-        ):
-            fn: dist.TorchDistribution
-            zs = group_z[..., pos-self.sizes[name]:pos]
-            z = self.inits[name].expand(zs.shape[:-1] + self.masks[name].shape).clone()
-            z[..., self.masks[name]] = zs
+    def unpack_site(self, group_z, pos: int, name: str, fn: dist.TorchDistribution = None):
+        zs = group_z[..., pos:pos+self.sizes[name]]
+        z = self.inits[name].expand(zs.shape[:-1] + self.masks[name].shape).clone()
+        z[..., self.masks[name]] = zs
 
-            x = transform(z)
+        transform = self.transforms[name]
+        x = transform(z)
 
+        if fn is not None:
             if self.include_det_jac and transform.bijective:
                 log_density = transform.inv.log_abs_det_jacobian(x, z)
                 log_density = log_density.sum(list(range(-(log_density.ndim - z.ndim + fn.event_dim), 0)))
             else:
                 log_density = 0.
 
-            delta = dist.Delta(x, log_density=log_density, event_dim=fn.event_dim)
+            pyro.sample(name, dist.Delta(x, log_density=log_density, event_dim=fn.event_dim))  # , extra_event_dim=len(fn.batch_shape)))
 
-            with ExitStack() as stack:
-                if guide is not None:
-                    for frame in frames:
-                        plate = guide.plate(frame.name)
-                        if plate not in runtime._PYRO_STACK:
-                            stack.enter_context(plate)
-                model_zs[name] = pyro.sample(name, delta)
+        return x
 
+    def unpack(self, group_z: torch.Tensor, sites: Mapping[str, _Site] = None, guiding=True) -> MutableMapping[str, torch.Tensor]:
+        model_zs = {}
+        pos = 0
+        for name, fn in map(itemgetter('name', 'fn'), (sites or self.sites).values()):
+            model_zs[name] = self.unpack_site(group_z, pos, name, fn if guiding else None)
+            pos += self.sizes[name]
         return model_zs
 
     @property
@@ -163,12 +129,12 @@ class SamplingGroup(PyroModule, metaclass=_AbstractPyroModuleMeta):
             ret.enter_context(torch.no_grad())
             return ret
 
-    def forward(self, guide: _guide.Guide = None, infer: dict = None) -> tuple[torch.Tensor, MutableMapping[str, torch.Tensor]]:
-        with pyro.poutine.infer_config(
-                config_fn=lambda site: dict(**(infer if infer is not None else {}), is_auxiliary=True)):
-            with self.grad_context:
+    def forward(self, infer: dict = None) -> tuple[torch.Tensor, MutableMapping[str, torch.Tensor]]:
+        with self.grad_context:
+            with pyro.poutine.infer_config(
+                    config_fn=lambda site: dict(**(infer if infer is not None else {}), is_auxiliary=True)):
                 group_z = self._sample(infer)
-                return group_z, self.unpack(group_z, guide)
+            return group_z, self.unpack(group_z)
 
     def extra_repr(self) -> str:
         return f'{len(self.sites)} sites, {self.event_shape}'
@@ -198,5 +164,5 @@ class LocatedSamplingGroupWithPrior(SamplingGroup):
         return self.prior()
 
     @pyro.nn.pyro_method
-    def _sample(self, infer) -> torch.Tensor:
+    def _sample(self, infer=None) -> torch.Tensor:
         return self.guide_z

@@ -6,7 +6,7 @@ from .clipppy import Clipppy
 from .yaml import ClipppyYAML
 
 
-__all__ = 'load_config', 'loads', 'Clipppy', 'ClipppyYAML', '__version__'
+__all__ = 'load_config', 'load', 'loads', 'Clipppy', 'ClipppyYAML', '__version__'
 
 
 __version__: str

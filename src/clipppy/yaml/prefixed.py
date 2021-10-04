@@ -20,6 +20,6 @@ def tensor_prefix(suffix: str, kwargs: MutableMapping[str, Any]):
     return torch.tensor, kwargs
 
 
-def stochastic_prefix(suffix: str, kwargs: MutableMapping[str, Any]):
+def named_prefix(obj, suffix: str, kwargs: MutableMapping[str, Any]):
     kwargs.setdefault('name', suffix)
-    return Stochastic, kwargs
+    return obj, kwargs

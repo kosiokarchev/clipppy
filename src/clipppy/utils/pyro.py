@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from abc import ABCMeta
 from functools import partial
 from typing import Any, Type, Union
 
 import pyro
 import torch
 from pyro.infer.autoguide.initialization import InitMessenger
+from pyro.nn import PyroModule
 from pyro.poutine.condition_messenger import ConditionMessenger
 from pyro.poutine.messenger import _bound_partial, _context_wrap, Messenger
 from pyro.poutine.runtime import _PYRO_STACK, am_i_wrapped
@@ -16,6 +18,14 @@ from .typing import _Site
 
 
 __all__ = 'NoGradMessenger', 'init_fn', 'init_msgr', 'no_grad_msgr', 'depoutine'
+
+
+class AbstractPyroModuleMeta(type(PyroModule), ABCMeta):
+    """"""
+    def __getattr__(self, item):
+        if item.startswith('_pyro_prior_'):
+            return getattr(self, item.lstrip('_pyro_prior_')).prior
+        return super().__getattr__(item)
 
 
 class NoGradMessenger(Messenger):

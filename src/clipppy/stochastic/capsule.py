@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from _weakref import ReferenceType
+from weakref import ReferenceType, ref
+from numbers import Real
 from typing import final, Generic, Optional, Type, TYPE_CHECKING, Union
 
 from .wrapper import _cls, _T, CallableWrapper
@@ -11,12 +12,12 @@ class Capsule(Generic[_T]):
     _value: Union[ReferenceType[_T], _T]
     __slots__ = '_value', 'lifetime', 'remaining'
 
-    def __init__(self, lifetime: int = 1):
+    def __init__(self, lifetime: Real = 1):
         self.lifetime = lifetime
         self.remaining = 0
 
     @classmethod
-    def init(cls, value, lifetime: int = 1):
+    def init(cls, value, lifetime: Real = 1):
         self = cls(lifetime)
         self.value = value
         return self
@@ -27,7 +28,7 @@ class Capsule(Generic[_T]):
         self.remaining -= 1
         if self.remaining < 1 and not isinstance(self._value, ReferenceType):
             try:
-                self._value = ReferenceType(self._value)
+                self._value = ref(self._value)
             except TypeError:
                 pass
         return ret
