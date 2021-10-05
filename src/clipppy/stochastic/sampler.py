@@ -12,7 +12,6 @@ import pyro
 import torch
 from more_itertools import first_true, iterate
 from pyro.distributions.torch_distribution import TorchDistributionMixin as _Distribution
-from pyro.poutine import infer_config
 from torch import Tensor
 from torch.distributions.constraints import Constraint
 
@@ -89,22 +88,22 @@ class UnbindEffect(Effect[Tensor, Tensor]):
 
 
 # TODO: MultiEffect?
-@dataclass
-class MultiEffect(AbstractSampler, Generic[_Tout]):
-    effect: Callable[..., _Tout]
-    arg_funcs: Iterable[Callable[[], Any]]
-    kwarg_funcs: Mapping[str, Callable[[], Any]]
-
-    def __init__(self, effect: Callable[..., _Tout], *arg_funcs: Callable[[], Any], **kwarg_funcs: Callable[[], Any]):
-        self.effect = effect
-        self.arg_funcs = arg_funcs
-        self.kwarg_funcs = kwarg_funcs
-
-    def __call__(self) -> _Tout:
-        return self.effect(
-            *(func() for func in self.arg_funcs),
-            **{name: func() for name, func in self.kwarg_funcs.items()}
-        )
+# @dataclass
+# class MultiEffect(AbstractSampler, Generic[_Tout]):
+#     effect: Callable[..., _Tout]
+#     arg_funcs: Iterable[Callable[[], Any]]
+#     kwarg_funcs: Mapping[str, Callable[[], Any]]
+#
+#     def __init__(self, effect: Callable[..., _Tout], *arg_funcs: Callable[[], Any], **kwarg_funcs: Callable[[], Any]):
+#         self.effect = effect
+#         self.arg_funcs = arg_funcs
+#         self.kwarg_funcs = kwarg_funcs
+#
+#     def __call__(self) -> _Tout:
+#         return self.effect(
+#             *(func() for func in self.arg_funcs),
+#             **{name: func() for name, func in self.kwarg_funcs.items()}
+#         )
 
 
 @dataclass
@@ -198,12 +197,13 @@ class _Sampler(ConcreteSampler, ABC):
     mask: torch.Tensor = Sentinel.skip
 
 
+_Sampler_dT = Union[_Distribution, Callable[[], '_Sampler_dT']]
+
+
 class Sampler(_Sampler):
     """Represents a `pyro.sample <pyro.primitives.sample>` statement."""
 
-    _dT: ClassVar = Union[_Distribution, Callable[[], '_dT']]
-
-    d: _dT
+    d: _Sampler_dT
     r""": A\ `( callable that returns a)* <https://regex101.com/r/1QwDsK>`_
     `distribution <pyro.distributions.torch_distribution.TorchDistributionMixin>`
     to be passed to `pyro.sample <pyro.primitives.sample>`."""
@@ -211,7 +211,7 @@ class Sampler(_Sampler):
     infer: Mapping[str, Any]
 
     # TODO: dataclass: cleverer way to move `d` to the first place
-    def __init__(self, d: _dT,
+    def __init__(self, d: _Sampler_dT,
                  # NamedSampler
                  name: str = _Sampler.name,
                  # ConcreteSampler
@@ -248,9 +248,7 @@ class Sampler(_Sampler):
 
     def __call__(self):
         # callables in self.d should not be wrapped in self.infer_msgr
-        d = self.distribution
-        with infer_config(config_fn=lambda site: self.infer_dict):
-            return pyro.sample(self.name, d)
+        return pyro.sample(self.name, self.distribution, infer=self.infer_dict)
 
 
 @dataclass

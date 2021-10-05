@@ -6,7 +6,7 @@ from clipppy.stochastic import Param, PseudoSampler, Sampler, StochasticSpecs
 from clipppy.utils import Sentinel
 
 
-class TestStochastic:
+class TestStochasticSpecs:
     def test_basic(self):
         res = dict(StochasticSpecs(dict(a=Param(), b=(n := Normal(0, 1))), f=(f := lambda: None), o=(o := object())))
         assert isinstance(res['a'], Param) and res['a'].name == 'a'
