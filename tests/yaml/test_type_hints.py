@@ -1,6 +1,7 @@
 import collections.abc
 import io
 import re
+import sys
 import typing
 from itertools import chain, repeat
 from typing import Callable, Iterable, Mapping, Optional, Type, Union
@@ -82,12 +83,17 @@ def test_invalid():
         loads('!py:f3 [test]')
 
 
+# TODO: Python 3.9
 @mark.parametrize('hint, argtype', list(chain(*(zip(val, repeat(key)) for key, val in {
     'a': (typing.Callable, collections.abc.Callable, str),
     '[]': (list, typing.List, typing.Iterable, collections.abc.Iterable,
-           typing.List[str], typing.Iterable[str], collections.abc.Iterable[str]),
+           typing.List[str], typing.Iterable[str],
+           *((collections.abc.Iterable[str],)
+             if sys.version_info >= (3, 9) else ())),
     '{}': (dict, typing.Dict, typing.Mapping, collections.abc.Mapping,
-           typing.Mapping[str, str], typing.Mapping[str, str], collections.abc.Mapping[str, str])
+           typing.Mapping[str, str], typing.Mapping[str, str],
+           *((collections.abc.Mapping[str, str],)
+             if sys.version_info >= (3, 9) else ()))
 }.items()))))
 def test_target_nodetype(hint, argtype):
     def func(a: hint): ...

@@ -4,15 +4,15 @@ import re
 from typing import Iterable, Optional, Type
 
 from . import sampling_group
-from .sampling_groups import DeltaSamplingGroup
+from .sampling_groups.delta import DeltaSamplingGroup
 from ..utils import _allmatch
-from ..utils.typing import _Site, AnyRegex
+from ..utils.typing import _AnyRegexable, _Site, AnyRegex
 
 
 class GroupSpec:
     def __init__(self, cls: Type[sampling_group.SamplingGroup] = DeltaSamplingGroup,
-                 match: AnyRegex = AnyRegex(_allmatch),  # by default include anything
-                 exclude: AnyRegex = AnyRegex(),         # by default exclude nothing
+                 match: _AnyRegexable = AnyRegex(_allmatch),  # by default include anything
+                 exclude: _AnyRegexable = AnyRegex(),         # by default exclude nothing
                  name='',
                  *args, **kwargs):
         self.cls: Type[sampling_group.SamplingGroup] = cls

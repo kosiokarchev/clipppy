@@ -2,10 +2,11 @@ from torch.distributions import ComposeTransform
 
 from .guide import Guide
 from .group_spec import GroupSpec, GroupSpec
-from .sampling_groups import (
-    DeltaSamplingGroup, DiagonalNormalSamplingGroup,
-    MultivariateNormalSamplingGroup, PartialMultivariateNormalSamplingGroup
-)
+from .sampling_groups.pmvn import PartialMultivariateNormalSamplingGroup
+from .sampling_groups.mvn import MultivariateNormalSamplingGroup
+from .sampling_groups.diagonal_normal import DiagonalNormalSamplingGroup
+from .sampling_groups.delta import DeltaSamplingGroup
+from .sampling_groups.hpmvn import HierarchicPartialMultivariateNormalSamplingGroup
 
 
 def fix_transform(t):
@@ -26,5 +27,15 @@ def fix_guide(g: Guide):
     return g
 
 
-__all__ = ('DeltaSamplingGroup', 'DiagonalNormalSamplingGroup', 'MultivariateNormalSamplingGroup',
-           'PartialMultivariateNormalSamplingGroup', 'GroupSpec', 'Guide')
+MVN = MultivariateNormalSamplingGroup
+PMVN = PartialMultivariateNormalSamplingGroup
+HPMVN = HierarchicPartialMultivariateNormalSamplingGroup
+
+
+__all__ = (
+    'DeltaSamplingGroup', 'DiagonalNormalSamplingGroup',
+    'MultivariateNormalSamplingGroup', 'MVN',
+    'PartialMultivariateNormalSamplingGroup', 'PMVN',
+    'HierarchicPartialMultivariateNormalSamplingGroup', 'HPMVN',
+    'GroupSpec', 'Guide'
+)

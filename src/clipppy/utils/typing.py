@@ -5,7 +5,9 @@ import re
 import sys
 import types
 from collections.abc import Callable
-from typing import get_args, get_origin, Iterable, NewType, Optional, Pattern, Protocol, runtime_checkable, Type, TypedDict, TypeVar, Union
+from typing import (
+    get_args, get_origin, Iterable, NewType, Optional, overload, Pattern,
+    Protocol, runtime_checkable, Type, TypedDict, TypeVar, Union)
 
 from more_itertools import collapse
 
@@ -66,9 +68,21 @@ class GetSetDescriptor(Protocol[_T, _VT]):
     def __set__(self, instance: Optional[_T], value: _VT): ...
 
 
+_Pattern = Union[str, Pattern]
+_Iterable_etc_of_Pattern = Iterable[Union[_Pattern, '_Iterable_etc_of_Pattern_or_str']]
+
+
 class AnyRegex:
-    def __init__(self, *patterns: Union[str, Pattern]):
+    def __init__(self, *patterns: _Pattern):
         self.patterns = tuple(map(re.compile, patterns))
+
+    @classmethod
+    @overload
+    def get(cls, arg: AnyRegex) -> AnyRegex: ...
+
+    @classmethod
+    @overload
+    def get(cls, *args: Union[_Pattern, _Iterable_etc_of_Pattern]) -> AnyRegex: ...
 
     @classmethod
     def get(cls, *args) -> AnyRegex:
@@ -76,6 +90,9 @@ class AnyRegex:
 
     def match(self, value: str, *args, **kwargs):
         return any(p.match(value, *args, **kwargs) for p in self.patterns)
+
+
+_AnyRegexable = Union[AnyRegex, _Iterable_etc_of_Pattern]
 
 
 _Site = TypedDict('_Site', {

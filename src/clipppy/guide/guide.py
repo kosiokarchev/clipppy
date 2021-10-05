@@ -24,17 +24,15 @@ class BaseGuide(PyroModule, metaclass=AbstractPyroModuleMeta):
         super().__init__(name)
 
         self.model: Callable = model
-
         self.prototype_trace: Optional[pyro.poutine.Trace] = None
-
         self.is_setup = False
 
     def _setup_prototype(self, *args, **kwargs):
-        # run the model so we can inspect its structure
-        with poutine.trace() as trace:
-            with poutine.block(hide_fn=prototype_hide_fn):
-                with init_msgr:
-                    self.model(*args, **kwargs)
+        # TODO: Python 3.10: Parenthesized context managers
+        with poutine.trace() as trace,\
+             poutine.block(hide_fn=prototype_hide_fn),\
+             init_msgr:
+            self.model(*args, **kwargs)
         self.prototype_trace = trace.trace
 
     @staticmethod
