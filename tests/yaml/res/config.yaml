@@ -1,0 +1,14 @@
+
+
+!Stochastic
+- !py:func
+- a: !AllEncapsulator
+    /: !py:get_stuff
+    /: &b
+    <: [&c , &d ]
+    <<: {the answer: &e}
+  b: *b
+  c: *c
+  d: *d
+  e: *e
+  [a number]: *b

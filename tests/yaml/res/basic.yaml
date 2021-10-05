@@ -1,0 +1,6 @@
+answer: 42
+foo:
+  - 3.14
+  - euler's number
+  - question: null
+    whatever: {maybe: true, but actually: false}

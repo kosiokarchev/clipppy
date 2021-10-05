@@ -39,8 +39,17 @@ class NodeTypeMismatchError(Exception):
     pass
 
 
+class NodeTypeMismatchWarning(Warning):
+    pass
+
+
 class TaggerMixin:
-    type_to_tag: ClassVar[MutableMapping[Type, str]] = PerKeyDefaultDict(lambda key: f'!py:{key.__module__}.{key.__name__}')
+    @staticmethod
+    def _get_py_name(name: str):
+        return f'!py:{name}'
+
+    type_to_tag: ClassVar[MutableMapping[Type, str]] = PerKeyDefaultDict(
+        lambda key: TaggerMixin._get_py_name(f'{key.__module__}.{key.__qualname__}'))
 
     resolver: resolver.ClipppyResolver
 
@@ -62,21 +71,21 @@ class TaggerMixin:
         hint_is_str = issubclass(hint, str)
         hint_is_callable = hint is collections.abc.Callable or issubclass(hint, type)
         target_nodetype = (
-                (hint_is_callable or hint_is_str) and ScalarNode
-                or hint_is_builtin and issubclass(hint, Mapping) and MappingNode
-                or hint_is_builtin and issubclass(hint, Iterable) and SequenceNode
-                or Node
+            (hint_is_callable or hint_is_str) and ScalarNode
+            or hint_is_builtin and issubclass(hint, Mapping) and MappingNode
+            or hint_is_builtin and issubclass(hint, Iterable) and SequenceNode
+            or Node
         )
 
         if not isinstance(node, target_nodetype):
-            exc = NodeTypeMismatchError(f'Expected {target_nodetype} for {hint}, but got {node}.')
+            exc = f'Expected {target_nodetype} for {hint}, but got {node}.'
             if self.strict_node_type:
-                raise exc
+                raise NodeTypeMismatchError(exc)
             else:
-                warn(str(exc), RuntimeWarning)
+                warn(exc, NodeTypeMismatchWarning)
         if not hint_is_str and (not hint_is_builtin or target_nodetype in (ScalarNode, Node)):
             if hint_is_callable:
-                node.tag = f'!py:{node.value}'
+                node.tag = self._get_py_name(node.value)
                 node.value = ''
             else:
                 node.tag = self.type_to_tag[hint]

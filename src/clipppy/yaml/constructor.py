@@ -7,14 +7,14 @@ from typing import (
     Any, Callable, Iterable, MutableMapping, Optional, Type, TypeVar, Union)
 from warnings import warn
 
-from more_itertools import consume, side_effect
+from more_itertools import consume, ilen, side_effect
 from ruamel.yaml import Constructor, MappingNode, Node, ScalarNode, SequenceNode
 
 from . import resolver as resolver_
 from .scope import ScopeMixin
 from .tagger import NodeTypeMismatchError, TaggerMixin
 from ..utils import Sentinel
-from ..utils.signatures import get_param_for_name, iter_positional, signature as signature_
+from ..utils.signatures import get_param_for_name, has_var_args, iter_positional, signature as signature_
 from ..utils.typing import Descriptor
 
 
@@ -41,6 +41,8 @@ class ClipppyConstructor(ScopeMixin, TaggerMixin, Constructor):
         ](self, node)) is None else signature.bind(val))
 
     def bind_sequence(self, node: SequenceNode, signature: Signature):
+        if not has_var_args(signature) and len(node.value) > ilen(iter_positional(signature)):
+            raise TypeError(Sentinel.sentinel, node.value, {})
         return tuple(map(self.construct_object, starmap(self.tag_from_param, zip(node.value, iter_positional(signature)))))
 
     def bind_mapping(self, node: MappingNode, signature: Signature):
@@ -105,13 +107,18 @@ class ClipppyConstructor(ScopeMixin, TaggerMixin, Constructor):
             signature = signature_(obj)
         except (TypeError, ValueError):
             signature = cls.free_signature
+        is_hooked = False
         try:
-            if obj in loader.type_hooks:
-                ret = loader.type_hooks[obj](node, loader)
-                if isinstance(ret, Node):
-                    node = ret
-                elif ret is not None:
-                    return ret
+            is_hooked = obj in loader.type_hooks
+        except TypeError:  # not hashable
+            pass
+        if is_hooked:
+            ret = loader.type_hooks[obj](node, loader)
+            if isinstance(ret, Node):
+                node = ret
+            elif ret is not None:
+                return ret
+        try:
             signature = loader.bind(node, signature)
         except TypeError as e:
             if e.args and e.args[0] is Sentinel.sentinel:

@@ -23,7 +23,7 @@ from .templating import TemplateWithDefaults
 from ..stochastic.capsule import AllEncapsulator, Encapsulator
 from ..stochastic.infinite import InfiniteUniform, SemiInfiniteUniform
 from ..stochastic.sampler import (
-    Context, Deterministic, Effect, Factor, MultiEffect, Param, PseudoSampler,
+    Context, Deterministic, Effect, Factor, Param, PseudoSampler,
     Sampler, UnbindEffect)
 from ..stochastic.stochastic import Stochastic
 
@@ -120,8 +120,8 @@ CC.add_multi_constructor('!tensor:', CC.apply_prefixed(tensor_prefix))
 CC.type_to_tag[torch.Tensor] = '!tensor'
 
 for typ in (AllEncapsulator, Encapsulator, Stochastic,
-            Param, Sampler, Context, Deterministic, PseudoSampler,
-            Effect, UnbindEffect, MultiEffect):
+            Param, Sampler, Deterministic, Factor,
+            PseudoSampler, Context, Effect, UnbindEffect):
     CC.add_constructor(f'!{typ.__name__}', CC.apply(typ))
 CC.add_constructor('!InfiniteSampler', CC.apply(partial(Sampler, d=InfiniteUniform())))
 CC.add_constructor('!SemiInfiniteSampler', CC.apply(partial(Sampler, d=SemiInfiniteUniform())))
@@ -137,6 +137,9 @@ def _register_globals():
     for mod in (clipppy, stochastic, guide, helpers):
         CC.builtins.update(**{a: getattr(mod, a) for a in mod.__all__})
     CC.builtins.update({'torch': torch, 'np': np, 'numpy': np})
+
+    from ..utils import Sentinel
+    CC.builtins.update({'Sentinel': Sentinel})
 
 
 _register_globals()
