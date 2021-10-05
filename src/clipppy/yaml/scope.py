@@ -27,21 +27,17 @@ def _make_globals():
 class ScopeMixin:
     builtins: ClassVar[Mapping[str, Any]] = ChainMap(_make_globals(), __builtins__)
 
-    class TLocal(Protocol):
-        """"""
-        scope: MutableMapping[str, Any]
-
-    _tlocal: TLocal = threading.local()
+    _scope: MutableMapping[str, Any] = None
 
     @property
     def scope(self):
-        if not hasattr(self._tlocal, 'scope'):
+        if self._scope is None:
             self.scope = {}
-        return self._tlocal.scope
+        return self._scope
 
     @scope.setter
-    def scope(self, scope: Mapping[str, Any]):
-        self._tlocal.scope = ChainMap(scope, self.builtins)
+    def scope(self, value: Mapping[str, Any]):
+        self._scope = ChainMap(value, self.builtins)
 
     # sys.version_info >= (3, 8) TODO: true?
     # spec: Union[str, TypedDict('', **{'from': str, 'import': Union[str, Sequence[str]]}, total=False)]
@@ -74,6 +70,6 @@ class ScopeMixin:
             for i in rlocate(name, '.'.__eq__):
                 try:
                     return attrgetter(name[i + 1:])(import_module(name[:i]))
-                except ModuleNotFoundError as err:
-                    pass
+                except ModuleNotFoundError as err1:
+                    err = err1
             raise err from None
