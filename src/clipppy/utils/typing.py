@@ -20,6 +20,8 @@ __all__ = '_T', '_KT', '_VT', '_Tout', '_Tin', '_Site', '_Model', '_Guide'
 
 
 _T = TypeVar('_T')
+_T1 = TypeVar('_T1')
+_T2 = TypeVar('_T2')
 _KT = TypeVar('_KT')
 _VT = TypeVar('_VT')
 _Tin = TypeVar('_Tin')

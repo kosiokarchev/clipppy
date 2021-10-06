@@ -7,9 +7,9 @@ from types import FunctionType
 from typing import Any, Callable, Collection, Generic, Iterable, Mapping, MutableMapping, Type, Union
 
 import torch
-from more_itertools import always_iterable, always_reversible, collapse, last, lstrip, spy
+from more_itertools import always_iterable, always_reversible, collapse, last, lstrip, padded, spy
 
-from .typing import _KT, _T, _Tin, _Tout, _VT
+from .typing import _KT, _T, _T1, _T2, _Tin, _Tout, _VT
 
 
 def itemsetter(value=None, *keys, **kwargs):
@@ -41,7 +41,7 @@ def expandkeys(m: Union[Mapping[_KT, _VT], Iterable[tuple[_KT, _VT]], Iterable[_
     if isinstance(m, Mapping):
         m = m.items()
     (f,), m = spy(m)
-    return ((k, next(m)) for k in keys) if len(f) == 1 else (el for el in m if el[0] in keys)
+    return (el for el in m if el[0] in keys) if isinstance(f, tuple) and len(f) == 2 else ((k, next(m)) for k in keys)
 
 
 def enumlstrip(iterable, pred):
@@ -52,6 +52,14 @@ def enumlstrip(iterable, pred):
 
 def copy_function(f: FunctionType, name=None):
     return FunctionType(f.__code__, f.__globals__, name or f.__name__, f.__defaults__, f.__closure__)
+
+
+def zip_asymmetric(arg1: Iterable[_T1], arg2: Iterable[_T2], err: Exception) -> Iterable[tuple[_T1, _T2]]:
+    sentinel = object()
+    for a1, a2 in zip(arg1, padded(arg2, sentinel)):
+        if a2 is sentinel:
+            raise err
+        yield a1, a2
 
 
 
