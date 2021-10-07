@@ -13,6 +13,8 @@ from typing import Iterable, Mapping
 
 __all__ = 'is_variadic', 'iter_positional', 'get_kwargs', 'get_param_for_name', 'signature', 'has_var_args'
 
+from clipppy.utils import tryme
+
 
 def is_variadic(param: Parameter) -> bool:
     return param.kind in (param.VAR_POSITIONAL, param.VAR_KEYWORD)
@@ -49,7 +51,9 @@ def signature(obj, *args, **kwargs) -> Signature:
     glob = (obj.__globals__ if isinstance(obj, types.FunctionType)
             else vars(sys.modules[obj.__module__] if hasattr(obj, '__module__') else builtins))
     return sig.replace(
-        parameters=[p.replace(annotation=eval(p.annotation, {'Iterable': Iterable, 'Mapping': Mapping}, glob))  # wtf, Guido...
+        parameters=[p.replace(annotation=tryme(
+            lambda: eval(p.annotation, {'Iterable': Iterable, 'Mapping': Mapping}, glob)
+        ))  # wtf, Guido...
                     if isinstance(p.annotation, str) else p
                     for p in sig.parameters.values()],
         return_annotation=eval(sig.return_annotation, {}, glob)

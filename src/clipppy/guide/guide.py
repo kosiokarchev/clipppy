@@ -8,7 +8,6 @@ import pyro
 import torch
 from frozendict import frozendict
 from pyro import poutine
-from pyro.infer.autoguide.guides import prototype_hide_fn
 from pyro.nn import PyroModule
 from torch import Tensor
 
@@ -28,10 +27,7 @@ class BaseGuide(PyroModule, metaclass=AbstractPyroModuleMeta):
         self.is_setup = False
 
     def _setup_prototype(self, *args, **kwargs):
-        # TODO: Python 3.10: Parenthesized context managers
-        with poutine.trace() as trace,\
-             poutine.block(hide_fn=prototype_hide_fn),\
-             init_msgr:
+        with poutine.trace() as trace, init_msgr:
             self.model(*args, **kwargs)
         self.prototype_trace = trace.trace
 
@@ -47,7 +43,7 @@ class BaseGuide(PyroModule, metaclass=AbstractPyroModuleMeta):
             delattr(self, child)
 
         # TODO: custom InitMessenger class
-        with pyro.poutine.infer_config(config_fn=partial(self._set_init, init=init)):
+        with poutine.infer_config(config_fn=partial(self._set_init, init=init)):
             self._setup_prototype(*args, **kwargs)
         self.is_setup = True
         return old_children
@@ -57,7 +53,8 @@ class BaseGuide(PyroModule, metaclass=AbstractPyroModuleMeta):
 
     def forward(self, *args, **kwargs):
         if not self.is_setup:
-            self.setup(*args, **kwargs)
+            with poutine.block():
+                self.setup(*args, **kwargs)
         result = self.guide(*args, **kwargs)
         return result
 

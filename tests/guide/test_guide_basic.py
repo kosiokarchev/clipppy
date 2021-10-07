@@ -60,11 +60,13 @@ class TestGrouping:
 def test_init():
     def model():
         pyro.sample('a', unit_normal, infer=dict(init=tensor(42.)))
-        pyro.sample('b', unit_normal)
-        pyro.sample('c', some_uniform)
+        pyro.sample('b', unit_normal, infer=dict(init=26.))
+        pyro.sample('c', unit_normal.expand_by((7,)))
+        pyro.sample('d', some_uniform)
 
     pyro.clear_param_store()
     guide = Guide(GroupSpec(name='g'), model=model)
-    guide.setup(init={'b': tensor(26.)})
+    guide.setup(init={'c': (c := (42**2 + 26**2)**0.5)})
     assert itemgetter('a', 'b')(res := guide()) == (42, 26)
-    assert some_uniform.low <= res['c'] <= some_uniform.high
+    assert (res['c'] == c).all()
+    assert some_uniform.low <= res['d'] <= some_uniform.high

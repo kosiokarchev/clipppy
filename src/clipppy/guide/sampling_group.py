@@ -35,9 +35,8 @@ class SamplingGroup(PyroModule, metaclass=AbstractPyroModuleMeta):
                 pass
 
             self.shapes[name] = shape = site['fn'].batch_shape + site['fn'].event_shape
-            init = transform.inv(site['value'].__getitem__((0,)*(site['value'].ndim - len(shape))).expand(shape))
 
-            self.inits[name] = init
+            self.inits[name] = init = transform.inv(torch.as_tensor(site['value']).expand(shape))
 
             # mask = site['infer'].get('mask', site.get('mask', getattr(site['fn'], '_mask', None)))
             # if mask is None:
