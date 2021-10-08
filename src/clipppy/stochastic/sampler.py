@@ -136,6 +136,12 @@ class NamedSampler(AbstractSampler, ABC):
             self.name = name
         return self
 
+    _subclasses: ClassVar[set[Type[NamedSampler]]] = set()
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__()
+        cls._subclasses.add(cls)
+
 
 @dataclass
 class NamedPseudoSampler(NamedSampler, PseudoSampler[_T, _Tout], ABC):

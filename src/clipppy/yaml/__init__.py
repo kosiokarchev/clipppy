@@ -13,6 +13,7 @@ from warnings import warn
 
 import numpy as np
 import torch
+from more_itertools import value_chain
 from ruamel.yaml import Node, YAML
 
 # TODO: .resolver comes before .constructor!
@@ -23,7 +24,7 @@ from .templating import TemplateWithDefaults
 from ..stochastic.capsule import AllEncapsulator, Encapsulator
 from ..stochastic.infinite import InfiniteUniform, SemiInfiniteUniform
 from ..stochastic.sampler import (
-    Context, Deterministic, Effect, Factor, Param, PseudoSampler,
+    Context, Deterministic, Effect, Factor, NamedSampler, Param, PseudoSampler,
     Sampler, UnbindEffect)
 from ..stochastic.stochastic import Stochastic
 
@@ -126,8 +127,7 @@ for typ in (AllEncapsulator, Encapsulator, Stochastic,
 CC.add_constructor('!InfiniteSampler', CC.apply(partial(Sampler, d=InfiniteUniform())))
 CC.add_constructor('!SemiInfiniteSampler', CC.apply(partial(Sampler, d=SemiInfiniteUniform())))
 
-# TODO: suffixed tags for all subclasses of NamedSampler
-for typ in (Sampler, Param, Deterministic, Factor, Stochastic):
+for typ in value_chain(NamedSampler._subclasses, Stochastic):
     CC.add_multi_constructor(f'!{typ.__name__}:', CC.apply_prefixed(partial(named_prefix, typ)))
 
 
