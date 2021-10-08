@@ -6,7 +6,7 @@ import threading
 from collections import ChainMap
 from importlib import import_module
 from operator import attrgetter
-from typing import Any, ClassVar, Dict, Mapping, MutableMapping, Protocol, Union
+from typing import Any, ClassVar, Iterable, Mapping, MutableMapping, Protocol, TypedDict, Union
 
 from more_itertools import rlocate
 
@@ -24,6 +24,9 @@ def _make_globals():
     return locals()
 
 
+_import_DictT = TypedDict('_import_DictT', {'from': str, 'import': Union[str, Iterable[str]]}, total=False)
+
+
 class ScopeMixin:
     builtins: ClassVar[Mapping[str, Any]] = ChainMap(_make_globals(), __builtins__)
 
@@ -39,9 +42,7 @@ class ScopeMixin:
     def scope(self, value: Mapping[str, Any]):
         self._scope = ChainMap(value, self.builtins)
 
-    # sys.version_info >= (3, 8) TODO: true?
-    # spec: Union[str, TypedDict('', **{'from': str, 'import': Union[str, Sequence[str]]}, total=False)]
-    def import_(self, *specs: Union[str, Dict]):
+    def import_(self, *specs: Union[str, _import_DictT]):
         res = {}
         for spec in specs:
             if not isinstance(spec, str):
@@ -62,7 +63,7 @@ class ScopeMixin:
                         raise e
         self.scope.update(res)
 
-
+    # noinspection PyUnusedLocal
     def resolve_name(self, name: str, kwargs):
         try:
             return eval(name, {}, self.scope)

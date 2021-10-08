@@ -9,12 +9,13 @@ from warnings import warn
 
 from more_itertools import consume, side_effect
 from ruamel.yaml import Constructor, MappingNode, Node, ScalarNode, SequenceNode
+from typing_extensions import Concatenate, ParamSpec, TypeAlias
 
 from . import resolver as resolver_
 from .scope import ScopeMixin
 from .tagger import NodeTypeMismatchError, TaggerMixin
 from ..utils import Sentinel, zip_asymmetric
-from ..utils.signatures import get_param_for_name, iter_positional, signature as signature_
+from ..utils.signatures import get_param_for_name, iter_positional, signature
 from ..utils.typing import Descriptor
 
 
@@ -105,9 +106,10 @@ class ClipppyConstructor(ScopeMixin, TaggerMixin, Constructor):
     @classmethod
     def construct(cls, obj, loader: ClipppyConstructor, node: Node, **kwargs):
         try:
-            signature = signature_(obj)
+            sig = signature(obj)
         except (TypeError, ValueError):
-            signature = cls.free_signature
+            # "No signature found...", etc.
+            sig = cls.free_signature
         is_hooked = False
         try:
             is_hooked = obj in loader.type_hooks
@@ -120,23 +122,23 @@ class ClipppyConstructor(ScopeMixin, TaggerMixin, Constructor):
             elif ret is not None:
                 return ret
         try:
-            signature = loader.bind(node, signature)
+            sig = loader.bind(node, sig)
         except TypeError as e:
             if e.args and e.args[0] is Sentinel.sentinel:
                 raise TypeError(cleandoc(f'''
                     Cannot bind:
                       *args: {e.args[1]}
                       *kwargs: {e.args[2]}
-                    to {obj}: {signature!s}''')) from None
+                    to {obj}: {sig!s}''')) from None
             else:
                 raise
-        if signature is None:
+        if sig is None:
             return obj
         else:
-            signature = signature.signature.bind_partial(*signature.args, **{**signature.kwargs, **kwargs})
+            sig = sig.signature.bind_partial(*sig.args, **{**sig.kwargs, **kwargs})
 
             # try:
-            return obj(*signature.args, **signature.kwargs)
+            return obj(*sig.args, **sig.kwargs)
             # except Exception as e:
             #     raise TypeError(f'''Could not instantiate\nobj: {obj}\n*args: {signature.args}\n**kwargs: {signature.kwargs}.''')
 
@@ -151,9 +153,10 @@ class ClipppyConstructor(ScopeMixin, TaggerMixin, Constructor):
         return cls.construct(obj, loader, node, **kwargs)
 
     @classmethod
-    def construct_bound(cls, obj: Descriptor, loader: ClipppyConstructor, node: Node, *args, _cls: Type = None, _func: _constructDescriptorT = construct, **kwargs):
+    def construct_bound(cls, obj: Descriptor, loader: ClipppyConstructor, *args: _PS.args,
+                        _cls: Type = None, _func: _constructDescriptorT = construct, **kwargs: _PS.kwargs):
         ldr = next(o for o in (loader, loader.loader) if isinstance(o, _cls or cls))
-        return _func.__get__(None, cls)(obj.__get__(ldr, _cls), loader, node, *args, **kwargs)
+        return _func.__get__(None, cls)(obj.__get__(ldr, _cls), loader, *args, **kwargs)
 
     @classmethod
     def apply(cls, obj, func: _constructDescriptorT = construct, **kwargs):
@@ -164,7 +167,6 @@ class ClipppyConstructor(ScopeMixin, TaggerMixin, Constructor):
     apply_bound_prefixed = wraps(apply)(partialmethod(apply, func=construct_bound, _func=construct_prefixed))
 
 
-# TODO: python 3.10
-_constructT = Union[Callable[[Any, ClipppyConstructor, str, Node], Any],
-                    Callable[[Any, ClipppyConstructor, Node], Any]]
-_constructDescriptorT = Descriptor[ClipppyConstructor, _constructT]
+_PS = ParamSpec('_PS')
+_constructT: TypeAlias = Callable[Concatenate[Any, ClipppyConstructor, _PS], Any]
+_constructDescriptorT: TypeAlias = Descriptor[ClipppyConstructor, _constructT]

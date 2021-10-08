@@ -9,7 +9,7 @@ from typing import Any, Callable, Collection, Generic, Iterable, Mapping, Mutabl
 import torch
 from more_itertools import always_iterable, always_reversible, collapse, last, lstrip, padded, spy
 
-from .typing import _KT, _T, _T1, _T2, _Tin, _Tout, _VT
+from .typing import _KT, _T, _T1, _T2, _Tin, _Tout, _VT, SupportsItems
 
 
 def itemsetter(value=None, *keys, **kwargs):
@@ -36,7 +36,7 @@ def filterkeys(f: Callable[[_KT], bool], m: Union[Mapping[_KT, _VT], Iterable[tu
     return (kv for kv in (m.items() if isinstance(m, Mapping) else m) if f(kv[0]))
 
 
-def expandkeys(m: Union[Mapping[_KT, _VT], Iterable[tuple[_KT, _VT]], Iterable[_VT]], keys: Collection[_KT]):
+def expandkeys(m: Union[SupportsItems[_KT, _VT], Iterable[tuple[_KT, _VT]], Iterable[_VT]], keys: Collection[_KT]):
     """Return specific keys from a mapping or iterable of key-value pairs, or zip them with a value iterator."""
     if isinstance(m, Mapping):
         m = m.items()

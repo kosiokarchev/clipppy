@@ -6,7 +6,7 @@ from functools import partial
 from itertools import filterfalse
 from typing import (
     Any, Callable, ClassVar, ContextManager, Generic, Iterable, Literal,
-    Mapping, Optional, TypeVar, Union)
+    Mapping, Optional, Type, TypeVar, Union)
 
 import pyro
 import torch
@@ -14,14 +14,16 @@ from more_itertools import first_true, iterate
 from pyro.distributions.torch_distribution import TorchDistributionMixin as _Distribution
 from torch import Tensor
 from torch.distributions.constraints import Constraint
+from typing_extensions import TypeAlias
 
 from ..utils import _T, _Tin, _Tout, caller, Sentinel
 from ..utils.distributions.extra_dimensions import ExtraIndependent
 
 
-# TODO: samplers.__all__
-__all__ = ('AbstractSampler', 'NamedSampler', 'ConcreteSampler', 'PseudoSampler', 'NamedPseudoSampler',
-           'Sampler', 'Param', 'Deterministic', 'Factor')
+__all__ = (
+    'AbstractSampler', 'NamedSampler', 'ConcreteSampler', 'PseudoSampler', 'NamedPseudoSampler',
+    'Context', 'Effect', 'UnbindEffect',
+    'Sampler', 'Param', 'Deterministic', 'Factor')
 
 
 T = TypeVar('T')
@@ -39,9 +41,9 @@ class AbstractSampler(ABC):
         """
 
 
-_ps_func_t = Union[Callable[[], _Tout], _T]
-_ps_call_t = Literal[Sentinel.call, Sentinel.no_call, True, False]
-_ps_return_t = Union[_Tout, _T]
+_ps_func_t: TypeAlias = Union[Callable[[], _Tout], _T]
+_ps_call_t: TypeAlias = Literal[Sentinel.call, Sentinel.no_call, True, False]
+_ps_return_t: TypeAlias = Union[_Tout, _T]
 
 
 @dataclass
@@ -87,7 +89,7 @@ class UnbindEffect(Effect[Tensor, Tensor]):
         super().__init__(partial(torch.unbind, dim=dim), func_or_val, call)
 
 
-# TODO: MultiEffect?
+# TODO: MultiEffect: a lightweight Stochastic alternative?
 # @dataclass
 # class MultiEffect(AbstractSampler, Generic[_Tout]):
 #     effect: Callable[..., _Tout]
@@ -203,7 +205,7 @@ class _Sampler(ConcreteSampler, ABC):
     mask: torch.Tensor = Sentinel.skip
 
 
-_Sampler_dT = Union[_Distribution, Callable[[], '_Sampler_dT']]
+_Sampler_dT: TypeAlias = Union[_Distribution, Callable[[], '_Sampler_dT']]
 
 
 class Sampler(_Sampler):

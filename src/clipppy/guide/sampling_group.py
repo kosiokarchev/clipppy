@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from collections import OrderedDict
 from contextlib import ExitStack
 from functools import cached_property
-from typing import cast, Iterable, Mapping, MutableMapping, Union
+from typing import Iterable, Mapping, MutableMapping, TypeVar, Union
 
 import pyro
 import torch
@@ -12,12 +12,15 @@ from pyro import distributions as dist
 from pyro.distributions.constraints import Constraint
 from pyro.distributions.transforms import Transform
 from pyro.nn import pyro_method, PyroModule, PyroParam, PyroSample
-from torch import Tensor
+from torch import BoolTensor, Size, Tensor
 from torch.distributions import biject_to
 
 from ..utils import to_tensor
 from ..utils.pyro import AbstractPyroModuleMeta, no_grad_msgr
 from ..utils.typing import _Site
+
+
+_Tensor_Type = TypeVar('_Tensor_Type', bound=Tensor)
 
 
 class SamplingGroup(PyroModule, metaclass=AbstractPyroModuleMeta):
@@ -53,13 +56,13 @@ class SamplingGroup(PyroModule, metaclass=AbstractPyroModuleMeta):
         super().__init__(name)
 
         self.sites = OrderedDict((site['name'], site) for site in sites)
-        self.shapes: MutableMapping[str, torch.Size] = {}
+        self.shapes: MutableMapping[str, Size] = {}
         self.sizes: MutableMapping[str, int] = {}
         self.poss: MutableMapping[str, int] = {}
         self.supports: MutableMapping[str, Constraint] = {}
         self.transforms: MutableMapping[str, Transform] = {}
 
-        self.masks: MutableMapping[str, Tensor] = {}
+        self.masks: MutableMapping[str, BoolTensor] = {}
         self.inits: MutableMapping[str, Tensor] = {}
 
         self._process_prototype()
@@ -78,8 +81,8 @@ class SamplingGroup(PyroModule, metaclass=AbstractPyroModuleMeta):
         return self._cat_sites(self.masks)
 
     @property
-    def event_shape(self) -> torch.Size:
-        return torch.Size([sum(self.sizes.values())])
+    def event_shape(self) -> Size:
+        return Size([sum(self.sizes.values())])
 
     @abstractmethod
     def _sample(self, infer: dict = None) -> Tensor: ...

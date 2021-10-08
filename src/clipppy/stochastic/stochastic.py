@@ -3,13 +3,13 @@ from __future__ import annotations
 from contextlib import nullcontext
 from itertools import chain
 from operator import itemgetter
-from typing import Any, Callable, Collection, Iterable, Literal, Mapping, Type, TYPE_CHECKING, TypeVar, Union
+from typing import Any, Callable, Collection, Iterable, Literal, Mapping, Tuple, Type, TYPE_CHECKING, TypeVar, Union
 from warnings import warn
 
 from frozendict import frozendict
-from more_itertools import always_iterable
 from pyro.contrib.autoname import scope
 from pyro.distributions.torch_distribution import TorchDistributionMixin
+from typing_extensions import TypeAlias
 
 from .capsule import AllEncapsulator, Capsule
 from .sampler import AbstractSampler, NamedSampler, PseudoSampler, Sampler
@@ -46,10 +46,10 @@ class StochasticScope(AllEncapsulator[_T]):
             return self._scoped_call(*args, **kwargs)
 
 
-# TODO: StochasticSpecs type annotations
-_SpecKT = Union[str, Literal[Sentinel.merge], Collection[str]]
-_SpecVVT = Union[AbstractSampler, TorchDistributionMixin, Any]
-_SpecVT = Union[_SpecVVT, Capsule, SupportsItems[str, _SpecVVT], Callable[[], SupportsItems[str, _SpecVVT]]]
+_SpecT: TypeAlias = Union[AbstractSampler, TorchDistributionMixin, Any]
+_eSpecT: TypeAlias = Union[SupportsItems[str, _SpecT], Iterable[Tuple[str, _SpecT]], Iterable[_SpecT]]
+_SpecKT: TypeAlias = Union[str, Literal[Sentinel.merge], Collection[str]]
+_SpecVT: TypeAlias = Union[_SpecT, _eSpecT, Callable[[], _eSpecT]]
 
 
 class StochasticSpecs:
@@ -130,7 +130,7 @@ class StochasticSpecs:
              ' and returns the raw specs!', RuntimeWarning)
         return map(itemgetter(1), self.specs)
 
-    def items(self) -> Iterable[tuple[str, _SpecVVT]]:
+    def items(self) -> Iterable[tuple[str, _SpecT]]:
         r"""Iterate the key-"specification" pairs via `iter`\ ``(self)``.
 
         Provided for compatibiility with other mappings (i.e. with the
@@ -183,7 +183,7 @@ class Stochastic(StochasticScope[_T]):
             key: (val() if isinstance(val, AbstractSampler) else
                   Sampler(val, name=key)() if isinstance(val, TorchDistributionMixin)
                   else val)
-            for key, val in always_iterable(self.stochastic_specs)
+            for key, val in self.stochastic_specs
             if key not in kwargs
         })
 
