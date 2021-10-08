@@ -66,16 +66,16 @@ class SamplingGroup(PyroModule, metaclass=AbstractPyroModuleMeta):
 
         self.active = True
 
-    @cached_property
-    def init(self) -> Tensor:
-        # TODO: order of sites
-        return torch.cat([t.flatten() for t in self.inits.values()])
+    def _cat_sites(self, vals: Mapping[str, _Tensor_Type]) -> _Tensor_Type:
+        return torch.cat(tuple(vals[name].flatten() for name in self.sites.keys()), dim=-1)
 
     @cached_property
-    def mask(self) -> torch.BoolTensor:
-        # TODO: order of sites
-        return cast(torch.BoolTensor,
-                    torch.cat([m.flatten() for m in self.masks.values()]))
+    def init(self) -> Tensor:
+        return self._cat_sites(self.inits)
+
+    @cached_property
+    def mask(self) -> BoolTensor:
+        return self._cat_sites(self.masks)
 
     @property
     def event_shape(self) -> torch.Size:
@@ -91,13 +91,12 @@ class SamplingGroup(PyroModule, metaclass=AbstractPyroModuleMeta):
         return arr[..., self.poss[name]:self.poss[name]+self.sizes[name]]
 
     def jacobian(self, guide_z: Tensor) -> Tensor:
-        # TODO: order of sites
-        return torch.cat(tuple(
-            tr.log_abs_det_jacobian(z, tr(z)).exp()
+        return self._cat_sites({
+            name: tr.log_abs_det_jacobian(z, tr(z)).exp()
             for name in self.sites.keys()
             for z in [self.unpack_site(guide_z, name)]
             for tr in [self.transforms[name]]
-        ), dim=-1)
+        })
 
     def _sample_site(self, group_z: Tensor, name: str, fn: dist.TorchDistribution = None):
         zs = self.unpack_site(group_z, name)
