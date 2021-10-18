@@ -39,7 +39,8 @@ class NoGradMessenger(Messenger):
 
 
 def init_fn(site: _Site) -> torch.Tensor:
-    return init if (init := site['infer'].get('init', None)) is not None else site['fn']()
+    # return init if (init := site['infer'].get('init', None)) is not None else site['fn']()
+    return site['infer'].get('init', None)
 
 
 init_msgr = InitMessenger(init_fn)
