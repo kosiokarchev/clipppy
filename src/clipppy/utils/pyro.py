@@ -31,7 +31,11 @@ class AbstractPyroModuleMeta(type(PyroModule), ABCMeta):
 class NoGradMessenger(Messenger):
     @staticmethod
     def _pyro_post_param(msg: _Site):
-        msg['value'] = msg['value'].detach()
+        msg['value'] = new = (val := msg['value']).detach()
+
+        # hack because Pyro hack .unconstrained onto the pure Tensor......
+        if hasattr(val, 'unconstrained'):
+            new.unconstrained = val.unconstrained
 
 
 def init_fn(site: _Site) -> torch.Tensor:
