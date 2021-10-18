@@ -57,8 +57,8 @@ class StochasticSpecs:
 
     When a `StochasticSpecs` is created, it is provided with a mapping from
     names to "specifiations". Each "specification" can be one of
-        - an instance of `AbstractSampler`. In that case, its name is set to the
-          corresponding key if the specification is a `NamedSampler`;
+        - an instance of `AbstractSampler`. In that case, its name is set to
+          the corresponding key if the specification is a `NamedSampler`;
         - a `~pyro.distributions.torch_distribution.TorchDistributionMixin`.
           It is wrapped in a `Sampler`, which is also named;
         - a `callable` (that is not an `AbstractSampler`). It is wrapped in a
@@ -157,7 +157,7 @@ class Stochastic(StochasticScope[_T]):
     whereas the parameters that `~functools.partial` passes are invariant,
     `Stochastic` generates them anew for each invokation.
 
-    More specifically, `Stochastic` uses a `StochasticSpecs.items` to supply
+    More specifically, `Stochastic` uses `StochasticSpecs` to supply
     key-"specification" pairs. If a specification is an `AbstractSampler`, it
     is **called**, and the returned value is set to the given key. If it is a
     `~pyro.distributions.torch_distribution.TorchDistributionMixin`, it is

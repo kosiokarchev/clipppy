@@ -118,4 +118,5 @@ def test_factor():
     ).get_trace()).nodes['a']
 
     trace.compute_log_prob()
+    assert pyro.poutine.util.site_is_factor(node)
     assert (node['log_prob'] == v).all()

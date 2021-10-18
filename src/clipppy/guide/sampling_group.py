@@ -70,7 +70,7 @@ class SamplingGroup(PyroModule, metaclass=AbstractPyroModuleMeta):
         self.active = True
 
     def _cat_sites(self, vals: Mapping[str, _Tensor_Type]) -> _Tensor_Type:
-        return torch.cat(tuple(vals[name].flatten() for name in self.sites.keys()), dim=-1)
+        return torch.cat(tuple(vals[name].flatten() for name in self.sites.keys() if name in vals.keys()), dim=-1)
 
     @cached_property
     def init(self) -> Tensor:
@@ -93,10 +93,10 @@ class SamplingGroup(PyroModule, metaclass=AbstractPyroModuleMeta):
     def unpack_site(self, arr: Tensor, name: str):
         return arr[..., self.poss[name]:self.poss[name]+self.sizes[name]]
 
-    def jacobian(self, guide_z: Tensor) -> Tensor:
+    def jacobian(self, guide_z: Tensor, sites: Iterable[str] = None) -> Tensor:
         return self._cat_sites({
             name: tr.log_abs_det_jacobian(z, tr(z)).exp()
-            for name in self.sites.keys()
+            for name in (sites or self.sites.keys())
             for z in [self.unpack_site(guide_z, name)]
             for tr in [self.transforms[name]]
         })
@@ -158,15 +158,7 @@ class SamplingGroup(PyroModule, metaclass=AbstractPyroModuleMeta):
         return scale / jac.unsqueeze(-1)
 
 
-class LocatedSamplingGroup(SamplingGroup, ABC):
-    loc: Tensor
-
-    @PyroParam(event_dim=1)
-    def loc(self):
-        return self.init[self.mask]
-
-
-class LocatedSamplingGroupWithPrior(LocatedSamplingGroup, ABC):
+class SamplingGroupWithPrior(SamplingGroup, ABC):
     guide_z: Tensor
 
     @abstractmethod
@@ -181,7 +173,20 @@ class LocatedSamplingGroupWithPrior(LocatedSamplingGroup, ABC):
         return self.guide_z
 
 
+class LocatedSamplingGroup(SamplingGroup, ABC):
+    loc: Tensor
+
+    @PyroParam(event_dim=1)
+    def loc(self):
+        return self.init[self.mask]
+
+
 class ScaledSamplingGroup(SamplingGroup, ABC):
     def __init__(self, sites, name='', init_scale: Union[Tensor, float] = 1., *args, **kwargs):
         super().__init__(sites, name, *args, **kwargs)
         self.init_scale = init_scale
+
+
+class LocatedAndScaledSamplingGroupWithPrior(
+        SamplingGroupWithPrior, LocatedSamplingGroup, ScaledSamplingGroup, ABC):
+    pass

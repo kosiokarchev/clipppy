@@ -5,10 +5,10 @@ from pyro.distributions.constraints import positive
 from pyro.nn import PyroParam
 from torch import Tensor
 
-from ..sampling_group import LocatedSamplingGroupWithPrior, ScaledSamplingGroup
+from ..sampling_group import LocatedAndScaledSamplingGroupWithPrior
 
 
-class DiagonalNormalSamplingGroup(ScaledSamplingGroup, LocatedSamplingGroupWithPrior):
+class DiagonalNormalSamplingGroup(LocatedAndScaledSamplingGroupWithPrior):
     scale: Tensor
 
     @PyroParam(event_dim=1, constraint=positive)

@@ -11,11 +11,11 @@ from pyro.distributions.constraints import lower_cholesky, positive
 from pyro.nn import pyro_method, PyroParam, PyroSample
 from torch import Tensor
 
-from ..sampling_group import LocatedSamplingGroupWithPrior
+from ..sampling_group import LocatedAndScaledSamplingGroupWithPrior
 from ...utils.typing import AnyRegex, _Site
 
 
-class PartialMultivariateNormalSamplingGroup(LocatedSamplingGroupWithPrior):
+class PartialMultivariateNormalSamplingGroup(LocatedAndScaledSamplingGroupWithPrior):
     scale_full: Tensor
     scale_diag: Tensor
     scale_cross: Tensor
@@ -71,13 +71,6 @@ class PartialMultivariateNormalSamplingGroup(LocatedSamplingGroupWithPrior):
     def zaux_diag(self):
         return self.unit_normal.expand(torch.Size([self.size_diag])).to_event(1)
 
-    @pyro_method
-    def sample_full(self):
-        with self.grad_context:
-            return self.unpack(
-                self.loc[:self.size_full] + (self.scale_full @ self.zaux_full.unsqueeze(-1)).squeeze(-1),
-                self.sites_full, guiding=False)
-
     @property
     def half_log_det(self) -> Tensor:
         return self.scale_full.diagonal(dim1=-2, dim2=-1).log().sum(-1) + self.scale_diag.log().sum(-1)
@@ -92,3 +85,10 @@ class PartialMultivariateNormalSamplingGroup(LocatedSamplingGroupWithPrior):
 
     def prior(self):
         return Delta(self.loc + torch.cat((self._z_full, self._z_diag), dim=-1), log_density=-self.half_log_det, event_dim=1)
+
+    @pyro_method
+    def sample_full(self):
+        with self.grad_context:
+            return self.unpack(
+                self.loc[:self.size_full] + (self.scale_full @ self.zaux_full.unsqueeze(-1)).squeeze(-1),
+                self.sites_full, guiding=False)

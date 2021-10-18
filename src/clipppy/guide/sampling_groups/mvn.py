@@ -6,10 +6,10 @@ from pyro.distributions.constraints import corr_cholesky, positive
 from pyro.nn import PyroParam
 from torch import Tensor
 
-from ..sampling_group import LocatedSamplingGroupWithPrior, ScaledSamplingGroup
+from ..sampling_group import LocatedAndScaledSamplingGroupWithPrior
 
 
-class MultivariateNormalSamplingGroup(ScaledSamplingGroup, LocatedSamplingGroupWithPrior):
+class MultivariateNormalSamplingGroup(LocatedAndScaledSamplingGroupWithPrior):
     scale_tril: Tensor
 
     @PyroParam(constraint=positive, event_dim=1)
@@ -20,5 +20,9 @@ class MultivariateNormalSamplingGroup(ScaledSamplingGroup, LocatedSamplingGroupW
     def corr_cholesky(self):
         return torch.eye(len(self.loc), device=self.loc.device, dtype=self.loc.dtype)
 
+    @property
+    def scale_tril(self):
+        return self.scale.unsqueeze(-1) * self.corr_cholesky
+
     def prior(self):
-        return MultivariateNormal(self.loc, scale_tril=self.scale.unsqueeze(-1) * self.corr_cholesky)
+        return MultivariateNormal(self.loc, scale_tril=self.scale_tril)
