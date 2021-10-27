@@ -13,7 +13,7 @@ class Mock(SamplingCommand):
     """Generate mock data from the model prior."""
 
     def forward(self, model: _Model, *args, **kwargs) -> pyro.poutine.Trace:
-        with pyro.poutine.trace() as trace, init_msgr, self.plate, self.uncondition:
+        with pyro.poutine.trace() as trace, self.init, self.plate, self.uncondition:
             model(*args, **kwargs)
 
         if self.savename:
