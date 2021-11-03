@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from copy import copy
 from functools import update_wrapper
 from itertools import starmap
-from types import FunctionType
+from types import FunctionType, MethodType
 from typing import cast, ClassVar, Generic, MutableMapping, Type, TypeVar, Union
 
 from more_itertools import consume
@@ -50,7 +50,7 @@ class Wrapper(Generic[_T]):
         return cls._wrapped_registry[item]
 
     def __new__(cls: Type[_cls], obj: _T, /, *args, **kwargs) -> Union[_cls, _T]:
-        if isinstance(obj, (FunctionType, type)):
+        if isinstance(obj, (FunctionType, MethodType, type)):
             obj = FunctionWrapper(obj)
 
         self: Union[Wrapper, _T] = object.__new__(cls[type(obj)])
