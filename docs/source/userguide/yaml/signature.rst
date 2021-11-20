@@ -4,12 +4,12 @@ From Node to Signature
 
 Magic Keys
 ----------
-There are only three "magic keys". Since YAML does not allow mixing sequence and mapping nodes, while in Python this is common practice, and also to cover the case of :ref:`positional-only parameters <python:positional-only_parameter>`, |CLipppy| needs a positional argument indicator key. Furthermore, since it is common to want to expand some generated parameter or maybe use the same object as a monolithic sequence in one place and as individual items in another [#forget]_, |Clipppy| defines positional and keyword expansion "operators" corresponding to the Python :ref:`parameter expansion syntax <python:calls>` ``*``/``**``.
+There are only three "magic keys". Since YAML does not allow mixing sequence and mapping nodes, while in |Python| this is common practice, and also to cover the case of :ref:`positional-only parameters <python:positional-only_parameter>`, |CLipppy| needs a positional argument indicator key. Furthermore, since it is common to want to expand some generated parameter or maybe use the same object as a monolithic sequence in one place and as individual items in another [#forget]_, |Clipppy| defines positional and keyword expansion "operators" corresponding to the |Python| :ref:`parameter expansion syntax <python:calls>` ``*``/``**``.
 
 .. glossary::
 
     ``/``
-        Use the value as a positional argument. Can be used at any point (even after keywords, contrary to the Python grammar).
+        Use the value as a positional argument. Can be used at any point (even after keywords, contrary to the |Python| grammar).
 
     ``<``
         Expand the value into positional arguments. A simple use case would be some ``xy`` coordinates as an :math:`N \times 2` array that need to be expanded into two arrays of length :math:`N`:
@@ -21,7 +21,7 @@ There are only three "magic keys". Since YAML does not allow mixing sequence and
             - !py:matplotlib.pyplot.plot
                 <: !py:np.transpose [*pts]
 
-        which corresponds to the very similar Python code
+        which corresponds to the very similar |Python| code
 
         .. code-block:: python3
 
@@ -30,7 +30,7 @@ There are only three "magic keys". Since YAML does not allow mixing sequence and
         .. note::
             If you try this example with ``ruamel.yaml<=0.17.4`` (or maybe even higher), this **will** (may) **not work!** The reason is that there is no (not-too-hacky) way to force depth-first construction if using an optimised C-based loader/parser/constructor, and the current implementation returns *an empty list* as the value of the referenced node when the :yaml:`!py:np.transpose`-tagged node requires it. To solve this, tag the whole document with :yaml:`!py:list` for example, which will transfer control to `ClipppyYAML` from the beginning (and make the document a one-element sequence as per the requirement of `list`... See, I told you: hacky!).
 
-            This highlights a fundamental design choice of |Clipppy|: in order to provide sensible insight using type hints, construction has to be depth first and recursive (hence, Python's stack depth limitation applies to |Clipppy| YAML files). In contrast, simple *collection assembly* can live with breadth-first construction and a subsequent population using further placeholders, etc.
+            This highlights a fundamental design choice of |Clipppy|: in order to provide sensible insight using type hints, construction has to be depth first and recursive (hence, |Python|'s stack depth limitation applies to |Clipppy| YAML files). In contrast, simple *collection assembly* can live with breadth-first construction and a subsequent population using further placeholders, etc.
 
         .. deprecated:: 0
             Initially, the key for positional expansion was ``__args``, but this should not be used anymore.
@@ -52,7 +52,7 @@ There are only three "magic keys". Since YAML does not allow mixing sequence and
 
         which would throw an exception for repeated keys. The same overwriting rule applies to keys not from expanded mappings.
 
-Magic keys can be freely mixed and matched, used multiple times, etc. The order of evaluation of the nodes/parameters follows strictly the definition order in the YAML, just as it follows the definition order in a Python call (important for side effects and defining anchors). Here's an example:
+Magic keys can be freely mixed and matched, used multiple times, etc. The order of evaluation of the nodes/parameters follows strictly the definition order in the YAML, just as it follows the definition order in a |Python| call (important for side effects and defining anchors). Here's an example:
 
 .. code-block:: yaml
 
@@ -84,9 +84,9 @@ and will result in a `locals` ::
 The Power of Type Hints
 -----------------------
 
-`Type hints <python:typing>` in Python are the best! [#pep563]_ They are completely ignored at runtime, so they don't limit you in any way, but are still tremendously helpful in static analysis and allow IDEs to spot errors in your code before you run it. They help clarify the meaning of parameters and properties and contribute to automatic documentation generation. Even though the language ignores type hints, they are not completely "lost" as are the types of compiled languages: "annotations" can be freely examined by the program using the builtin `typing` and `inspect` modules. Basically, they are free information that the software designer gives to the program without any obligation. As such, type hints are often the basis of "smart" functionality, such as in the `dataclasses` modules. And in |Clipppy|, which tries to be smart and save you some typing in YAML if you have gone through the trouble of writing properly annotated Python code.
+`Type hints <python:typing>` in |Python| are the best! [#pep563]_ They are completely ignored at runtime, so they don't limit you in any way, but are still tremendously helpful in static analysis and allow IDEs to spot errors in your code before you run it. They help clarify the meaning of parameters and properties and contribute to automatic documentation generation. Even though the language ignores type hints, they are not completely "lost" as are the types of compiled languages: "annotations" can be freely examined by the program using the builtin `typing` and `inspect` modules. Basically, they are free information that the software designer gives to the program without any obligation. As such, type hints are often the basis of "smart" functionality, such as in the `dataclasses` modules. And in |Clipppy|, which tries to be smart and save you some typing in YAML if you have gone through the trouble of writing properly annotated |Python| code.
 
-|Clipppy| needs to invoke Python functions with arguments coming from YAML in order to construct complex data structures beyond simple containers (sequences and mappings). Sometimes the inputs are themselves complex structures, and so the YAML parser needs to be informed further of the way to form them from simpler data, and so on. However, the original function knows what data to expect, and the constructors of complex structures know what primitives they need, or at lest the programmer who wrote them does. Thus, if they provided this information as type hints, |Clipppy| can try to automatically determine the processing needed in the middle between primitives and the final call signature.
+|Clipppy| needs to invoke |Python| functions with arguments coming from YAML in order to construct complex data structures beyond simple containers (sequences and mappings). Sometimes the inputs are themselves complex structures, and so the YAML parser needs to be informed further of the way to form them from simpler data, and so on. However, the original function knows what data to expect, and the constructors of complex structures know what primitives they need, or at least the programmer who wrote them does. Thus, if they provided this information as type hints, |Clipppy| can try to automatically determine the processing needed in the middle between primitives and the final call signature.
 
 Take the following typical |Clipppy| configuration as example:
 
@@ -103,7 +103,7 @@ To an outside observer this is just a one-key mapping, and the one value is a li
 
     def __init__(self, *specs: GroupSpec, model=None, name=''): ...
 
-so the parser expands the sequence node into this signature and realises than both elements should be instances of `GroupSpec`, whose constructor is
+so the parser expands the sequence node into this signature and realises than both elements should be instances of `GroupSpec`, whose constructor might be (it was, it's not anymore)
 
 .. parsed-literal::
 
@@ -114,7 +114,7 @@ so the parser expands the sequence node into this signature and realises than bo
         exclude: `~typing.Union`\ [`str`, `re.Pattern <python:re-objects>`] = _nomatch,
         name='', \*args, \*\*kwargs): ...
 
-Here, even though ``name`` is not annotated, |Clipppy| will consider the type of the default value in line with most type checkers. However, a `str` is not particularly interesting since scalar nodes are by default strings. The :arg:`match` is a `~typing.Union` for convenience and is explicitly converted to a `re.Pattern <python:re-objects>` in the body of the function. Sadly, |Clipppy| connot handle `~typing.Union`\ s yet, so it leaves the :arg:`match` node alone [#regex]_. Finally, for the :arg:`cls` parameter, meant to indicate the subtype of `SamplingGroup` to use, |Clipppy| assumes that the node is a *name* of a class / Python object to pass. The node is then tagged with :yaml:`!py:VALUE`, where ``VALUE`` is the original content [#typechecks]_. |Clipppy| does that for all `~typing.Type` or `typing.Callable`\ \|\ `collections.abc.Callable` annotations, so if you want to pass something else than a name, you should put an explicit annotation.
+Here, even though ``name`` is not annotated, |Clipppy| will consider the type of the default value in line with most type checkers. However, a `str` is not particularly interesting since scalar nodes are by default strings. The :arg:`match` is a `~typing.Union` for convenience and is explicitly converted to a `re.Pattern <python:re-objects>` in the body of the function. Sadly, |Clipppy| connot handle `~typing.Union`\ s yet, so it leaves the :arg:`match` node alone [#regex]_. Finally, for the :arg:`cls` parameter, meant to indicate the subtype of `SamplingGroup` to use, |Clipppy| assumes that the node is a *name* of a class / |Python| object to pass. The node is then tagged with :yaml:`!py:VALUE`, where ``VALUE`` is the original content [#typechecks]_. |Clipppy| does that for all `~typing.Type` or `typing.Callable`\ \|\ `collections.abc.Callable` annotations, so if you want to pass something else than a name, you should put an explicit annotation.
 
 Depending on `ClipppyConstructor`\ ``.``\ `~TaggerMixin.strict_node_type`, which is `True` by default, |Clipppy| enforces the types of nodes versus what it expects from an annotation: that callable / string parameters are represented as scalar nodes and that builtin sequences / mappings are, respectively, sequences / mappings.
 
@@ -139,7 +139,7 @@ Finally, the original YAML is perceived as
 
         ClipppyConstructor.type_to_tag[re.Pattern] = '!py:re.compile'
 
-    to replace the default ``cls -> '!py:{cls.__module__}.{cls.__name__}'``. Then a function like :python:`f(a: re.Pattern)` can be safely "called" as ``!py:f [``\ `(meta-)*regex golf <https://xkcd.com/1313/>`_\ ``]`` and will be passed :python:`re.compile('(meta-)*regex golf')`.
+    to replace the default ``cls -> '!py:{cls.__module__}.{cls.__qualname__}'``. Then a function like :python:`f(a: re.Pattern)` can be safely "called" as ``!py:f [``\ `(meta-)*regex golf <https://xkcd.com/1313/>`_\ ``]`` and will be passed :python:`re.compile('(meta-)*regex golf')`.
 
 .. [#typechecks] For now no checks for inheritance / signature constraints or types of container elements are performed by |Clipppy|, so this has to be handled in user code.
 

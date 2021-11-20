@@ -17,7 +17,7 @@ Secondly, YAML introduces the idea of *tags* (and |Clipppy| takes it maybe a bit
 
         More precisely, the directive first tries to evaluate the name in |scopevar| (see `Scopes`_). If a `NameError` or `AttributeError` occurs, it tries to import part of the name as a module and evalueate the rest in its scope. It does that at every possible splitting location (a dot), starting from the right, i.e. prefers long imports to long attribute lookups. For example, for :python:`astropy.units.astrophys.attoparsec`, assuming :python:`astropy.units` has not been imported, it will try to import :python:`astropy.units.astrophys.attoparsec` first; this will fail, so it will try :python:`astropy.units.astrophys`, which will have been imported as usual; finally `\!py` will look up the name :python:`attoparsec` in the imported module and thus succeed. If nothing works, a `NameError`/`AttributeError`/`ModuleNotFoundError` is raised as appropriate.
 
-        Once the name is resolved, there are two options. If the node is empty (that is, if there is no value following the NAME), the value of the node is set to the resolved Python object. For example, ::
+        Once the name is resolved, there are two options. If the node is empty (that is, if there is no value following the NAME), the value of the node is set to the resolved |Python| object. For example, ::
 
             key: !py:print
 
@@ -42,31 +42,31 @@ Secondly, YAML introduces the idea of *tags* (and |Clipppy| takes it maybe a bit
                 <<: {reverse: True}
 
 
-        (equivalent to the Python
+        (equivalent to the |Python|
 
         .. code-block:: python3
 
             sorted(*[[['a', 42], ['c', 26], ['b', 13]]],
                    key=operator.itemgetter(0), **{'reverse': True})
 
-        that results in reverse sorting the list by the first entry in each element: :python:`[['c', 26], ['b', 13], ['a', 42]]`). You can see that the syntax resembles real Python code as close as possible, with the exception of parameter expansions being effected by ``<`` and ``<<`` instead of, respectively, ``*`` and ``**`` (because a ``*`` is reserved for anchors in YAML). The tricks that `\!py` hides up its sleeve are described in full detail in `From Node to Signature`_.
+        that results in reverse sorting the list by the first entry in each element: :python:`[['c', 26], ['b', 13], ['a', 42]]`). You can see that the syntax resembles real |Python| code as close as possible, with the exception of parameter expansions being effected by ``<`` and ``<<`` instead of, respectively, ``*`` and ``**`` (because a ``*`` is reserved for anchors in YAML). The tricks that `\!py` hides up its sleeve are described in full detail in `From Node to Signature`_.
 
     :yaml:`!import`
-        A directive that realises Python imports. This tag expects an array node and returns `None` as the node's value. Each element node should be a simple string as you would write in Python, and all import styles are supported. The general syntax, therefore, is ::
+        A directive that realises |Python| imports. This tag expects an array node and returns `None` as the node's value. Each element node should be a simple string as you would write in |Python|, and all import styles are supported. The general syntax, therefore, is ::
 
             whatever name: !import
                 - import torch
                 - import numpy as np
                 - from matplotlib import pyplot as plt
 
-        Loading this config will result in :python:`{'whatever name': None}`, but as a side effect the respective modules / names will be imported by the standard Python machinery and will be available to *subsequent* `\!py` and `\!eval` directives for name lookup, as well as in `sys.modules`. This directive is primarily useful for :python:`as`-style imports, abridging qualified names to just the proper :python:`__name__` or for making names available in `\!eval`. Other cases are covered by the name resolution semantics of `\!py`.
+        Loading this config will result in :python:`{'whatever name': None}`, but as a side effect the respective modules / names will be imported by the standard |Python| machinery and will be available to *subsequent* `\!py` and `\!eval` directives for name lookup, as well as in `sys.modules`. This directive is primarily useful for :python:`as`-style imports, abridging qualified names to just the proper :python:`__name__` or for making names available in `\!eval`. Other cases are covered by the name resolution semantics of `\!py`.
 
         .. note:: Additional formats are supported for backwards compatibility. These will not be documented in order to encourage the more sensible standard syntax but can be deduced by perusing the source code of `ScopeMixin.import_`. I'll give away just that things like :yaml:`!import numpy as np` work as well.
 
-        .. note:: All of the imports from `clipppy.yaml` are already available in YAML and don't need to be imported explicitly for the parsing. This includes `numpy` (as :python:`np`), `torch`, `io`, `os`, as well as the majority of the |Clipppy| API.
+        .. note:: Some modules are always available without an explicit import in the YAML file. These include the majority of the |Clipppy| API, `torch`, `numpy` (also as ``np``), and `operator` (as ``op``).
 
     :yaml:`!eval`
-        Evaluate the node contents as a Python expression. Basically, this is God mode, although you're still limited to a single expression (not even a statement) since the contents are simply passed on to the built-in `python:eval` function. But a Python God is supposed to be able to do anything in a single expression\ |citation needed|.
+        Evaluate the node contents as a |Python| expression. Basically, this is God mode, although you're still limited to a single expression (not even a statement) since the contents are simply passed on to the built-in `python:eval` function. But a |Python| God is supposed to be able to do anything in a single expression\ |citation needed|.
 
         .. warning:: It is currently not possible to define a lambda expression that makes use of global variables inside an `\!eval`, like :yaml:`!eval "lambda: torch.ones(...)"`. The reason is that the `scope <Scopes>`_ is kept in a `~collections.ChainMap` that is inadmissible in `eval`\ 's ``globals`` parameter... Instead, it goes in the ``locals``, but that is not remembered by a :python:`lambda`...
 
@@ -111,7 +111,7 @@ Secondly, YAML introduces the idea of *tags* (and |Clipppy| takes it maybe a bit
                 map_location: cuda
                 # any other keyword arguments will go into kwargs
 
-        Note that `torch.load` can save any Python object, so it is not guaranteed that indexing :python:`torch.load('data.pt')['somekey']` is sensible.
+        Note that `torch.load` can save any |Python| object, so it is not guaranteed that indexing :python:`torch.load('data.pt')['somekey']` is sensible.
 
     :yaml:`!trace`
         Extract values from a saved `pyro.poutine.Trace`. Assuming a trace containing sites ``a`` and ``b`` was saved to ``trace.pt`` via :python:`torch.save(trace, 'trace.pt')`, one can retrieve the values either one at a time::
@@ -156,16 +156,45 @@ Secondly, YAML introduces the idea of *tags* (and |Clipppy| takes it maybe a bit
 
         .. seealso:: `torch.get_default_dtype`, `torch.set_default_dtype`, `torch.set_default_tensor_type`
 
+    :yaml:`![operator]`
+        Operators can be accessed with the syntax :yaml:`!+`... A simple example is :yaml:`!* [6, 9]` (`evaluates to 42 <https://www.goodreads.com/quotes/831356-what-do-you-get-if-you-multiply-six-by-nine>`_). These dispatch to functions in `operator`\ [#operators]_. Here is a full list:
+
+        :yaml:`!+` (`~operator.add`),
+        :yaml:`!-` (`~operator.sub`),
+        :yaml:`!*` (`~operator.mul`),
+        :yaml:`!/` (`~operator.truediv`),
+        :yaml:`!@` (`~operator.matmul`),
+
+        :yaml:`!==` (`~operator.eq`),
+        :yaml:`!ne` (`~operator.ne`),
+        :yaml:`!lt` (`~operator.lt`),
+        :yaml:`!le` (`~operator.le`),
+        :yaml:`!gt` (`~operator.gt`),
+        :yaml:`!ge` (`~operator.ge`).
+
+        The angular brackets (``<>``) are interpreted in YAML tags, so they, sadly, cannot be used to represent operators. Additionally, the following are defined for getting properties
+
+        :yaml:`![]` (`~operator.getitem`),
+        :yaml:`!.` (`getattr`).
+
+        And finally, we define :yaml:`!:` (`slice`) because we can. Then, one can do::
+
+            !+ [![] [!py:np.arange [10], !: [2, 9, 3]], 0.1]
+
+        as a slightly longer and deranged version of :python:`np.arange(10)[2:9:3] + 0.1` if such a thing floats one's boat.
+
+        .. [#operators] The same can, of course be accessed via :yaml:`!py:operator.add`..., the shorter :yaml:`!py:op.add`... and even directly as :yaml:`!py:add`... (i.e. a :python:`from operator import *` is performed in the global name resolution scope).
+
     :yaml:`!Stochastic:NAME`
         A shortcut for
 
         .. parsed-literal::
 
-            !py:`clipppy.stochastic.stochastic`
+            !py:`clipppy.stochastic.stochastic.Stochastic`
                 ...
                 name: NAME
 
-        therefore, see the documentation of `~clipppy.stochastic.stochastic`. ``NAME`` (and the colon ``:``) can be omitted and will default to `None`. Since `~clipppy.stochastic.stochastic` takes at least two arguments, the first one being an object to "wrap" and the second a dictionary of parameter "specifications", the usual YAML pattern is ::
+        therefore, see the documentation of `Stochastic` and `StochasticSpecs`. ``NAME`` (and the colon ``:``) can be omitted and will default to `None`. Since `Stochastic` takes at least two arguments, the first one being an object to "wrap" and the second a dictionary of parameter "specifications", the usual YAML pattern is ::
 
             !Stochastic:NAME
                 - !py:MyDeterministicCallable
@@ -176,15 +205,17 @@ Secondly, YAML introduces the idea of *tags* (and |Clipppy| takes it maybe a bit
 
         .. note:: Built into `~clipppy.stochastic.stochastic` are two features that make describing stochastic wrappers in YAML (and not only) easier. Firstly, if any of the :python:`specs.values()` is an instance of `AbstractSampler` (this includes instances of `Sampler` and company), its name is set to the name of the parameter it is attached to (via `AbstractSampler.set_name`). Secondly, if it is a `Distribution <pyro.distributions.torch_distribution.TorchDistributionMixin>`, a `Sampler` is automatically created from it. This allows for the rather concise ::
 
-                !Stochastic [..., {param: !py:d.Normal [0., 1.], ...}]
+                !Stochastic [..., {param: !py:Normal [0., 1.], ...}]
 
-            for example, assuming `pyro.distributions <pyro:distributions>` has been imported as :arg:`d`.
+            for example, assuming `~pyro.distributions.Normal` has been imported already.
 
     :yaml:`!Param`
     :yaml:`!Sampler`
     :yaml:`!InfiniteSampler`
     :yaml:`!SemiInfiniteSampler`
         Shortcuts for `Param`, `Sampler`, `Sampler`\ ``(d=``\ `InfiniteUniform`\ ``())``, `Sampler`\ ``(d=``\ `SemiInfiniteUniform`\ ``())``.
+
+        .. todo:: list all classes from `sampler`.
 
 
 As a final shortcut, |Clipppy|'s YAML processor is set up so that by default the top-level node is auto-interpreted as a `Clipppy` object, i.e. it is assigned a tag :yaml:`!py:Clipppy`. If this is not desired, use the :arg:`interpret_as_Clipppy` parameter to `loads`/`load_config` and `ClipppyYAML.load` or explicitly tag the whole document however you like.

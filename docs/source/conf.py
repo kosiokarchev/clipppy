@@ -70,6 +70,7 @@ autoapi_ignore = [
     '**/clipppy/autocli.py',
     '**/clipppy/cli.py',
     '**/clipppy/distributions/*',
+    '**/clipppy/_clipppy.py',
     # '**/clipppy/**/sampler.py'
 ]
 autoapi_options = [
@@ -106,12 +107,13 @@ trim_footnote_reference_space = True
 # language=rst
 rst_prolog = nbsphinx_prolog = '''
 .. default-role:: any
+.. |Python| replace:: Python
+.. |Pyro| replace:: `Pyro`_
+.. _Pyro: https://pyro.ai
 .. |Clipppy| replace:: Clipppy
 .. |citation needed| replace:: `[citation needed]`:superscript:
 .. _ruamel.yaml: https://yaml.readthedocs.io/en/latest/
 .. _pyrofit: https://github.com/cweniger/pyrofit-core
-.. |Pyro| replace:: `Pyro`_
-.. _Pyro: https://pyro.ai
 
 .. |builtinsvar| replace:: `ClipppyYAML.constructor`\ ``.``\ `~ScopeMixin.builtins`
 .. |scopevar| replace:: `ClipppyYAML.constructor`\ ``.``\ `~ScopeMixin.scope`

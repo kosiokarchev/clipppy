@@ -2,7 +2,7 @@ Templating
 ==========
 .. highlight:: yaml
 
-|Clipppy| includes rudimentary templating functionality built on top of `string.Template`. Placeholders are valid Python identifiers introduced by a ``$`` [#doubledollar]_ and optionally delimited by braces [#patterns]_\ : ``$_var123``, ``${var}``. Replacement strings are given as keywords to `ClipppyYAML.load`, `load_config`, and `loads`, e.g.
+|Clipppy| includes rudimentary templating functionality built on top of `string.Template`. Placeholders are valid |Python| identifiers introduced by a ``$`` [#doubledollar]_ and optionally delimited by braces [#patterns]_\ : ``$_var123``, ``${var}``. Replacement strings are given as keywords to `ClipppyYAML.load`, `load_config`, and `loads`, e.g.
 
 .. code-block:: python3
 

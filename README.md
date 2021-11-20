@@ -3,10 +3,10 @@
 
 ---
 
-[![DOI](https://zenodo.org/badge/267335832.svg)](https://zenodo.org/badge/latestdoi/267335832)
 [![pypi](https://img.shields.io/pypi/v/clipppy?logo=pypi)](https://pypi.org/project/clipppy/)
 [![docs](https://readthedocs.org/projects/clipppy/badge/?version=latest)](https://clipppy.readthedocs.io/en/latest/?badge=latest)
 ![license](https://img.shields.io/pypi/l/clipppy)
+[![DOI](https://zenodo.org/badge/267335832.svg)](https://zenodo.org/badge/latestdoi/267335832)
 
 ![github](https://github.com/kosiokarchev/clipppy/actions/workflows/codecov_workflow.yml/badge.svg?branch=docs)
 [![travis](https://app.travis-ci.com/kosiokarchev/clipppy.svg?branch=docs)](https://app.travis-ci.com/kosiokarchev/clipppy)
