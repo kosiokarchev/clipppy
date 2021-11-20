@@ -1,4 +1,5 @@
 import io
+import operator
 import os
 import sys
 from operator import attrgetter, is_, itemgetter
@@ -7,7 +8,7 @@ from warnings import catch_warnings, filterwarnings
 
 import numpy as np
 import torch
-from pytest import fixture, raises
+from pytest import fixture, mark, raises
 
 from clipppy import Clipppy, load, load_config, loads
 from clipppy.yaml import cwd
@@ -81,8 +82,16 @@ def test_py():
     assert loads('!py:os.path.split ') is sys.modules['os.path'].split
 
 
-def test_predefined_imports():
-    assert loads('!eval numpy, np, torch') == (sys.modules['numpy'], sys.modules['numpy'], sys.modules['torch'])
+@mark.parametrize('name, modname', (
+    ('numpy', 'numpy'), ('np', 'numpy'), ('torch', 'torch'), ('op', 'operator')
+))
+def test_preimported_modules(name, modname):
+    assert loads(f'!eval {name}') is sys.modules[modname]
+
+
+@mark.parametrize('name', operator.__all__)
+def test_starimport_operator(name):
+    assert loads(f'!py:op.{name}') is getattr(operator, name)
 
 
 def test_import():

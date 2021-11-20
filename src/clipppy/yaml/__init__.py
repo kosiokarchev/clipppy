@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import inspect
 import io
+import operator as op
 import os
 from collections import ChainMap
 from contextlib import contextmanager
@@ -115,6 +116,15 @@ CC.add_constructor('!eval', ClipppyYAML.eval)
 for func in (ClipppyYAML.txt, ClipppyYAML.npy, ClipppyYAML.npz, ClipppyYAML.pt, ClipppyYAML.trace):
     CC.add_constructor(f'!{func.__name__}', CC.apply_bound(func, _cls=ClipppyYAML))
 
+for o, func in {
+    '==': op.eq, 'ne': op.ne, 'lt': op.lt, 'le': op.le, 'gt': op.gt, 'ge': op.ge,
+    '+': op.add, '-': op.sub, '*': op.mul, '/': op.truediv,
+    '@': op.matmul, '**': op.pow,
+    # '%': op.mod,
+    '[]': op.getitem, '.': getattr, ':': slice
+}.items():
+    CC.add_constructor(f'!{o}', CC.apply(func))
+
 CC.add_constructor('!tensor', CC.apply(torch.tensor))
 CC.add_multi_constructor('!tensor:', CC.apply_prefixed(tensor_prefix))
 # TODO: Needs to be handled better?
@@ -133,10 +143,12 @@ for typ in value_chain(NamedSampler._subclasses, Stochastic):
 
 def _register_globals():
     from . import hooks
+
+    import operator
     from .. import clipppy, stochastic, guide, helpers
-    for mod in (clipppy, stochastic, guide, helpers):
+    for mod in (operator, clipppy, stochastic, guide, helpers):
         CC.builtins.update(**{a: getattr(mod, a) for a in mod.__all__})
-    CC.builtins.update({'torch': torch, 'np': np, 'numpy': np})
+    CC.builtins.update({'torch': torch, 'np': np, 'numpy': np, 'op': operator})
 
     from ..utils import Sentinel
     CC.builtins.update({'Sentinel': Sentinel})
@@ -148,6 +160,6 @@ del _register_globals
 
 def __getattr__(name):
     if name == 'MyYAML':
-        warn('\'MyYAML\' was renamed to \'ClipppyYAML\' and will soon be unavailable.', FutureWarning)
+        warn(f'\'{name}\' was renamed to \'{ClipppyYAML.__name__}\' and will soon be unavailable.', FutureWarning)
         return ClipppyYAML
     raise AttributeError(f'module {__name__} has no attribute {name}')

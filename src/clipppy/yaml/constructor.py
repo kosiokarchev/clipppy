@@ -12,6 +12,7 @@ from ruamel.yaml import Constructor, MappingNode, Node, ScalarNode, SequenceNode
 from typing_extensions import Concatenate, ParamSpec, TypeAlias
 
 from . import resolver as resolver_
+from .prefixed import PrefixedReturn
 from .scope import ScopeMixin
 from .tagger import NodeTypeMismatchError, TaggerMixin
 from ..utils import Sentinel, zip_asymmetric
@@ -148,7 +149,7 @@ class ClipppyConstructor(ScopeMixin, TaggerMixin, Constructor):
             cls, resolver: Callable[[str, MutableMapping[str, Any]], Union[Any, tuple[Any, MutableMapping[str, Any]]]],
             loader: ClipppyConstructor, suffix: str, node: Node, **kwargs):
         obj = resolver(suffix, kwargs)
-        if isinstance(obj, tuple) and len(obj) == 2:
+        if isinstance(obj, PrefixedReturn):
             obj, kwargs = obj
         return cls.construct(obj, loader, node, **kwargs)
 

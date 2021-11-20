@@ -163,7 +163,8 @@ class NamedPseudoSampler(NamedSampler, PseudoSampler[_T, _Tout], ABC):
     """
 
     def __call__(self, **kwargs):
-        return self._func(self.name, super().__call__(), **kwargs)
+        ret = super().__call__()
+        return self._func(self.name, ret, **kwargs)
 
 
 @dataclass
@@ -176,7 +177,7 @@ class Deterministic(NamedPseudoSampler):
     """The ``event_dim`` parameter to `pyro.deterministic <pyro.primitives.deterministic>`."""
 
     def __call__(self):
-        super().__call__(event_dim=self.event_dim)
+        return super().__call__(event_dim=self.event_dim)
 
 
 @dataclass
