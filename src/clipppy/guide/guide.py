@@ -8,13 +8,13 @@ import pyro
 import torch
 from frozendict import frozendict
 from pyro import poutine
-from pyro.infer.autoguide.guides import prototype_hide_fn
+from pyro.infer.autoguide.initialization import InitMessenger
 from pyro.nn import PyroModule
 from torch import Tensor
 
 from .group_spec import GroupSpec
 from .sampling_group import SamplingGroup
-from ..utils.pyro import AbstractPyroModuleMeta, init_msgr
+from ..utils.pyro import AbstractPyroModuleMeta
 from ..utils.typing import _Site
 
 
@@ -24,33 +24,25 @@ class BaseGuide(PyroModule, metaclass=AbstractPyroModuleMeta):
         super().__init__(name)
 
         self.model: Callable = model
-
         self.prototype_trace: Optional[pyro.poutine.Trace] = None
-
         self.is_setup = False
 
-    def _setup_prototype(self, *args, **kwargs):
-        # run the model so we can inspect its structure
-        with poutine.trace() as trace:
-            with poutine.block(hide_fn=prototype_hide_fn):
-                with init_msgr:
-                    self.model(*args, **kwargs)
-        self.prototype_trace = trace.trace
-
     @staticmethod
-    def _set_init(site: _Site, init: Mapping[str, Tensor]):
-        if site['name'] in init:
-            site['value'] = init[site['name']]
-        return site['infer']
+    def _init_fn(site: _Site, init: Mapping[str, Tensor]):
+        return val if (val := init.get(site['name'], site['infer'].get('init', None))) is not None else site['fn']()
+        # return val if (val := site['infer'].get('init', init.get(site['name'], None))) is not None else site['fn']()
+
+    def _setup_prototype(self, *args, init, **kwargs):
+        with poutine.trace() as trace, InitMessenger(partial(self._init_fn, init=init)):
+            self.model(*args, **kwargs)
+        self.prototype_trace = trace.trace
 
     def setup(self, *args, init: Mapping[str, Tensor] = frozendict(), **kwargs) -> MutableMapping[str, Any]:
         old_children = dict(self.named_children())
         for child in old_children:
             delattr(self, child)
 
-        # TODO: custom InitMessenger class
-        with pyro.poutine.infer_config(config_fn=partial(self._set_init, init=init)):
-            self._setup_prototype(*args, **kwargs)
+        self._setup_prototype(*args, init=init, **kwargs)
         self.is_setup = True
         return old_children
 
@@ -59,7 +51,8 @@ class BaseGuide(PyroModule, metaclass=AbstractPyroModuleMeta):
 
     def forward(self, *args, **kwargs):
         if not self.is_setup:
-            self.setup(*args, **kwargs)
+            with poutine.block():
+                self.setup(*args, **kwargs)
         result = self.guide(*args, **kwargs)
         return result
 

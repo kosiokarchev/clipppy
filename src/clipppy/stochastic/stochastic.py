@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from contextlib import nullcontext
 from itertools import chain
-from typing import Any, Callable, Collection, Iterable, Literal, Mapping, Type, TYPE_CHECKING, TypeVar, Union
+from operator import itemgetter
+from typing import Any, Callable, Collection, Iterable, Literal, Mapping, Tuple, Type, TYPE_CHECKING, TypeVar, Union
+from warnings import warn
 
 from frozendict import frozendict
-from more_itertools import always_iterable
 from pyro.contrib.autoname import scope
 from pyro.distributions.torch_distribution import TorchDistributionMixin
+from typing_extensions import TypeAlias
 
 from .capsule import AllEncapsulator, Capsule
 from .sampler import AbstractSampler, NamedSampler, PseudoSampler, Sampler
@@ -44,10 +46,10 @@ class StochasticScope(AllEncapsulator[_T]):
             return self._scoped_call(*args, **kwargs)
 
 
-# TODO: StochasticSpecs type annotations
-_SpecKT = Union[str, Literal[Sentinel.merge], Collection[str]]
-_SpecVVT = Union[AbstractSampler, TorchDistributionMixin, Any]
-_SpecVT = Union[_SpecVVT, Capsule, SupportsItems[str, _SpecVVT], Callable[[], SupportsItems[str, _SpecVVT]]]
+_SpecT: TypeAlias = Union[AbstractSampler, TorchDistributionMixin, Any]
+_eSpecT: TypeAlias = Union[SupportsItems[str, _SpecT], Iterable[Tuple[str, _SpecT]], Iterable[_SpecT]]
+_SpecKT: TypeAlias = Union[str, Literal[Sentinel.merge], Collection[str]]
+_SpecVT: TypeAlias = Union[_SpecT, _eSpecT, Callable[[], _eSpecT]]
 
 
 class StochasticSpecs:
@@ -55,8 +57,8 @@ class StochasticSpecs:
 
     When a `StochasticSpecs` is created, it is provided with a mapping from
     names to "specifiations". Each "specification" can be one of
-        - an instance of `AbstractSampler`. In that case, its name is set to the
-          corresponding key if the specification is a `NamedSampler`;
+        - an instance of `AbstractSampler`. In that case, its name is set to
+          the corresponding key if the specification is a `NamedSampler`;
         - a `~pyro.distributions.torch_distribution.TorchDistributionMixin`.
           It is wrapped in a `Sampler`, which is also named;
         - a `callable` (that is not an `AbstractSampler`). It is wrapped in a
@@ -91,10 +93,44 @@ class StochasticSpecs:
         ) for name, spec in chain(
             specs.items() if isinstance(specs, SupportsItems) else specs,
             kwargs.items()
-        ) for strname in [name if isinstance(name, str) else None]
-        ]
+        ) for strname in [name if isinstance(name, str) else None]]
 
-    def items(self) -> Iterable[tuple[str, _SpecVVT]]:
+    # TODO: StochasticSpecs Mapping interface
+    # TODO: StochasticSpecs -> dict conversion convention
+
+    def __getitem__(self, item):
+        warn(f'Getting items from {type(self).__name__} by name is frowned upon'
+             ' and only supports explicitly named specs at the first level that'
+             ' at most come from mappings (no dynamic generation).',
+             RuntimeWarning)
+
+        for key, val in self.specs:
+            if key == item:
+                return val
+        raise KeyError(item)
+
+    def __setitem__(self, key, value):
+        warn(f'Setting items on {type(self).__name__} by name is frowned upon'
+             ' and only supports explicitly named specs at the first level.',
+             RuntimeWarning)
+
+        for i, _key in enumerate(map(itemgetter(0), self.specs)):
+            if key == _key:
+                self.specs[i] = (key, value)
+                return
+        self.specs.append((key, value))
+
+    # def keys(self):
+    #     warn(f'Iterating keys from {type(self).__name__} is frowned upon'
+    #          ' and returns the raw keys!', RuntimeWarning)
+    #     return map(itemgetter(0), self.specs)
+
+    def values(self):
+        warn(f'Iterating values from {type(self).__name__} is frowned upon'
+             ' and returns the raw specs!', RuntimeWarning)
+        return map(itemgetter(1), self.specs)
+
+    def items(self) -> Iterable[tuple[str, _SpecT]]:
         r"""Iterate the key-"specification" pairs via `iter`\ ``(self)``.
 
         Provided for compatibiility with other mappings (i.e. with the
@@ -121,7 +157,7 @@ class Stochastic(StochasticScope[_T]):
     whereas the parameters that `~functools.partial` passes are invariant,
     `Stochastic` generates them anew for each invokation.
 
-    More specifically, `Stochastic` uses a `StochasticSpecs.items` to supply
+    More specifically, `Stochastic` uses `StochasticSpecs` to supply
     key-"specification" pairs. If a specification is an `AbstractSampler`, it
     is **called**, and the returned value is set to the given key. If it is a
     `~pyro.distributions.torch_distribution.TorchDistributionMixin`, it is
@@ -147,7 +183,7 @@ class Stochastic(StochasticScope[_T]):
             key: (val() if isinstance(val, AbstractSampler) else
                   Sampler(val, name=key)() if isinstance(val, TorchDistributionMixin)
                   else val)
-            for key, val in always_iterable(self.stochastic_specs)
+            for key, val in self.stochastic_specs
             if key not in kwargs
         })
 

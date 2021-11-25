@@ -5,19 +5,23 @@ import re
 import sys
 import types
 from collections.abc import Callable
-from typing import get_args, get_origin, Iterable, NewType, Optional, Pattern, Protocol, runtime_checkable, Type, TypedDict, TypeVar, Union
-
-from more_itertools import collapse
+from typing import (
+    get_args, get_origin, Iterable, NewType, Optional, overload, Pattern,
+    Protocol, runtime_checkable, Tuple, Type, TypedDict, TypeVar, Union)
 
 import torch
+from more_itertools import collapse
 from pyro import distributions as dist
 from pyro.poutine.indep_messenger import CondIndepStackFrame
+from typing_extensions import TypeAlias
 
 
 __all__ = '_T', '_KT', '_VT', '_Tout', '_Tin', '_Site', '_Model', '_Guide'
 
 
 _T = TypeVar('_T')
+_T1 = TypeVar('_T1')
+_T2 = TypeVar('_T2')
 _KT = TypeVar('_KT')
 _VT = TypeVar('_VT')
 _Tin = TypeVar('_Tin')
@@ -55,6 +59,7 @@ class SupportsItems(Protocol[_KT, _VT]):
     def items(self) -> Iterable[tuple[_KT, _VT]]: ...
 
 
+
 @runtime_checkable
 class Descriptor(Protocol[_T, _VT]):
     def __get__(self, instance: Optional[_T], owner: Type[_T]) -> _VT: ...
@@ -66,9 +71,22 @@ class GetSetDescriptor(Protocol[_T, _VT]):
     def __set__(self, instance: Optional[_T], value: _VT): ...
 
 
+_Pattern: TypeAlias = Union[str, Pattern]
+_Iterable_etc_of_Pattern: TypeAlias = Iterable[Union[_Pattern, '_Iterable_etc_of_Pattern']]
+_AnyRegexable: TypeAlias = Union['AnyRegex', _Iterable_etc_of_Pattern]
+
+
 class AnyRegex:
-    def __init__(self, *patterns: Union[str, Pattern]):
+    def __init__(self, *patterns: _Pattern):
         self.patterns = tuple(map(re.compile, patterns))
+
+    @classmethod
+    @overload
+    def get(cls, arg: AnyRegex) -> AnyRegex: ...
+
+    @classmethod
+    @overload
+    def get(cls, *args: Union[_Pattern, _Iterable_etc_of_Pattern]) -> AnyRegex: ...
 
     @classmethod
     def get(cls, *args) -> AnyRegex:

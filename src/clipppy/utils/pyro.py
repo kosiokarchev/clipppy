@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABCMeta
-from functools import partial
+from functools import partial, wraps
 from typing import Any, Type, Union
 
 import pyro
@@ -31,15 +31,16 @@ class AbstractPyroModuleMeta(type(PyroModule), ABCMeta):
 class NoGradMessenger(Messenger):
     @staticmethod
     def _pyro_post_param(msg: _Site):
-        msg['value'] = msg['value'].detach()
+        msg['value'] = new = (val := msg['value']).detach()
+
+        # hack because Pyro hack .unconstrained onto the pure Tensor......
+        if hasattr(val, 'unconstrained'):
+            new.unconstrained = val.unconstrained
 
 
 def init_fn(site: _Site) -> torch.Tensor:
-    # sys.version_info >= (3, 8)
     # return init if (init := site['infer'].get('init', None)) is not None else site['fn']()
-    init = site['infer'].get('init', None)
-    return (to_tensor(init) if init is not None
-            else site['fn']())
+    return site['infer'].get('init', None)
 
 
 init_msgr = InitMessenger(init_fn)
@@ -56,6 +57,7 @@ def depoutine(obj: Union[_bound_partial, Any], msgr_type: Type[Messenger] = Cond
     ) else obj
 
 
+@wraps(pyro.sample)
 def smart_sample(name, *args, **kwargs):
     if am_i_wrapped():
         for msgr in _PYRO_STACK:

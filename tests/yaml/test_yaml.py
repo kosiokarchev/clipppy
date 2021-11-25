@@ -1,15 +1,18 @@
+import io
+import operator
 import os
 import sys
-from operator import is_, itemgetter
+from operator import attrgetter, is_, itemgetter
 from pathlib import Path
 from warnings import catch_warnings, filterwarnings
 
 import numpy as np
 import torch
-from pytest import fixture, raises
+from pytest import fixture, mark, raises
 
-from clipppy import loads
+from clipppy import Clipppy, load, load_config, loads
 from clipppy.yaml import cwd
+from clipppy.yaml.tagger import NodeTypeMismatchError
 
 
 SOME_GLOBAL_VARIABLE = 42
@@ -20,15 +23,6 @@ def reveal_args(*args, **kwargs):
 
 
 def test_basic():
-    assert loads('''
-        answer: 42
-        foo:
-          - 3.14
-          - euler's number
-          - question: null
-            whatever: {maybe: true, but actually: false}
-    ''') == {'answer': 42, 'foo': [3.14, 'euler\'s number', {'question': None, 'whatever': {'maybe': True, 'but actually': False}}]}
-
     assert is_(*itemgetter('a', 'b')(loads('''
         a: &name {key1: value1, key2: value2}
         b: *name
@@ -57,10 +51,10 @@ def test_templating():
 
 
 def test_paths(tmp_path: Path):
-    cwd = os.getcwd()
-    assert cwd != str(tmp_path)
+    curdir = os.getcwd()
+    assert curdir != str(tmp_path)
     assert loads('!py:os.getcwd []', base_dir=tmp_path) == str(tmp_path)
-    assert os.getcwd() == cwd
+    assert os.getcwd() == curdir
 
 
 def test_py():
@@ -68,7 +62,10 @@ def test_py():
     assert loads('[!py:SOME_GLOBAL_VARIABLE , !py:SOME_LOCAL_VARIABLE ]') == [SOME_GLOBAL_VARIABLE, SOME_LOCAL_VARIABLE]
 
     with raises(NameError, match='SOME_LOCAL_VARIABLE'):
-        loads('[!py:a "", !py:SOME_LOCAL_VARIABLE ""]', scope={'a': 42})
+        loads('[!py:a , !py:SOME_LOCAL_VARIABLE ]', scope={'a': 42})
+
+    with raises(ModuleNotFoundError):
+        loads('!py:nonsense_blahblah.somename')
 
     assert loads('!py:print ') is print
     assert loads('!py:str.join [" ", [Hooray, for, Python!]]') == str.join(' ', ['Hooray', 'for', 'Python!'])
@@ -85,8 +82,16 @@ def test_py():
     assert loads('!py:os.path.split ') is sys.modules['os.path'].split
 
 
-def test_predefined_imports():
-    assert loads('!eval numpy, np, torch') == (sys.modules['numpy'], sys.modules['numpy'], sys.modules['torch'])
+@mark.parametrize('name, modname', (
+    ('numpy', 'numpy'), ('np', 'numpy'), ('torch', 'torch'), ('op', 'operator')
+))
+def test_preimported_modules(name, modname):
+    assert loads(f'!eval {name}') is sys.modules[modname]
+
+
+@mark.parametrize('name', operator.__all__)
+def test_starimport_operator(name):
+    assert loads(f'!py:{name}') is getattr(operator, name)
 
 
 def test_import():
@@ -100,6 +105,10 @@ def test_import():
         a: [!py:torch.linspace , !py:np.linspace ]
     ''', scope=scope) == {'_': None, '__': None, 'a': [sys.modules['torch'].linspace, sys.modules['numpy'].linspace]}
     assert itemgetter('torch', 'np', 'req', 'ospath')(scope) == itemgetter('torch', 'numpy', 'urllib.request', 'os.path')(sys.modules)
+
+    scope = {}
+    loads('!import [{from: urllib, import: request}, {from: urllib, import: [error, parse]}]', scope=scope)
+    assert scope == dict(zip(keys := ('request', 'error', 'parse'), attrgetter(*keys)(sys.modules['urllib'])))
 
     with raises(SyntaxError):
         loads('!import 3+4')
@@ -118,6 +127,9 @@ def test_magic():
       <: !py:range [4, 7]
     ''') == ((1, 2, 3, 4, 5, 6), {'a': 'a', 'b': 'b', 'c': 'c', 'd': 'd'})
 
+    with raises(NodeTypeMismatchError):
+        loads('!py:reveal_args {<<: [1, 2, 3]}')
+
 
 def test_eval():
     import math
@@ -131,6 +143,18 @@ class TestWithFiles:
             yield
 
     def test_loaders(self):
+        assert (
+            {'answer': 42, 'foo': [3.14, 'euler\'s number', {
+                'question': None, 'whatever': {
+                    'maybe': True, 'but actually': False}}]}
+            == loads(open('res/basic.yaml').read())
+            == load(open('res/basic.yaml'))
+            == load('res/basic.yaml')
+        )
+
+        assert isinstance(load_config(io.StringIO('{}')), Clipppy)
+
+    def test_data_loaders(self):
         assert (loads('!txt res/data.txt') == np.loadtxt('res/data.txt')).all()
         rcp = loads(r'!txt {/: res/data.txt, dtype: !py:np.float32 , unpack: true}')
         assert len(rcp) == 2 and rcp[0].dtype is np.dtype(np.float32)

@@ -1,18 +1,23 @@
+from __future__ import annotations
+
 import math
 from abc import ABC
+from copy import copy
 from functools import cached_property
 from math import inf
-from typing import Generic, Optional, TypeVar, Union
+from typing import ClassVar, Generic, Mapping, Optional, Type, TypeVar, Union
 
 import torch
 from pyro import distributions as dist
 from pyro.distributions.torch_distribution import TorchDistribution as _Distribution
 from torch import Size, Tensor
 from torch.distributions.constraints import interval
+from typing_extensions import TypeAlias
 
 
 _DT = TypeVar('_DT', bound=_Distribution)
-_t = Union[float, Tensor]
+_t: TypeAlias = Union[float, Tensor]
+_constraintT: TypeAlias = Optional[_t]
 
 
 def _maybe_item(val: Tensor, *maybe_tensors: _t):
@@ -20,8 +25,33 @@ def _maybe_item(val: Tensor, *maybe_tensors: _t):
 
 
 class ConUnDisMixin(_Distribution, Generic[_DT], ABC):
-    constraint_lower: Optional[_t] = -inf
-    constraint_upper: Optional[_t] = inf
+    _concrete: ClassVar[Mapping[Type[_DT]], Union[Type[ConUnDisMixin[_DT]], Type[_DT]]] = {}
+
+    def __init_subclass__(cls, register: Type[_DT] = None, **kwargs):
+        super().__init_subclass__(**kwargs)
+
+        if register:
+            cls._concrete[register] = cls
+
+    @classmethod
+    def new_constrained(
+        cls: Type[_CDT], d: _DT,
+        constraint_lower: _constraintT = None,
+        constraint_upper: _constraintT = None
+    ) -> Union[_CDT[_DT], _DT]:
+        d = copy(d)
+        if type(d) in cls._concrete:
+            d.__class__ = cls._concrete[type(d)]
+            d.constrain(constraint_lower, constraint_upper)
+        elif hasattr(d, 'base_dist'):
+            d.base_dist = cls.new_constrained(d.base_dist, constraint_lower, constraint_upper)
+        else:
+            raise ValueError(f'Cannot constrain instances of {type(d)} (yet?).')
+        return d
+
+
+    constraint_lower: _constraintT = -inf
+    constraint_upper: _constraintT = inf
 
     @cached_property
     def constraint_range(self):
@@ -47,7 +77,7 @@ class ConUnDisMixin(_Distribution, Generic[_DT], ABC):
     @cached_property
     def lower_prob(self):
         return _maybe_item(
-            self.cdf(torch.as_tensor(self.constraint_lower))
+            super().cdf(torch.as_tensor(self.constraint_lower))
             if self.constraint_lower is not None else 0.,
             self.constraint_lower
         )
@@ -55,7 +85,7 @@ class ConUnDisMixin(_Distribution, Generic[_DT], ABC):
     @cached_property
     def upper_prob(self):
         return _maybe_item(
-            self.cdf(torch.as_tensor(self.constraint_upper)) if self.constraint_upper is not None else 1.,
+            super().cdf(torch.as_tensor(self.constraint_upper)) if self.constraint_upper is not None else 1.,
             self.constraint_upper
         )
 
@@ -73,40 +103,22 @@ class ConUnDisMixin(_Distribution, Generic[_DT], ABC):
         return self.rsample(sample_shape)
 
     def rsample(self, sample_shape=Size()):
-        u = self.lower_prob.new_empty(self.shape(sample_shape)).uniform_()
+        u = torch.as_tensor(self.lower_prob).new_empty(self.shape(sample_shape)).uniform_()
         return torch.where(
-            self.lower_prob < self.upper_prob,
-            self.icdf(self.lower_prob + self.constrained_prob * u),
+            torch.as_tensor(self.lower_prob < self.upper_prob),
+            super().icdf(self.lower_prob + self.constrained_prob * u),
             self.constraint_lower + self.constraint_range * u
         )
-        return self.icdf(
-
-        )
-        # return self.icdf(
-        #     torch.distributions.Uniform(self.lower_prob, self.upper_prob).sample(sample_shape)
-        # )
 
     def log_prob(self, value):
         return super().log_prob(value) - self.constrained_logprob
 
-
-class Normal(ConUnDisMixin[dist.Normal], dist.Normal):
-    pass
-
-
-class _Gamma(dist.Gamma):
     def cdf(self, value):
-        return torch.igamma(self.concentration, self.rate*value)
+        return (super().cdf(value) - self.lower_prob) / self.constrained_prob
 
     def icdf(self, value):
-        # TODO: igammainv
-        d = 1 / (9*self.concentration)
-        return self.concentration / self.rate * (1 - d + 2**0.5 * torch.erfinv(2*value-1) * d**0.5)**3
+        return super().icdf(self.constrained_prob * value + self.lower_prob)
 
 
-class Gamma(ConUnDisMixin[_Gamma], _Gamma):
-    constraint_lower = 0.
-
-
-
-__all__ = 'Normal', 'Gamma'
+_CDT = TypeVar('_CDT', bound=ConUnDisMixin)
+_ConUnDisT = Union[ConUnDisMixin[_DT], _DT]

@@ -1,5 +1,3 @@
-from types import LambdaType
-
 import pyro
 import torch
 from pytest import raises
@@ -16,13 +14,14 @@ from clipppy.utils import Sentinel
 
 def test_pseudo():
     o = object()
+    fo = lambda: o
 
-    assert PseudoSampler(lambda: o)() is o
-    assert PseudoSampler(lambda: o, call=True)() is o
-    assert PseudoSampler(lambda: o, call=Sentinel.call)() is o
+    assert PseudoSampler(fo)() is o
+    assert PseudoSampler(fo, call=True)() is o
+    assert PseudoSampler(fo, call=Sentinel.call)() is o
     assert PseudoSampler(o)() is o
-    assert isinstance(PseudoSampler(lambda: o, call=False)(), LambdaType)
-    assert isinstance(PseudoSampler(lambda: o, call=Sentinel.no_call)(), LambdaType)
+    assert PseudoSampler(fo, call=False)() is fo
+    assert PseudoSampler(fo, call=Sentinel.no_call)() is fo
 
 
 def test_context():
@@ -119,4 +118,5 @@ def test_factor():
     ).get_trace()).nodes['a']
 
     trace.compute_log_prob()
+    assert pyro.poutine.util.site_is_factor(node)
     assert (node['log_prob'] == v).all()

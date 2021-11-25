@@ -1,0 +1,10 @@
+from .delta import DeltaSamplingGroup
+from .diagonal_normal import DiagonalNormalSamplingGroup
+from .mvn import MultivariateNormalSamplingGroup
+from .pmvn import PartialMultivariateNormalSamplingGroup
+from .hpmvn import HierarchicPartialMultivariateNormalSamplingGroup
+
+
+MVN = MultivariateNormalSamplingGroup
+PMVN = PartialMultivariateNormalSamplingGroup
+HPMVN = HierarchicPartialMultivariateNormalSamplingGroup

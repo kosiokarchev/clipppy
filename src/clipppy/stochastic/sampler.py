@@ -6,23 +6,24 @@ from functools import partial
 from itertools import filterfalse
 from typing import (
     Any, Callable, ClassVar, ContextManager, Generic, Iterable, Literal,
-    Mapping, Optional, TypeVar, Union)
+    Mapping, Optional, Type, TypeVar, Union)
 
 import pyro
 import torch
 from more_itertools import first_true, iterate
 from pyro.distributions.torch_distribution import TorchDistributionMixin as _Distribution
-from pyro.poutine import infer_config
 from torch import Tensor
 from torch.distributions.constraints import Constraint
+from typing_extensions import TypeAlias
 
 from ..utils import _T, _Tin, _Tout, caller, Sentinel
 from ..utils.distributions.extra_dimensions import ExtraIndependent
 
 
-# TODO: samplers.__all__
-__all__ = ('AbstractSampler', 'NamedSampler', 'ConcreteSampler', 'PseudoSampler', 'NamedPseudoSampler',
-           'Sampler', 'Param', 'Deterministic', 'Factor')
+__all__ = (
+    'AbstractSampler', 'NamedSampler', 'ConcreteSampler', 'PseudoSampler', 'NamedPseudoSampler',
+    'Context', 'Effect', 'UnbindEffect',
+    'Sampler', 'Param', 'Deterministic', 'Factor')
 
 
 T = TypeVar('T')
@@ -40,9 +41,9 @@ class AbstractSampler(ABC):
         """
 
 
-_ps_func_t = Union[Callable[[], _Tout], _T]
-_ps_call_t = Literal[Sentinel.call, Sentinel.no_call, True, False]
-_ps_return_t = Union[_Tout, _T]
+_ps_func_t: TypeAlias = Union[Callable[[], _Tout], _T]
+_ps_call_t: TypeAlias = Literal[Sentinel.call, Sentinel.no_call, True, False]
+_ps_return_t: TypeAlias = Union[_Tout, _T]
 
 
 @dataclass
@@ -88,23 +89,23 @@ class UnbindEffect(Effect[Tensor, Tensor]):
         super().__init__(partial(torch.unbind, dim=dim), func_or_val, call)
 
 
-# TODO: MultiEffect?
-@dataclass
-class MultiEffect(AbstractSampler, Generic[_Tout]):
-    effect: Callable[..., _Tout]
-    arg_funcs: Iterable[Callable[[], Any]]
-    kwarg_funcs: Mapping[str, Callable[[], Any]]
-
-    def __init__(self, effect: Callable[..., _Tout], *arg_funcs: Callable[[], Any], **kwarg_funcs: Callable[[], Any]):
-        self.effect = effect
-        self.arg_funcs = arg_funcs
-        self.kwarg_funcs = kwarg_funcs
-
-    def __call__(self) -> _Tout:
-        return self.effect(
-            *(func() for func in self.arg_funcs),
-            **{name: func() for name, func in self.kwarg_funcs.items()}
-        )
+# TODO: MultiEffect: a lightweight Stochastic alternative?
+# @dataclass
+# class MultiEffect(AbstractSampler, Generic[_Tout]):
+#     effect: Callable[..., _Tout]
+#     arg_funcs: Iterable[Callable[[], Any]]
+#     kwarg_funcs: Mapping[str, Callable[[], Any]]
+#
+#     def __init__(self, effect: Callable[..., _Tout], *arg_funcs: Callable[[], Any], **kwarg_funcs: Callable[[], Any]):
+#         self.effect = effect
+#         self.arg_funcs = arg_funcs
+#         self.kwarg_funcs = kwarg_funcs
+#
+#     def __call__(self) -> _Tout:
+#         return self.effect(
+#             *(func() for func in self.arg_funcs),
+#             **{name: func() for name, func in self.kwarg_funcs.items()}
+#         )
 
 
 @dataclass
@@ -137,6 +138,12 @@ class NamedSampler(AbstractSampler, ABC):
             self.name = name
         return self
 
+    _subclasses: ClassVar[set[Type[NamedSampler]]] = set()
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__()
+        cls._subclasses.add(cls)
+
 
 @dataclass
 class NamedPseudoSampler(NamedSampler, PseudoSampler[_T, _Tout], ABC):
@@ -156,7 +163,8 @@ class NamedPseudoSampler(NamedSampler, PseudoSampler[_T, _Tout], ABC):
     """
 
     def __call__(self, **kwargs):
-        return self._func(self.name, super().__call__(), **kwargs)
+        ret = super().__call__()
+        return self._func(self.name, ret, **kwargs)
 
 
 @dataclass
@@ -169,7 +177,7 @@ class Deterministic(NamedPseudoSampler):
     """The ``event_dim`` parameter to `pyro.deterministic <pyro.primitives.deterministic>`."""
 
     def __call__(self):
-        super().__call__(event_dim=self.event_dim)
+        return super().__call__(event_dim=self.event_dim)
 
 
 @dataclass
@@ -198,12 +206,13 @@ class _Sampler(ConcreteSampler, ABC):
     mask: torch.Tensor = Sentinel.skip
 
 
+_Sampler_dT: TypeAlias = Union[_Distribution, Callable[[], '_Sampler_dT']]
+
+
 class Sampler(_Sampler):
     """Represents a `pyro.sample <pyro.primitives.sample>` statement."""
 
-    _dT: ClassVar = Union[_Distribution, Callable[[], '_dT']]
-
-    d: _dT
+    d: _Sampler_dT
     r""": A\ `( callable that returns a)* <https://regex101.com/r/1QwDsK>`_
     `distribution <pyro.distributions.torch_distribution.TorchDistributionMixin>`
     to be passed to `pyro.sample <pyro.primitives.sample>`."""
@@ -211,7 +220,7 @@ class Sampler(_Sampler):
     infer: Mapping[str, Any]
 
     # TODO: dataclass: cleverer way to move `d` to the first place
-    def __init__(self, d: _dT,
+    def __init__(self, d: _Sampler_dT,
                  # NamedSampler
                  name: str = _Sampler.name,
                  # ConcreteSampler
@@ -248,9 +257,7 @@ class Sampler(_Sampler):
 
     def __call__(self):
         # callables in self.d should not be wrapped in self.infer_msgr
-        d = self.distribution
-        with infer_config(config_fn=lambda site: self.infer_dict):
-            return pyro.sample(self.name, d)
+        return pyro.sample(self.name, self.distribution, infer=self.infer_dict)
 
 
 @dataclass

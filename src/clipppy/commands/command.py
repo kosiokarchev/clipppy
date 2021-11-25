@@ -9,6 +9,7 @@ from typing import Any, ContextManager, get_type_hints, Iterable, Union
 import pyro
 
 from ..utils import Sentinel
+from ..utils.pyro import init_msgr
 
 
 class Command(ABC):
@@ -104,3 +105,10 @@ class SamplingCommand(Command, ABC):
     @property
     def uncondition(self):
         return pyro.poutine.uncondition() if not self.conditioning else nullcontext()
+
+    initting: bool = True
+    """Whether to respect ``init`` values in config sites."""
+
+    @property
+    def init(self):
+        return init_msgr if self.initting else nullcontext()
