@@ -91,7 +91,7 @@ def test_preimported_modules(name, modname):
 
 @mark.parametrize('name', operator.__all__)
 def test_starimport_operator(name):
-    assert loads(f'!py:op.{name}') is getattr(operator, name)
+    assert loads(f'!py:{name}') is getattr(operator, name)
 
 
 def test_import():

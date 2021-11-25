@@ -13,22 +13,12 @@ from more_itertools import rlocate
 
 __all__ = 'ScopeMixin',
 
-__builtins__ = vars(__builtins__)  # ensure this, since the standard does not guarantee it
-
-
-# noinspection PyUnresolvedReferences
-def _make_globals():
-    import torch
-    import numpy as np
-
-    return locals()
-
 
 _import_DictT = TypedDict('_import_DictT', {'from': str, 'import': Union[str, Iterable[str]]}, total=False)
 
 
 class ScopeMixin:
-    builtins: ClassVar[Mapping[str, Any]] = ChainMap(_make_globals(), __builtins__)
+    builtins: ClassVar[Mapping[str, Any]] = ChainMap(vars(__builtins__))
 
     _scope: MutableMapping[str, Any] = None
 

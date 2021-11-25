@@ -29,7 +29,8 @@ class BaseGuide(PyroModule, metaclass=AbstractPyroModuleMeta):
 
     @staticmethod
     def _init_fn(site: _Site, init: Mapping[str, Tensor]):
-        return val if (val := site['infer'].get('init', init.get(site['name'], None))) is not None else site['fn']()
+        return val if (val := init.get(site['name'], site['infer'].get('init', None))) is not None else site['fn']()
+        # return val if (val := site['infer'].get('init', init.get(site['name'], None))) is not None else site['fn']()
 
     def _setup_prototype(self, *args, init, **kwargs):
         with poutine.trace() as trace, InitMessenger(partial(self._init_fn, init=init)):
