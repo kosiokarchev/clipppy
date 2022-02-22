@@ -89,6 +89,10 @@ class UnbindEffect(Effect[Tensor, Tensor]):
         super().__init__(partial(torch.unbind, dim=dim), func_or_val, call)
 
 
+class UnsqueezeEffect(Effect[Tensor, Tensor]):
+    def __init__(self, func_or_val: _ps_func_t, call: _ps_call_t = PseudoSampler.call, dim=-1):
+        super().__init__(partial(torch.unsqueeze, dim=dim), func_or_val, call)
+
 # TODO: MultiEffect: a lightweight Stochastic alternative?
 # @dataclass
 # class MultiEffect(AbstractSampler, Generic[_Tout]):

@@ -26,7 +26,7 @@ from ..stochastic.capsule import AllEncapsulator, Encapsulator
 from ..stochastic.infinite import InfiniteUniform, SemiInfiniteUniform
 from ..stochastic.sampler import (
     Context, Deterministic, Effect, Factor, NamedSampler, Param, PseudoSampler,
-    Sampler, UnbindEffect)
+    Sampler, UnbindEffect, UnsqueezeEffect)
 from ..stochastic.stochastic import Stochastic
 from ..utils import torch_get_default_device
 
@@ -140,7 +140,8 @@ CC.type_to_tag[torch.Tensor] = '!tensor'
 
 for typ in (AllEncapsulator, Encapsulator, Stochastic,
             Param, Sampler, Deterministic, Factor,
-            PseudoSampler, Context, Effect, UnbindEffect):
+            PseudoSampler, Context, Effect,
+            UnbindEffect, UnsqueezeEffect):
     CC.add_constructor(f'!{typ.__name__}', CC.apply(typ))
 CC.add_constructor('!InfiniteSampler', CC.apply(partial(Sampler, d=InfiniteUniform())))
 CC.add_constructor('!SemiInfiniteSampler', CC.apply(partial(Sampler, d=SemiInfiniteUniform())))
