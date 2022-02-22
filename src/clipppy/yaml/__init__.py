@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import inspect
 import io
-import operator as op
 import os
 from collections import ChainMap
 from contextlib import contextmanager
@@ -30,6 +29,7 @@ from ..stochastic.sampler import (
     Sampler, UnbindEffect)
 from ..stochastic.stochastic import Stochastic
 
+from ..utils.importing import get_pure_python_module
 
 __all__ = 'ClipppyYAML',
 
@@ -116,6 +116,9 @@ CC.add_constructor('!eval', ClipppyYAML.eval)
 
 for func in (ClipppyYAML.txt, ClipppyYAML.npy, ClipppyYAML.npz, ClipppyYAML.pt, ClipppyYAML.trace):
     CC.add_constructor(f'!{func.__name__}', CC.apply_bound(func, _cls=ClipppyYAML))
+
+
+op = get_pure_python_module('operator')
 
 for o, func in {
     '==': op.eq, 'ne': op.ne, 'lt': op.lt, 'le': op.le, 'gt': op.gt, 'ge': op.ge,
