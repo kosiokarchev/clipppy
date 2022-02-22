@@ -47,7 +47,7 @@ _ps_return_t: TypeAlias = Union[_Tout, _T]
 
 
 @dataclass
-class PseudoSampler(AbstractSampler, Generic[_T, _Tout]):
+class PseudoSampler(Generic[_T, _Tout], AbstractSampler):
     func_or_val: _ps_func_t
     call: _ps_call_t = Sentinel.call
 

@@ -131,10 +131,12 @@ for o, func in {
 }.items():
     CC.add_constructor(f'!{o}', CC.apply(func))
 
+
 CC.add_constructor('!tensor', CC.apply(torch.tensor))
 CC.add_multi_constructor('!tensor:', CC.apply_prefixed(tensor_prefix))
 # TODO: Needs to be handled better?
 CC.type_to_tag[torch.Tensor] = '!tensor'
+
 
 for typ in (AllEncapsulator, Encapsulator, Stochastic,
             Param, Sampler, Deterministic, Factor,

@@ -37,7 +37,7 @@ class SamplingGroup(PyroModule, metaclass=AbstractPyroModuleMeta):
             except AttributeError:
                 pass
 
-            self.shapes[name] = shape = site['fn'].batch_shape + site['fn'].event_shape
+            self.shapes[name] = shape = torch.Size(site['fn'].batch_shape + site['fn'].event_shape)
 
             self.inits[name] = init = transform.inv(torch.as_tensor(site['value']).expand(shape))
 

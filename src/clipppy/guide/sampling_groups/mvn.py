@@ -18,7 +18,7 @@ class MultivariateNormalSamplingGroup(LocatedAndScaledSamplingGroupWithPrior):
 
     @PyroParam(constraint=corr_cholesky, event_dim=2)
     def corr_cholesky(self):
-        return torch.eye(len(self.loc), device=self.loc.device, dtype=self.loc.dtype)
+        return torch.ones_like(self.loc).diag_embed()
 
     @property
     def scale_tril(self):

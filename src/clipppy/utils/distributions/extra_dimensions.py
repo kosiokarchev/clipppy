@@ -55,4 +55,4 @@ class ExtraIndependent(ExtraDimensions):
         super().__init__(base_dist, extra_shape=extra_shape, event_shape=extra_shape + base_dist.event_shape, validate_args=validate_args)
 
     def log_prob(self, value):
-        return super().log_prob(value).sum(range(-self.extra_dim, 0))
+        return super().log_prob(value).sum(tuple(range(-self.extra_dim, 0)))
