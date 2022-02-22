@@ -6,12 +6,13 @@ import operator as op
 import os
 from collections import ChainMap
 from contextlib import contextmanager
-from functools import lru_cache, partial, wraps
+from functools import lru_cache, partial
 from pathlib import Path
 from types import FrameType
 from typing import Any, AnyStr, Callable, Iterable, Mapping, TextIO, Union
 from warnings import warn
 
+import forge
 import numpy as np
 import torch
 from more_itertools import value_chain
@@ -60,11 +61,11 @@ class ClipppyYAML(YAML):
     def eval(loader: CC, node: Node):
         return eval(node.value, {}, loader.scope)
 
-    @wraps(staticmethod(np.loadtxt), assigned=('__annotations__',), updated=())
+    @forge.sign(forge.self, *forge.fsignature(np.loadtxt))
     def txt(self, *args, **kwargs):
         return self._load_file(np.loadtxt, *args, **kwargs)
 
-    @wraps(staticmethod(np.load), assigned=('__annotations__',), updated=())
+    @forge.sign(forge.self, *forge.fsignature(np.load))
     def npy(self, *args, **kwargs):
         return self._load_file(np.load, *args, **kwargs)
 
