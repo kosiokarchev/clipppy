@@ -28,6 +28,7 @@ from ..stochastic.sampler import (
     Context, Deterministic, Effect, Factor, NamedSampler, Param, PseudoSampler,
     Sampler, UnbindEffect)
 from ..stochastic.stochastic import Stochastic
+from ..utils import torch_get_default_device
 
 from ..utils.importing import get_pure_python_module
 
@@ -74,11 +75,12 @@ class ClipppyYAML(YAML):
         return data if key is None else data[key]
 
     def pt(self, fname: str, key: str = None, **kwargs):
+        kwargs.setdefault('map_location', torch_get_default_device())
         data = self._load_file(torch.load, fname, **kwargs)
         return data if key is None else data[key]
 
     def trace(self, fname, key: Union[str, Iterable[str]], **kwargs):
-        trace = self._load_file(torch.load, fname, **kwargs)
+        trace = self.pt(fname, **kwargs)
         return trace.nodes[key]['value'] if isinstance(key, str) else {
             k: trace.nodes[k]['value'] for k in key
         }

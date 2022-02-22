@@ -6,6 +6,8 @@ from typing import Any, Callable, Mapping, MutableMapping, NamedTuple
 import torch
 from more_itertools import consume
 
+from ..utils import torch_get_default_device
+
 
 class PrefixedReturn(NamedTuple):
     func: Callable
@@ -14,7 +16,7 @@ class PrefixedReturn(NamedTuple):
 
 def tensor_prefix(suffix: str, kwargs: MutableMapping[str, Any]):
     consume(starmap(kwargs.setdefault, (
-        (('dtype', torch.get_default_dtype()), ('device', torch._C._get_default_device()))
+        (('dtype', torch.get_default_dtype()), ('device', torch_get_default_device()))
         if suffix == 'default' else (('dtype', getattr(torch, suffix, None)),)
     )))
     if not isinstance(kwargs['dtype'], torch.dtype):

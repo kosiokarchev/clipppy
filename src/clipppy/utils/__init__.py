@@ -102,5 +102,9 @@ def to_tensor(val):
     return torch.tensor(val) if not torch.is_tensor(val) else val
 
 
+def torch_get_default_device():
+    return torch._C._get_default_device()
+
+
 _allmatch = re.compile('.*')
 _nomatch = re.compile('.^')
