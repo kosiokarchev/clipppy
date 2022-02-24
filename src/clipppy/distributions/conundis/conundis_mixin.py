@@ -8,9 +8,9 @@ from math import inf
 from typing import ClassVar, Generic, Mapping, Optional, Type, TypeVar, Union
 
 import torch
-from pyro import distributions as dist
 from pyro.distributions.torch_distribution import TorchDistribution as _Distribution
 from torch import Size, Tensor
+from torch.distributions import TransformedDistribution
 from torch.distributions.constraints import interval
 from typing_extensions import TypeAlias
 
@@ -43,7 +43,7 @@ class ConUnDisMixin(_Distribution, Generic[_DT], ABC):
         if type(d) in cls._concrete:
             d.__class__ = cls._concrete[type(d)]
             d.constrain(constraint_lower, constraint_upper)
-        elif hasattr(d, 'base_dist'):
+        elif hasattr(d, 'base_dist') and not isinstance(d, TransformedDistribution):
             d.base_dist = cls.new_constrained(d.base_dist, constraint_lower, constraint_upper)
         else:
             raise ValueError(f'Cannot constrain instances of {type(d)} (yet?).')
@@ -106,7 +106,7 @@ class ConUnDisMixin(_Distribution, Generic[_DT], ABC):
         u = torch.as_tensor(self.lower_prob).new_empty(self.shape(sample_shape)).uniform_()
         return torch.where(
             torch.as_tensor(self.lower_prob < self.upper_prob),
-            super().icdf(self.lower_prob + self.constrained_prob * u),
+            super().icdf(self.lower_prob + self.constrained_prob * u).clamp_(self.constraint_lower, self.constraint_upper),
             self.constraint_lower + self.constraint_range * u
         )
 
