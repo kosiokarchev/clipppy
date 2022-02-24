@@ -2,15 +2,11 @@ from __future__ import annotations
 
 from typing import Mapping
 
-import pyro
-import pyro.infer
-import pyro.optim
-import torch
+from pyro import condition
+from torch import Tensor
 
+from . import commands
 from .commands.commandable import Commandable
-from .commands.fit import Fit
-from .commands.mock import Mock
-from .commands.ppd import PPD
 from .guide.guide import Guide
 from .utils import noop
 from .utils.pyro import depoutine
@@ -24,7 +20,7 @@ class Clipppy(Commandable):
     def __init__(self,
                  model: _Model = noop,
                  guide: Guide = Guide(),
-                 conditioning: Mapping[str, torch.Tensor] = None,
+                 conditioning: Mapping[str, Tensor] = None,
                  **kwargs):
         # Conditions the model and sets it on the guide, if it doesn't have a model already.
         self.conditioning = conditioning if conditioning is not None else {}
@@ -47,8 +43,9 @@ class Clipppy(Commandable):
 
     @property
     def model(self):
-        return pyro.condition(self._model, data=self.conditioning)
+        return condition(self._model, data=self.conditioning)
 
-    fit: Fit
-    mock: Mock
-    ppd: PPD
+    fit: commands.Fit
+    mock: commands.Mock
+    ppd: commands.PPD
+    nre: commands.NRE

@@ -3,7 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Any, get_type_hints, Mapping, Optional, Type
 
-from .command import Command
+from . import command
 
 
 class ProxyDict(dict):
@@ -31,22 +31,20 @@ class Commandable:
     def commands(self) -> Mapping[str, Any]:
         return get_type_hints(type(self))
 
-    def get_cmd_cls(self, name: str) -> Optional[Type[Command]]:
+    def get_cmd_cls(self, name: str) -> Optional[Type[command.Command]]:
         # sys.version_info >= (3, 8)
         cmd = self.commands.get(name, None)
-        return cmd if cmd is not None and issubclass(cmd, Command) else None
+        return cmd if cmd is not None and issubclass(cmd, command.Command) else None
 
-    def register_cmd_cls(self, name: str, cls: Type[Command]):
+    def register_cmd_cls(self, name: str, cls: Type[command.Command]):
         type(self).__annotations__[name] = cls
 
     def __setattr__(self, key, value):
-        if isinstance(value, Command):
+        if isinstance(value, command.Command):
+            value.commander = self
             value.boundkwargs = ProxyDict(self, ('model', 'guide'))
-            # value.boundkwargs = dict(model=self.model, guide=self.guide)
         elif isinstance(value, dict):
-            # sys.version_info >= (3, 8)
-            cmd_cls = self.get_cmd_cls(key)
-            if cmd_cls is not None:
+            if (cmd_cls := self.get_cmd_cls(key)) is not None:
                 return self.__setattr__(key, cmd_cls(**value))
 
         super().__setattr__(key, value)

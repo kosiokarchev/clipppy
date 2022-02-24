@@ -2,13 +2,21 @@ from __future__ import annotations
 
 import inspect
 from abc import ABC, abstractmethod
-from contextlib import nullcontext
+from contextlib import nullcontext, suppress
 from functools import lru_cache
-from typing import Any, ContextManager, get_type_hints, Iterable, Union
+from typing import (
+    Any, Callable, ContextManager, Generic, get_type_hints, Iterable,
+    Literal, Mapping, Type, TypeVar, Union
+)
 
+import numpy as np
 import pyro
+import pyro.optim
+from torch import Tensor
+from tqdm.auto import trange
 
-from ..utils import Sentinel
+from . import commandable
+from ..utils import merge_if_not_skip, Sentinel
 from ..utils.pyro import init_msgr
 
 
@@ -32,13 +40,11 @@ class Command(ABC):
     forward call has explicit parameters with the same names.
     """
 
+    commander: commandable.Commandable
+
     boundkwargs: dict
     """A dictionary of values to be forwarded to each call of `forward`,
        if there are exact name matches in its signature."""
-
-    no_call = Sentinel.no_call
-    """Special value to be used to indicate that instead of calling an object,
-       it should be returned as is."""
 
     @property
     @lru_cache()
@@ -60,9 +66,9 @@ class Command(ABC):
 
     def __call__(self, *args, **kwargs):
         oldkwargs = {name: getattr(self, name) for name in self.attr_names}
-        kwargs = self.setattr(kwargs)
-        allowed = inspect.signature(self.forward).parameters
         try:
+            kwargs = self.setattr(kwargs)
+            allowed = inspect.signature(self.forward).parameters
             return self.forward(*args, **{
                 **{key: value for key, value in self.boundkwargs.items() if key in allowed},
                 **kwargs
@@ -90,7 +96,8 @@ class Command(ABC):
     @property
     def plate(self) -> pyro.plate:
         return (self.plate_stack if isinstance(self.plate_stack, ContextManager)
-                else pyro.plate_stack('plate', self.plate_stack))
+                else pyro.plate_stack('plate', self.plate_stack) if self.plate_stack
+                else nullcontext())
 
 
 class SamplingCommand(Command, ABC):
@@ -112,3 +119,138 @@ class SamplingCommand(Command, ABC):
     @property
     def init(self):
         return init_msgr if self.initting else nullcontext()
+
+
+_OptimizerT = TypeVar('_OptimizerT')
+_LossT = TypeVar('_LossT')
+
+
+class OptimizingCommand(Command, Generic[_OptimizerT, _LossT], ABC):
+    n_steps: int = 1000
+    """Run at most ``n_steps`` steps."""
+
+    min_steps: int = 1
+    """Run at least ``min_steps`` steps."""
+
+    avgwindow: int = 100
+    """Number of most recents steps to use for calculating various
+       averaged quantities (average rate, mean loss...)."""
+
+    conv_th: float = -float('inf')
+    """Convergence threshold. Should be positive or ``-float('inf')`` to turn
+       off convergence-based termination.
+
+       See `converged`."""
+
+    def converged(self, slope: float, windowed_losses: Iterable[float] = None):
+        """
+        Indicate whether the fit is considered converged.
+
+        This implementation returns `True` if the averaged slope ``slope``,
+        defined as the fitted slope of losses over the last `avgwindow`
+        iterations, divided by the learning rate, is shallower than `conv_th`,
+        which should be given as positive. If the ``slope`` is positive, this
+        will always be true, so turning this check off requires setting
+        ``conv_th = -float('inf')``.
+
+        This method can be overridden in subclasses to provide more
+        sophisticated checks.
+
+        """
+        return slope > -self.conv_th
+
+    lr: Union[float, Literal[Sentinel.skip]] = 1e-3
+    """Learning rate (passed to the optimizer)."""
+
+    @staticmethod
+    def _instantiate(cls, kwargs, add_kwargs, instantiator=None):
+        if instantiator is None:
+            instantiator = lambda kw: cls(**kw)
+
+        return (cls if kwargs is Sentinel.no_call
+                else instantiator(merge_if_not_skip(kwargs, add_kwargs)))
+
+    optimizer_cls: Union[Type[_OptimizerT], Callable[..., _OptimizerT], _OptimizerT]
+    """The class of optimizer to instantiate (or a function that acts like it);
+       or a ready optimizer if ``optimizer_args`` is `Sentinel.no_call`."""
+
+    optimizer_args: Union[Mapping, Literal[Sentinel.skip]] = {}
+    """The (keyword!) arguments to pass to ``optimizer_cls``.
+
+       Will be updated with the standalone ``lr`` passed, unless it is ``noop``.
+
+       Pass the special value `Sentinel.no_call` to avoid instantiating
+       ``optimizer_cls`` and use it directly."""
+
+    def _instantiate_optimizer(self, kwargs) -> _OptimizerT:
+        return self.optimizer_cls(**kwargs)
+
+    @property
+    def optimizer(self) -> _OptimizerT:
+        """
+        Construct an optimizer as ``optimizer_cls(**optimizer_args)`` or simply
+        return `optimizer_cls` if `optimizer_args` is `Sentinel.no_call`.
+        """
+        return self._instantiate(self.optimizer_cls, self.optimizer_args, {'lr': self.lr}, self._instantiate_optimizer)
+
+    loss_cls: Union[Type[_LossT], Callable[..., _LossT], _LossT]
+    """The loss class to instantiate (or a function that acts like it);
+       or a ready loss function if ``loss_args`` is `Sentinel.no_call`."""
+
+    loss_args: Union[Mapping, Literal[Sentinel.skip]] = {}
+    """The (keyword!) arguments to pass to ``loss_cls``.
+
+       Pass the special value `Sentinel.no_call` to avoid instantiating
+       ``load_cls`` and use it directly."""
+
+    @property
+    def lossfunc(self) -> Union[_LossT, Callable[..., Tensor]]:
+        """
+        Construct a loss as ``loss_cls(**loss_args)`` or simply return
+        `loss_cls` if `loss_args` is `Sentinel.no_call`.
+        """
+        return self._instantiate(self.loss_cls, self.loss_args, {})
+
+    callback: Callable[[int, float, Mapping[str, Any]], Any] = None
+    """Callback to be executed after each step.
+
+       Signature should be ``callback(i, loss, locals)``, where ``i`` is the
+       current step index, ``loss`` is the current loss, and ``locals`` is a
+       dictionary of the local variables in the fitting function. Depending on
+       the python implementation, modifying its values might influence the
+       fitting. Returning any ``True`` value interrupts the fitting."""
+
+    @abstractmethod
+    def step(self, *args, **kwargs): ...
+
+    def forward(self, *args, **kwargs):
+        xavg = np.arange(self.avgwindow)
+        slope = np.NaN
+        losses = []
+        minloss = None
+
+        with suppress(KeyboardInterrupt):
+            for i in (tq := trange(self.n_steps)):
+                loss = self.step(*args, **kwargs)
+                losses.append(loss)
+
+                # We don't want to be killed by non-essential stuff
+                try:
+                    windowed_losses = losses[-self.avgwindow:]
+                    avgloss = np.mean(windowed_losses)
+                    minloss = min(minloss, loss) if minloss is not None else loss
+
+                    if len(windowed_losses) >= self.avgwindow:
+                        slope = np.polyfit(xavg, windowed_losses, deg=1)[0] / self.lr
+
+                    tq.set_postfix_str(f'loss={loss:_.3f} (avg={avgloss:_.3f}, min={minloss:_.3f}, slope={slope:.3e})')
+                except KeyboardInterrupt as e:
+                    raise e from None
+                except Exception as e:
+                    # TODO: report those errors
+                    pass
+
+                if (callable(self.callback) and self.callback(i, loss, locals())) or (0 < self.min_steps <= i and self.converged(slope, windowed_losses)):
+                    break
+
+        return losses

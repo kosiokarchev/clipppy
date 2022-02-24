@@ -4,7 +4,7 @@ import enum
 import re
 from itertools import chain, repeat
 from types import FunctionType
-from typing import Any, Callable, Collection, Generic, Iterable, Mapping, MutableMapping, Type, Union
+from typing import Any, Callable, Collection, Generic, Iterable, Literal, Mapping, MutableMapping, Type, Union
 
 import torch
 from more_itertools import always_iterable, always_reversible, collapse, last, lstrip, padded, spy
@@ -79,6 +79,10 @@ class Sentinel(enum.Enum):
 
     def __repr__(self):
         return f'{type(self).__name__}.{self.name}'
+
+
+def merge_if_not_skip(a: Mapping[_KT, _VT], b: Mapping[_KT, Union[_VT, Literal[Sentinel.skip]]]) -> Mapping[_KT, _VT]:
+    return {**a, **dict(filter(lambda keyval: keyval[1] is not Sentinel.skip, b.items()))}
 
 
 class PseudoString(str, Generic[_T]):
