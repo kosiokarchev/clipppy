@@ -49,3 +49,4 @@ class Clipppy(Commandable):
     mock: commands.Mock
     ppd: commands.PPD
     nre: commands.NRE
+    emcee: commands.Emcee
