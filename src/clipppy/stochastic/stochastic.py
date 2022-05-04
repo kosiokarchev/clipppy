@@ -178,14 +178,17 @@ class Stochastic(StochasticScope[_T]):
         self.stochastic_specs = specs if isinstance(specs, StochasticSpecs) else StochasticSpecs(specs)
         super()._init__(obj, name=name, capsule=capsule, capsule_args=capsule_args, capsule_kwargs=capsule_kwargs)
 
-    def _scoped_call(self, *args, **kwargs):
-        return super()._scoped_call(*args, **kwargs, **{
+    def _get_kwargs(self, **kwargs):
+        return {**kwargs, **{
             key: (val() if isinstance(val, AbstractSampler) else
                   Sampler(val, name=key)() if isinstance(val, TorchDistributionMixin)
                   else val)
             for key, val in self.stochastic_specs
             if key not in kwargs
-        })
+        }}
+
+    def _scoped_call(self, *args, **kwargs):
+        return super()._scoped_call(*args, **self._get_kwargs(**kwargs))
 
     def __repr__(self):
         return (f'"{self.stochastic_name}": ' if self.stochastic_name else '') + super().__repr__()
