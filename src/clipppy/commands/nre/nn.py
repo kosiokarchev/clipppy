@@ -15,7 +15,8 @@ from ...utils.nn import _empty_module, WhitenOnline
 
 __all__ = (
     'BaseNREHead', 'NREHead', 'WhiteningHead',
-    'BaseNRETail', 'NRETail', 'WhiteningTail', 'MultiNRETail'
+    'BaseNRETail', 'NRETail', 'WhiteningTail', 'MultiNRETail',
+    'UWhiteningTail'
 )
 
 
@@ -96,9 +97,10 @@ class BaseNRETail(AttrsModule, Generic[_HeadPoutT, _HeadOoutT, _TailOutT, _KT], 
 class NRETail(BaseNRETail[Tensor, Tensor, Tensor, _KT]):
     net: Module = attr.ib(default=_empty_module)
     thead: Module = attr.ib(default=_empty_module)
+    xhead: Module = attr.ib(default=_empty_module)
 
     def forward(self, theta: Tensor, x: Tensor) -> Tensor:
-        ts = (self.thead(theta), x)
+        ts = (self.thead(theta), self.xhead(x))
         shape = torch.broadcast_shapes(*(t.shape[:-1] for t in ts))
         return self.net(torch.cat(tuple(t.expand(*shape, t.shape[-1]) for t in ts), -1)).squeeze(-1)
 
@@ -107,6 +109,11 @@ class NRETail(BaseNRETail[Tensor, Tensor, Tensor, _KT]):
 class WhiteningTail(NRETail):
     def __attrs_post_init__(self):
         self.thead = nn.Sequential(WhitenOnline(), self.thead)
+
+
+class UWhiteningTail(WhiteningTail):
+    def forward(self, theta: Tensor, x: tuple[Tensor, Tensor]):
+        return super().forward(theta, x[1])
 
 
 @attr.s(auto_attribs=True, eq=False)
@@ -122,4 +129,4 @@ class MultiNRETail(BaseNRETail[Mapping[_KT, Tensor], _HeadOoutT, Iterable[Tensor
         return self.tails[key](self.pack(OrderedDict((k, params[k]) for k in always_iterable(key))), x)
 
     def forward(self, params: Mapping[_KT, Tensor], x: _HeadOoutT) -> Iterable[Tensor]:
-        return list(self.forward_one(key, params, x) for key in self.tails.keys())
+        return {key: self.forward_one(key, params, x) for key in self.tails.keys()}

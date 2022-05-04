@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from itertools import chain
 from typing import Callable, Iterable, Literal, Mapping, Type, Union
 
 import torch
@@ -8,11 +7,12 @@ from torch import Tensor
 from torch.nn import Module
 from torch.optim import Adam, Optimizer
 from torch.utils.data import DataLoader, Dataset
+from typing_extensions import TypeAlias
 
-from .data import ClipppyDataset
+from .data import NREDataset, ClipppyDataset
 from .loss import NRELoss
 from .nn import BaseNREHead, BaseNRETail
-from ..command import OptimizingCommand
+from ..optimizing_command import OptimizingCommand
 from ... import clipppy
 from ...utils import merge_if_not_skip, Sentinel
 
@@ -20,11 +20,18 @@ from ...utils import merge_if_not_skip, Sentinel
 __all__ = 'NRE',
 
 
-class NRE(OptimizingCommand[Optimizer, Callable[[Tensor, Tensor], Tensor]]):
+_OptimizerT: TypeAlias = Optimizer
+_LossT: TypeAlias = Callable[[Tensor, Tensor], Tensor]
+
+
+class NRE(OptimizingCommand[_OptimizerT, _LossT]):
     commander: clipppy.Clipppy
 
     def _instantiate_optimizer(self, kwargs):
-        return self.optimizer_cls(chain(self.head.parameters(), self.tail.parameters()), **kwargs)
+        return self.optimizer_cls([
+            {'params': self.head.parameters()},
+            {'params': self.tail.parameters()},
+        ], **kwargs)
 
     optimizer_cls = Adam
     loss_cls = NRELoss()
@@ -38,9 +45,9 @@ class NRE(OptimizingCommand[Optimizer, Callable[[Tensor, Tensor], Tensor]]):
 
     @property
     def dataset(self):
-        return self._instantiate(
-            self.dataset_cls, self.dataset_args,
-            {'config': self.commander, 'param_names': self.param_names, 'obs_names': self.obs_names})
+        return NREDataset(self._instantiate(
+            self.dataset_cls, self.dataset_args, {'config': self.commander}
+        ), param_names=self.param_names, obs_names=self.obs_names)
 
     dataloader_cls: Union[Type[DataLoader], Callable[..., DataLoader], DataLoader] = DataLoader
     dataloader_args: Union[Mapping, Literal[Sentinel.no_call]] = {}
@@ -57,9 +64,9 @@ class NRE(OptimizingCommand[Optimizer, Callable[[Tensor, Tensor], Tensor]]):
     head: BaseNREHead
     tail: BaseNRETail
 
-    def step(self, loader, optim, lossfunc, train: Iterable[Module] = None):
+    def step(self, loader, optim: _OptimizerT, lossfunc: _LossT, train: Iterable[Module] = None):
         optim.zero_grad(set_to_none=True)
-        for mod in train or (self.head, self.tail):
+        for mod in (train or (self.head, self.tail)):
             mod.train()
 
         loss = 0
