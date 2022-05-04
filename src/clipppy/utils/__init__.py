@@ -112,3 +112,18 @@ def torch_get_default_device():
 
 _allmatch = re.compile('.*')
 _nomatch = re.compile('.^')
+
+
+def _detensorify(t):
+    return t.cpu() if torch.is_tensor(t) else t
+
+
+def call_nontensor(func, *args, **kwargs):
+    all_args = tuple(chain(args, kwargs.values()))
+    if any((torch.is_tensor(arg) and arg.requires_grad) for arg in all_args):
+        raise NotImplementedError
+    extensor = next(filter(torch.is_tensor, all_args))
+    return torch.as_tensor(
+        func(*map(_detensorify, args), **dict(zip(kwargs.keys(), map(_detensorify, kwargs.values())))),
+        dtype=extensor.dtype, device=extensor.device
+    )

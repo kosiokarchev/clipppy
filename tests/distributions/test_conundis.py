@@ -1,5 +1,6 @@
 from copy import deepcopy
 from functools import partial
+from math import inf
 from operator import itemgetter
 
 import pyro
@@ -7,6 +8,7 @@ import torch
 import pyro.distributions as dist
 from pytest import fixture, mark
 from torch import isclose, Size, tensor
+from torch.distributions.constraints import interval
 
 from clipppy.distributions import conundis
 
@@ -52,6 +54,26 @@ def check_constraint(samples, low=None, high=None):
     return (low <= samples).all() and (samples < high).all()
 
 
+@mark.parametrize('d, lower, upper, expected_lower, expected_upper', (
+    (dist.Normal(0, 1), -1, 1, -1, 1),
+    (dist.Normal(0, 1), None, 1, -inf, 1),
+    (dist.Normal(0, 1), -1, None, -1, inf),
+    (dist.HalfNormal(1), -1, 1, 0, 1),
+    (dist.HalfNormal(1), None, 1, 0, 1),
+    (dist.HalfNormal(1), 0.5, 1, 0.5, 1),
+    (dist.HalfNormal(1), 0.5, None, 0.5, inf),
+    (dist.Uniform(0, 1), -1, 1, 0, 1),
+    (dist.Uniform(0, 1), 0.1, 0.9, 0.1, 0.9),
+    (dist.Uniform(0, 1), 0.1, None, 0.1, 1),
+    (dist.Uniform(0, 1), None, 0.9, 0, 0.9),
+))
+def test_support(d, lower, upper, expected_lower, expected_upper):
+    s = conundis.ConUnDisMixin.new_constrained(d, lower, upper).support
+    assert isinstance(s, interval)
+    assert s.lower_bound == expected_lower
+    assert s.upper_bound == expected_upper
+
+
 # TODO: more conundis tests:
 #   - correctness of properties
 #   - log_prob
@@ -92,7 +114,7 @@ class Test:
 def test_messenger(d):
     with pyro.plate('plate', 3), conundis.ConstrainingMessenger({
         'a': CONSTRAINT, 'b': CONSTRAINT,
-        'c': (bc := tensor(((1., 2., 3.), (2., 4., 6.))))
+        'c': (bc := tensor(((1., 2., 3.), (4., 6., 8.))))
     }), pyro.poutine.trace() as tracer:
         pyro.sample('a', d)
         pyro.sample('b', d.expand_by(Size((2, 3, 4))).to_event(1))

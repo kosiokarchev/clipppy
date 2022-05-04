@@ -6,20 +6,11 @@ import torch
 from scipy import special as sp
 
 from .conundis_mixin import ConUnDisMixin
+from ...utils import call_nontensor
 
 
-def _call_sp(func, *args):
-    if any((torch.is_tensor(arg) and arg.requires_grad) for arg in args):
-        raise NotImplementedError
-
-    return func(*(
-        a.cpu() if torch.is_tensor(a) else a
-        for a in args
-    )).to(next(filter(torch.is_tensor, args)))
-
-
-gammaincinv = partial(_call_sp, sp.gammaincinv)
-gammainccinv = partial(_call_sp, sp.gammainccinv)
+gammaincinv = partial(call_nontensor, sp.gammaincinv)
+gammainccinv = partial(call_nontensor, sp.gammainccinv)
 
 
 Uniform, Normal, HalfNormal, Exponential, Cauchy, HalfCauchy = (
