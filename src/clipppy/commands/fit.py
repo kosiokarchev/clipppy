@@ -3,7 +3,7 @@ from __future__ import annotations
 from pyro.infer import ELBO, SVI, Trace_ELBO
 from pyro.optim import PyroOptim, Adam
 
-from .command import OptimizingCommand
+from .optimizing_command import OptimizingCommand
 from ..utils.typing import _Guide, _Model
 
 

@@ -6,7 +6,7 @@ import pyro
 import pyro.poutine
 import torch
 
-from .command import SamplingCommand
+from .sampling_command import SamplingCommand
 from ..guide import Guide
 from ..utils.typing import _Model
 

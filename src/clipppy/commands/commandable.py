@@ -43,11 +43,10 @@ class Commandable:
         if isinstance(value, command.Command):
             value.commander = self
             value.boundkwargs = ProxyDict(self, ('model', 'guide'))
-        elif isinstance(value, dict):
-            if (cmd_cls := self.get_cmd_cls(key)) is not None:
-                return self.__setattr__(key, cmd_cls(**value))
+        elif isinstance(value, dict) and (cmd_cls := self.get_cmd_cls(key)) is not None:
+            return self.__setattr__(key, cmd_cls(**value))
 
-        super().__setattr__(key, value)
+        return super().__setattr__(key, value)
 
     def __getattr__(self, name: str):
         # sys.version_indo > (3, 8)
