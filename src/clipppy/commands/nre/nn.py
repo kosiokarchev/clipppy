@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections import OrderedDict
-from typing import Callable, Generic, Iterable, Mapping, TYPE_CHECKING, TypeVar, Union
+from typing import Callable, Generic, Iterable, Literal, Mapping, TYPE_CHECKING, TypeVar, Union
 
 import torch
 import attr
@@ -10,13 +10,15 @@ from more_itertools import always_iterable, consume
 from torch import nn, Size, Tensor
 from torch.nn import Module
 
+from phytorch.utils.broadcast import broadcast_cat
+
 from ...utils.nn import _empty_module, WhitenOnline
 
 
 __all__ = (
     'BaseNREHead', 'NREHead', 'WhiteningHead',
     'BaseNRETail', 'NRETail', 'WhiteningTail', 'MultiNRETail',
-    'UWhiteningTail'
+    'UWhiteningTail', 'IUWhiteningTail'
 )
 
 
@@ -114,6 +116,33 @@ class WhiteningTail(NRETail):
 class UWhiteningTail(WhiteningTail):
     def forward(self, theta: Tensor, x: tuple[Tensor, Tensor]):
         return super().forward(theta, x[1])
+
+
+@attr.s(auto_attribs=True, eq=False)
+class IUWhiteningTail(UWhiteningTail):
+    ihead: Module = attr.ib(default=_empty_module)
+    shead: Module = attr.ib(default=_empty_module)
+
+    additional: Union[Tensor, Literal[False]] = None
+    subsample: int = None
+    summarize: bool = False
+
+    def forward(self, theta: Tensor, x: tuple[Tensor, Tensor]) -> Tensor:
+        args = self.thead(theta), self.xhead(x[0])
+        if self.additional is not False:
+            args += self.ihead(
+                self.additional if torch.is_tensor(self.additional)
+                else torch.linspace(-1, 1, theta.shape[-1]).unsqueeze(-1),
+            ),
+        if self.summarize:
+            args += self.shead(x[1].unsqueeze(-2)),
+
+        y = broadcast_cat(args, -1)
+
+        if self.training and self.subsample is not None:
+            y = y[..., torch.randint(y.shape[-2], (self.subsample,)), :]
+
+        return self.net(y).squeeze(-1)
 
 
 @attr.s(auto_attribs=True, eq=False)

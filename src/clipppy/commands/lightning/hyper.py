@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Callable, Type, Union
+from typing import Callable, Union
 
 from torch.nn import Module
 
 from .config import SchedulerConfig, schedulers as lrs
-from ...utils.nn import linear, mlp, omlp
+from ...utils.nn import _empty_module, linear, mlp, omlp
 
 
 class FlatAttrDict(dict):
@@ -47,16 +46,16 @@ class Structure(BaseHParams):
     tail: Union[Tail, BaseHParams] = field(default_factory=BaseHParams)
 
 
+class ModuleHP(BaseHParams):
+    def make(self, *args, **kwargs) -> Module:
+        return _empty_module
+
+
 @dataclass(repr=False)
 class Tail(BaseHParams):
-    thead: Union[MLP, BaseHParams] = field(default_factory=BaseHParams)
-    xhead: BaseHParams = field(default_factory=BaseHParams)
-    net: Union[OMLP, BaseHParams] = field(default_factory=BaseHParams)
-
-
-class ModuleHP(BaseHParams, ABC):
-    @abstractmethod
-    def make(self, *args, **kwargs) -> Module: ...
+    thead: Union[MLP, BaseHParams] = field(default_factory=ModuleHP)
+    xhead: BaseHParams = field(default_factory=ModuleHP)
+    net: Union[OMLP, BaseHParams] = field(default_factory=ModuleHP)
 
 
 @dataclass(repr=False)
