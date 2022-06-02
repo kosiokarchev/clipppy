@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from functools import cached_property, partial, partialmethod
+from functools import cached_property, partial, partialmethod, reduce
 from itertools import chain, combinations
-from operator import itemgetter
+from math import inf
+from operator import itemgetter, or_
 from typing import Any, Callable, Iterable, Literal, Mapping, Sequence, Type, Union
 
 import attr
@@ -100,6 +101,17 @@ class BaseNREPlotter(ABC):
     def _param_label(self, param_name):
         return self.labels.get(param_name, param_name)
 
+    def group_label(self, g):
+        return ', '.join(map(self._param_label, always_iterable(g)))
+
+    @property
+    @abstractmethod
+    def prior(self): ...
+
+    @property
+    @abstractmethod
+    def prior_mean(self): ...
+
     @abstractmethod
     def log_ratio(self, obs, head: _HeadT, tail: _TailT): ...
 
@@ -107,15 +119,21 @@ class BaseNREPlotter(ABC):
     def ratio(self, obs, head: _HeadT, tail: _TailT): ...
 
     @abstractmethod
-    def post(self, obs, head: _HeadT, tail: _TailT): ...
+    def _post(self, ratio): ...
+
+    def post(self, obs, head: _HeadT, tail: _TailT):
+        return self._post(self.ratio(obs, head, tail))
 
     @abstractmethod
     def perc(self, params: Mapping[str, Tensor], post: Tensor): ...
 
+    @abstractmethod
+    def get_bounds_from_post(self, post, thresh: float = 1e-4) -> Mapping[str, tuple[Tensor, Tensor]]: ...
+
     _qq_xlabel: str = 'nominal coverage'
     _qq_ylabel: str = 'empirical coverage'
 
-    def qq(self, *, ax: plt.Axes = None, truth_kwargs=frozendict(), sigmas: bool = True, **kwargs):
+    def qq(self, *args, ax: plt.Axes = None, truth_kwargs=frozendict(), sigmas: bool = True, **kwargs):
         if ax is None:
             ax: plt.Axes = plt.gca()
 
@@ -155,11 +173,15 @@ class NREPlotter(BaseNREPlotter):
         return torch.Size(map(self.grid_sizes.get, self.param_names))
 
     @property
-    def prior(self):
+    def prior(self) -> Tensor:
         return sum((
             self.priors[key].log_prob(self.grids[key]).rename_(key).align_to(*self.param_names)
             for key in self.param_names if key in self.priors
         ), torch.tensor(0.).align_to(*self.param_names)).exp_()
+
+    @cached_property
+    def prior_mean(self) -> float:
+        return self.prior.mean().item()
 
     def log_ratio(self, obs, head: _HeadT, tail: _TailT) -> Tensor:
         head.eval(), tail.eval()
@@ -173,8 +195,8 @@ class NREPlotter(BaseNREPlotter):
         # TODO: nan_to_num on named tensors
         return (res := self.log_ratio(obs, head, tail).exp_()).rename_(None).nan_to_num_().rename_(*res.names)
 
-    def post(self, obs, head: _HeadT, tail: _TailT) -> Tensor:
-        return self.prior * self.ratio(obs, head, tail)
+    def _post(self, ratio) -> Tensor:
+        return self.prior * ratio
 
     def perc(self, params: Mapping[str, Tensor], post: Tensor) -> Tensor:
         return to_percentiles(post).rename(None).flatten(-self.nparams).take_along_dim(
@@ -187,6 +209,13 @@ class NREPlotter(BaseNREPlotter):
 
     def percentile_of_truth(self, trace: _BatchT, head: _HeadT, tail: _TailT):
         return self.perc(trace[0], self.post(trace[1], head, tail))
+
+    def get_bounds_from_post(self, post: Tensor, thresh: float = 1e-4) -> Mapping[str, tuple[Tensor, Tensor]]:
+        mask = to_percentiles(post, len(post.names)).rename(None).flatten(-len(post.names)) < 1 - thresh
+        return {key: (
+            val.where(mask, val.new_tensor([inf]).expand_as(val)).amin(-1),
+            val.where(mask, val.new_tensor([-inf]).expand_as(val)).amax(-1),
+        ) for key in post.names for val in [self.grid[key]]}
 
     def qq(
         self, qs: _qT = (), *,
@@ -372,17 +401,28 @@ class MultiNREPlotter(MappedMixin, BaseNREPlotter, mapped_funcs=(
             for g in self.groups
         }
 
-    def group_label(self, g):
-        return ', '.join(map(self._param_label, always_iterable(g)))
-
     def subtails(self, tail):
         return {g: PseudoTail(g, tail) for g in self.groups}
 
     def _mapped(self, funcname, obs, head: _HeadT, tail: MultiNRETail) -> Mapping[_MultiTailKT, Tensor]:
         return {g: getattr(self.plotters[g], funcname)(obs, head, subtail) for g, subtail in self.subtails(tail).items()}
 
+    @property
+    def prior(self) -> Mapping[_MultiTailKT, Tensor]:
+        return {g: plotter.prior for g, plotter in self.plotters.items()}
+
+    @cached_property
+    def prior_mean(self) -> Mapping[_MultiTailKT, float]:
+        return {g: plotter.prior_mean for g, plotter in self.plotters.items()}
+
+    def _post(self, ratio: Mapping[_MultiTailKT, Tensor]) -> Mapping[_MultiTailKT, Tensor]:
+        return {g: self.plotters[g]._post(r) for g, r in ratio.items()}
+
     def perc(self, params: Mapping[str, Tensor], post: Mapping[_MultiTailKT, Tensor]) -> Mapping[_MultiTailKT, Tensor]:
         return {g: self.plotters[g].perc(params, p) for g, p in post.items()}
+
+    def get_bounds_from_post(self, post: Mapping[_MultiTailKT, Tensor], thresh: float = 1e-4) -> Mapping[str, tuple[Tensor, Tensor]]:
+        return reduce(or_, (self.plotters[group].get_bounds_from_post(p, thresh) for group, p in post.items()))
 
     def qq(self, qs: Mapping[str, _qT] = (), ax: plt.Axes = None, **kwargs):
         ax = last(

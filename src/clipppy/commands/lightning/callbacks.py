@@ -59,12 +59,15 @@ class MultiValidationCallback(DiagnosticfigureCallback):
 
     validate_name: str = 'validate'
     qq_name: str = 'qq'
-    norm_name: str = 'norm'
+    norm_like_name: str = 'norm_like'
+    norm_post_name: str = 'norm_post'
+
 
     def _run(self, *, tb: SummaryWriter, global_step: int, **kwargs):
-        qqfig, normfig = self.validator(self.nre.head, self.nre.tail)
+        qqfig, likefig, postfig = self.validator(self.nre.head, self.nre.tail)
         tb.add_figure(f'{self.validate_name}/{self.qq_name}', qqfig, global_step)
-        tb.add_figure(f'{self.validate_name}/{self.norm_name}', normfig, global_step)
+        tb.add_figure(f'{self.validate_name}/{self.norm_like_name}', likefig, global_step)
+        tb.add_figure(f'{self.validate_name}/{self.norm_post_name}', postfig, global_step)
 
 
 @dataclass
