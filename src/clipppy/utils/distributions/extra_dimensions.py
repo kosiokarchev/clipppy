@@ -4,11 +4,14 @@ from torch import Tensor
 from .wrapper import _Distribution, _size, DistributionWrapper
 
 
+_sizeify = lambda size: None if size is None else torch.Size(size)
+
+
 class ExtraDimensions(DistributionWrapper):
     def __init__(self, base_dist: _Distribution, extra_shape: _size, batch_shape: _size = None, event_shape: _size = None, validate_args=None):
-        super().__init__(base_dist, batch_shape=batch_shape, event_shape=event_shape, validate_args=validate_args)
+        super().__init__(base_dist, batch_shape=_sizeify(batch_shape), event_shape=_sizeify(event_shape), validate_args=validate_args)
 
-        self.extra_shape = torch.Size(extra_shape)
+        self.extra_shape = _sizeify(extra_shape)
         self.extra_dim = len(self.extra_shape)
 
     @property
@@ -16,23 +19,27 @@ class ExtraDimensions(DistributionWrapper):
         return len(self.extra_shape)
 
     def expand(self, batch_shape, _instance=None):
-        new = super().expand(batch_shape, _instance)
-        new.extra_shape = self.extra_shape
+        new = super().expand(_sizeify(batch_shape), _instance)
+        new.extra_shape = _sizeify(self.extra_shape)
         new.extra_dim = self.extra_dim
         return new
 
-    def roll_to_right(self, value: Tensor):
+    def extra_dims(self, value: Tensor) -> int:
         extra_loc = value.ndim - self.base_dist.event_dim
-        return value.permute(
-            tuple(range(self.extra_dim, extra_loc))
-            + tuple(range(self.extra_dim))
-            + tuple(range(extra_loc, value.ndim))
-        )
+        return tuple(range(extra_loc - self.extra_dim, extra_loc))
 
-    def rsample(self, sample_shape: _size = torch.Size()):
-        return self.roll_to_right(
-            self.base_dist.rsample(sample_shape + self.extra_shape)
-        )
+    def roll_to_right(self, value: Tensor) -> Tensor:
+        return value.movedim(tuple(range(self.extra_dim)), self.extra_dims(value))
+
+    def roll_to_left(self, value: Tensor) -> Tensor:
+        return value.movedim(self.extra_dims(value), tuple(range(self.extra_dim)))
+
+    def rsample(self, sample_shape: _size = torch.Size()) -> Tensor:
+        return self.roll_to_right(self.base_dist.rsample(self.extra_shape + sample_shape))
+
+    def log_prob(self, value: Tensor) -> Tensor:
+        return super().log_prob(self.roll_to_left(value)).movedim(
+            tuple(range(self.extra_dim)), tuple(range(-self.extra_dim, 0)))
 
     def entropy(self):
         return self.base_dist.entropy()

@@ -30,17 +30,17 @@ class _call_forwarding(type):
 
 class scheduled_optimizer_callback(metaclass=_call_forwarding):
     @staticmethod
-    def _get_args(i, loss, locs):
+    def _get_args(fit, i, loss, args, kwargs):
         return ()
 
     @classmethod
-    def __call__(cls, i, loss, locs):
-        optim = locs['svi'].optim
+    def __call__(cls, fit, i, loss, args, kwargs):
+        optim = kwargs['svi'].optim
         if isinstance(optim, pyro.optim.PyroLRScheduler):
-            optim.step(*cls._get_args(i, loss, locs))
+            optim.step(*cls._get_args(fit, i, loss, args, kwargs))
 
 
 class scheduled_optimizer_callback_with_loss(scheduled_optimizer_callback):
     @staticmethod
-    def _get_args(i, loss, locs):
+    def _get_args(fit, i, loss, args, kwargs):
         return loss,

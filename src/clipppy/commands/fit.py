@@ -10,9 +10,6 @@ from ..utils.typing import _Guide, _Model
 class Fit(OptimizingCommand[PyroOptim, ELBO]):
     """Fit using ELBO maximisation."""
 
-    n_write: int = -1
-    """Save the guide each ``n_write`` steps."""
-
     optimizer_cls = Adam
 
     def _instantiate_optimizer(self, kwargs):
@@ -20,10 +17,8 @@ class Fit(OptimizingCommand[PyroOptim, ELBO]):
 
     loss_cls = Trace_ELBO
 
-    def step(self, svi: SVI, /, *args, **kwargs):
+    def step(self, *args, svi: SVI, **kwargs):
         return svi.step(*args, **kwargs)
 
     def forward(self, model: _Model, guide: _Guide, *args, **kwargs):
-        return super().forward(
-            SVI(model, guide, self.optimizer, self.lossfunc),
-            *args, **kwargs)
+        return super().forward(*args, svi=SVI(model, guide, self.optimizer, self.lossfunc), **kwargs)

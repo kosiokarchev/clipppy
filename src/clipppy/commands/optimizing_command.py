@@ -48,7 +48,7 @@ class LossTracker(list[float]):
 
 _OptimizerT = TypeVar('_OptimizerT')
 _LossT = TypeVar('_LossT')
-_CallbackT: TypeAlias = Callable[[int, float, Mapping[str, Any]], Optional[bool]]
+_CallbackT: TypeAlias = Callable[['OptimizingCommand', int, float, tuple[Any], Mapping[str, Any]], Optional[bool]]
 
 
 class OptimizingCommand(Command, Generic[_OptimizerT, _LossT], ABC):
