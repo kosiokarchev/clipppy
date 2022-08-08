@@ -163,6 +163,7 @@ class OptimizingCommand(Command, Generic[_OptimizerT, _LossT], ABC):
 
                 # We don't want to be killed by non-essential stuff
                 try:
+                    # TODO: self.lr need not reflect the true lr
                     slope = losses.slope / self.lr
 
                     tq.set_postfix_str(f'loss={loss:_.3f} (avg={losses.average:_.3f}, min={losses.min:_.3f}, slope={slope:.3e})')

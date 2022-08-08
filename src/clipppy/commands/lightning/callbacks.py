@@ -9,7 +9,7 @@ from torch import Tensor
 from torch.utils.tensorboard import SummaryWriter
 
 from clipppy.commands.nre.validate import MultiNREValidator
-from clipppy.commands.nre._typing import MultiNREProtocol
+from clipppy.commands.sbi._typing import MultiNREProtocol
 from clipppy.utils.plotting.nre import multi_posterior, MultiNREPlotter
 
 

@@ -25,11 +25,11 @@ from typing_extensions import TypeAlias
 from phytorch.utils import _mid_many, ravel_multi_index
 from uplot import imshow_with_cbar, midtraffic
 
-from ...commands.nre import BaseNREHead, MultiNRETail
-from ...commands.nre._typing import _BatchT, MultiNREProtocol
+from ...commands.sbi.nn import BaseSBIHead, MultiSBITail
+from ...commands.sbi._typing import _SBIBatchT, MultiNREProtocol
 
 
-_HeadT: TypeAlias = BaseNREHead
+_HeadT: TypeAlias = BaseSBIHead
 _TailT: TypeAlias = Module
 _MultiTailKT: TypeAlias = Union[str, Iterable[str]]
 
@@ -207,7 +207,7 @@ class NREPlotter(BaseNREPlotter):
             -1
         ).squeeze(-1)
 
-    def percentile_of_truth(self, trace: _BatchT, head: _HeadT, tail: _TailT):
+    def percentile_of_truth(self, trace: _SBIBatchT, head: _HeadT, tail: _TailT):
         return self.perc(trace[0], self.post(trace[1], head, tail))
 
     def get_bounds_from_post(self, post: Tensor, thresh: float = 1e-4) -> Mapping[str, tuple[Tensor, Tensor]]:
@@ -363,7 +363,7 @@ class NREPlotter(BaseNREPlotter):
 
 
 class PseudoTail(torch.nn.Module):
-    def __init__(self, key, tail: MultiNRETail):
+    def __init__(self, key, tail: MultiSBITail):
         super().__init__()
         self.key = key
         self.tail = tail
@@ -404,7 +404,7 @@ class MultiNREPlotter(MappedMixin, BaseNREPlotter, mapped_funcs=(
     def subtails(self, tail):
         return {g: PseudoTail(g, tail) for g in self.groups}
 
-    def _mapped(self, funcname, obs, head: _HeadT, tail: MultiNRETail) -> Mapping[_MultiTailKT, Tensor]:
+    def _mapped(self, funcname, obs, head: _HeadT, tail: MultiSBITail) -> Mapping[_MultiTailKT, Tensor]:
         return {g: getattr(self.plotters[g], funcname)(obs, head, subtail) for g, subtail in self.subtails(tail).items()}
 
     @property

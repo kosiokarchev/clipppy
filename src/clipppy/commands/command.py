@@ -54,8 +54,7 @@ class Command(ABC):
         self.boundkwargs: dict = {}
 
     @abstractmethod
-    def forward(self, *args, **kwargs):
-        raise NotImplementedError
+    def forward(self, *args, **kwargs): ...
 
     def __call__(self, *args, **kwargs):
         oldkwargs = {name: getattr(self, name) for name in self.attr_names}
@@ -69,11 +68,15 @@ class Command(ABC):
         finally:
             self.setattr(oldkwargs)
 
+    @classmethod
+    def get_type_hints(cls):
+        return get_type_hints(cls)
+
     def __getattribute__(self, name):
         # Needed to avoid binding functions that are saved as properties
         # upon attribute access. Properties should be annotated!
         cls = type(self)
-        if name != '__dict__' and name not in self.__dict__ and name in get_type_hints(cls):
+        if name != '__dict__' and name not in self.__dict__ and name in cls.get_type_hints():
             return getattr(cls, name)
         return super().__getattribute__(name)
 

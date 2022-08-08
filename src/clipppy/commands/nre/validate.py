@@ -5,15 +5,13 @@ from functools import partial
 from operator import itemgetter
 from typing import Callable, Iterable, Mapping, Sequence
 
-import pandas as pd
 import seaborn as sns
 import torch
 from matplotlib import pyplot as plt
-from more_itertools import always_iterable
 from torch import Tensor
 from tqdm.auto import tqdm, trange
 
-from ._typing import NREDataset
+from ..sbi._typing import SBIDataset
 from ...utils import _KT, _T, _VT
 from ...utils.plotting.nre import _HeadT, _TailT, BaseNREPlotter, MultiNREPlotter, NREPlotter
 
@@ -42,7 +40,7 @@ class BaseNREValidator:
     nbatches: int
     batch_size: int
 
-    dataset: NREDataset
+    dataset: SBIDataset
     nrep: BaseNREPlotter
 
     def __post_init__(self):

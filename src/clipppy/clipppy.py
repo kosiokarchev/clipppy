@@ -48,6 +48,6 @@ class Clipppy(Commandable):
     fit: commands.Fit
     mock: commands.Mock
     ppd: commands.PPD
-    nre: commands.NRE
     lightning_nre: commands.LightningNRE
+    lightning_npe: commands.LightningNPE
     emcee: commands.Emcee

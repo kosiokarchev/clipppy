@@ -16,7 +16,7 @@ from ...distributions.conundis import ConstrainingMessenger
 from ...utils import _KT, _T, _Tin, _Tout, _VT
 
 
-__all__ = 'DoublePipe', 'NREDataset', 'ClipppyDataset', 'CPDataset'
+__all__ = 'DoublePipe', 'SBIDataset', 'ClipppyDataset', 'CPDataset'
 
 _OT: TypeAlias = Mapping[str, Tensor]
 _OOT: TypeAlias = tuple[OrderedDict[str, Tensor], OrderedDict[str, Tensor]]
@@ -82,7 +82,7 @@ class DoublePipe(DataPipe[_Tin, tuple[_Tin, _Tin]], Generic[_Tin]):
 
 
 @dataclass
-class NREDataset(DataPipe[_OT, _OOT]):
+class SBIDataset(DataPipe[_OT, _OOT]):
     dataset: Union[Iterable[_OT], BaseConditionableDataset[_OT]]
 
     param_names: Iterable[str]
@@ -98,8 +98,8 @@ class NREDataset(DataPipe[_OT, _OOT]):
         return self.split(next(self._dataset))
 
 
-class NREDataLoader(DataLoader):
-    dataset: NREDataset
+class SBIDataLoader(DataLoader):
+    dataset: SBIDataset
 
 
 class BaseConditionableDataset(Dataset):
@@ -118,7 +118,7 @@ class ClipppyDataset(BaseConditionableDataset, IterableDataset[_OT]):
     # TODO: smart setting batch_size on NREDataset
     batch_size: int = 0
     mock_args: Mapping[str, Any] = field(default_factory=lambda: dict(
-        initting=False, conditioning=False))
+        initting=False, conditioning=False, savename=False))
 
     @property
     def context(self) -> ContextManager:

@@ -10,7 +10,7 @@ from more_itertools import all_equal, one, unique_everseen
 from torch import Tensor
 from torch.utils.data import Dataset
 
-from ..nre.data import _OT
+from clipppy.commands.sbi.data import _OT
 
 
 class ZarrDataset(Dataset[_OT]):
