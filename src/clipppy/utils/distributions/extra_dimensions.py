@@ -24,7 +24,7 @@ class ExtraDimensions(DistributionWrapper):
         new.extra_dim = self.extra_dim
         return new
 
-    def extra_dims(self, value: Tensor) -> int:
+    def extra_dims(self, value: Tensor):
         extra_loc = value.ndim - self.base_dist.event_dim
         return tuple(range(extra_loc - self.extra_dim, extra_loc))
 
@@ -38,7 +38,9 @@ class ExtraDimensions(DistributionWrapper):
         return self.roll_to_right(self.base_dist.rsample(self.extra_shape + sample_shape))
 
     def log_prob(self, value: Tensor) -> Tensor:
-        return super().log_prob(self.roll_to_left(value)).movedim(
+        return super().log_prob(self.roll_to_left(value.expand(
+            value.shape[:value.ndim - (self.batch_dim+self.event_dim)] + self.batch_shape + self.event_shape)
+        )).movedim(
             tuple(range(self.extra_dim)), tuple(range(-self.extra_dim, 0)))
 
     def entropy(self):
