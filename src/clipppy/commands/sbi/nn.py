@@ -83,7 +83,7 @@ class WhiteningHead(SBIHead):
 
 class BaseSBITail(AttrsModule, Generic[_HeadPoutT, _HeadOoutT, _TailOutT], ABC):
     @abstractmethod
-    def forward(self, theta: _HeadPoutT, x: _HeadOoutT) -> _TailOutT: ...
+    def forward(self, theta: _HeadPoutT, x: _HeadOoutT, **kwargs) -> _TailOutT: ...
 
     if TYPE_CHECKING:
         __call__ = forward
@@ -98,11 +98,35 @@ class MultiSBITail(BaseSBITail[Mapping[_KT, Tensor], _HeadOoutT, Mapping[_KT, _T
             self.tails = OrderedDict(self.tails)
             consume(setattr(self, key if isinstance(key, str) else '_&_'.join(key), val) for key, val in self.tails.items())
 
-    def forward_one(self, key: _KT, params: Mapping[_KT, Tensor], x: _HeadOoutT) -> _TailOutT:
-        return self.tails[key](self.pack(OrderedDict((k, params[k]) for k in always_iterable(key))), x)
+    def forward_one(self, key: _KT, params: Mapping[_KT, Tensor], x: _HeadOoutT, **kwargs) -> _TailOutT:
+        return self.tails[key](self.pack(OrderedDict((k, params[k]) for k in always_iterable(key))), x, **kwargs)
 
-    def forward(self, params: Mapping[_KT, Tensor], x: _HeadOoutT) -> Mapping[_KT, _TailOutT]:
-        return {key: self.forward_one(key, params, x) for key in self.tails.keys()}
+    def forward(self, params: Mapping[_KT, Tensor], x: _HeadOoutT, **kwargs) -> Mapping[_KT, _TailOutT]:
+        return {key: self.forward_one(key, params, x, **kwargs) for key in self.tails.keys()}
 
     if TYPE_CHECKING:
         __call__ = forward
+
+
+class BaseGASBITail(BaseSBITail[_HeadPoutT, _HeadOoutT, _TailOutT], ABC):
+    @abstractmethod
+    def sim_log_prob_grad(self, theta: _HeadPoutT): ...
+
+
+@attr.s(auto_attribs=True, eq=False)
+class BaseMultiGASBITail(BaseGASBITail[Mapping[_KT, Tensor], _HeadOoutT, Mapping[_KT, _TailOutT]],
+                         ParamPackerMixin, Generic[_HeadOoutT, _TailOutT, _KT]):
+    def sim_log_prob_grad_one(self, key: _KT, params: Mapping[_KT, Tensor]):
+        return self.pack(OrderedDict((k, params[k].grad) for k in always_iterable(key)))
+
+    def sim_log_prob_grad(self, params: Mapping[_KT, Tensor]):
+        return {key: self.sim_log_prob_grad_one(key, params) for key in self.tails.keys()}
+
+    def forward(self, theta: _HeadPoutT, x: _HeadOoutT, **kwargs) -> _TailOutT:
+        return super().forward(theta, x, **kwargs)
+
+
+class MultiGASBITail(MultiSBITail[_HeadOoutT, _TailOutT, _KT],
+                     BaseMultiGASBITail[_HeadOoutT, _TailOutT, _KT],
+                     Generic[_HeadOoutT, _TailOutT, _KT]):
+    pass

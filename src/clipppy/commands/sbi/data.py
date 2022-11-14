@@ -4,9 +4,15 @@ from abc import ABC, abstractmethod
 from collections import OrderedDict
 from contextlib import nullcontext
 from dataclasses import dataclass, field
-from typing import Any, cast, ContextManager, Generic, Iterable, Iterator, Mapping, Type, TYPE_CHECKING, Union
+from functools import partial
+from itertools import chain
+from typing import (Any, cast, Collection, ContextManager, Generic, Iterable, Iterator, Mapping, Type, TYPE_CHECKING,
+                    Union)
 
 import pyro
+import torch
+from more_itertools import consume
+from pyro.poutine import Trace
 from torch import Tensor
 from torch.utils.data import DataLoader, Dataset, IterableDataset
 from typing_extensions import TypeAlias
@@ -14,9 +20,8 @@ from typing_extensions import TypeAlias
 from ... import clipppy
 from ...distributions.conundis import ConstrainingMessenger
 from ...utils import _KT, _T, _Tin, _Tout, _VT
+from ...utils.messengers import RequiresGradMessenger
 
-
-__all__ = 'DoublePipe', 'SBIDataset', 'ClipppyDataset', 'CPDataset'
 
 _OT: TypeAlias = Mapping[str, Tensor]
 _OOT: TypeAlias = tuple[OrderedDict[str, Tensor], OrderedDict[str, Tensor]]
@@ -94,8 +99,24 @@ class SBIDataset(DataPipe[_OT, _OOT]):
             for names in (self.param_names, self.obs_names)
         ))
 
-    def __next__(self):
+    def __next__(self) -> _OOT:
         return self.split(next(self._dataset))
+
+
+class GASBIDataset(SBIDataset):
+    param_names: Collection[str]
+
+    def __next__(self):
+        with RequiresGradMessenger(self.param_names, func_other=Tensor.detach):
+            trace: Trace = pyro.poutine.trace(super().__next__).get_trace()
+        log_prob = sum(val['fn'].log_prob(val['value'])
+                       for val in trace.nodes.values() if 'fn' in val)
+        log_prob.backward(torch.ones_like(log_prob))
+        # return trace.nodes['_RETURN']['value']
+        params, obs = trace.nodes['_RETURN']['value']
+        consume(map(partial(Tensor.requires_grad_, requires_grad=False),
+                    chain(params.values(), obs.values())))
+        return params, obs
 
 
 class SBIDataLoader(DataLoader):
@@ -124,7 +145,8 @@ class ClipppyDataset(BaseConditionableDataset, IterableDataset[_OT]):
     def context(self) -> ContextManager:
         return nullcontext()
 
-    def get_trace(self) -> pyro.poutine.Trace:
+    def get_trace(self) -> Trace:
+        # TODO: retrying when an error occurs in simulator?!?
         while True:
             try:
                 with self.context:
@@ -135,8 +157,12 @@ class ClipppyDataset(BaseConditionableDataset, IterableDataset[_OT]):
             except ValueError:
                 pass
 
+    @staticmethod
+    def get_values(trace: Trace) -> _OT:
+        return {key: val['value'] for key, val in trace.nodes.items() if 'value' in val}
+
     def __next__(self):
-        return {key: val['value'] for key, val in self.get_trace().nodes.items()}
+        return self.get_values(self.get_trace())
 
     def __iter__(self):
         return self
@@ -144,7 +170,7 @@ class ClipppyDataset(BaseConditionableDataset, IterableDataset[_OT]):
 
 @dataclass
 class CPDataset(ClipppyDataset):
-    ranges: Mapping[str, tuple[Union[float, Tensor, None], Union[float, Tensor, None]]] = None
+    ranges: Mapping[str, tuple[Union[float, Tensor, None], Union[float, Tensor, None]]] = field(default_factory=dict)
 
     @property
     def context(self):

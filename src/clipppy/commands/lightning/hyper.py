@@ -1,12 +1,25 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Callable, Union
+from itertools import chain
+from typing import Callable, Iterable, Mapping, Union
 
+import numpy as np
+from torch import Tensor
 from torch.nn import Module
 
 from .config import SchedulerConfig, schedulers as lrs
 from ...utils.nn import _empty_module, linear, mlp, omlp
+
+
+_non_iterables = (str, np.ndarray, Tensor)
+
+
+def nested_iterables(o, keys=()):
+    yield from (chain(*(
+        nested_iterables(v, keys + (k,))
+        for k, v in (o.items() if isinstance(o, Mapping) else enumerate(o))
+    )) if isinstance(o, Iterable) and not isinstance(o, _non_iterables) else ((keys, o),))
 
 
 class FlatAttrDict(dict):

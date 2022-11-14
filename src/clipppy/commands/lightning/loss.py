@@ -1,15 +1,18 @@
 from __future__ import annotations
 
-from abc import abstractmethod
-from dataclasses import dataclass
-from typing import Any, Generic, Iterable, Literal, Mapping, NamedTuple, TypeVar, Union
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from numbers import Number
+from typing import Any, Generic, Iterable, Literal, Mapping, NamedTuple, TYPE_CHECKING, TypeVar, Union
 
+import torch
+from more_itertools import all_equal
 from torch import Tensor
 from torch.nn.functional import logsigmoid
-from torch.utils._pytree import _broadcast_to_and_flatten, tree_flatten, TreeSpec
-from typing_extensions import ParamSpec, TypeAlias
+from torch.utils._pytree import _broadcast_to_and_flatten, tree_flatten, tree_unflatten, TreeSpec
+from typing_extensions import ParamSpec, Self, TypeAlias
 
-from ..npe._typing import Distribution
+from ..npe.nn import NPEResult
 from ...utils import Sentinel
 
 
@@ -23,13 +26,43 @@ _DimTreeT: TypeAlias = Union[_DimT, Iterable['_DimTreeT'], Mapping[Any, '_DimTre
 _LossParamsT = ParamSpec('_LossParamsT')
 
 
-@dataclass
-class SBILoss(Generic[_LossParamsT]):
+class BaseSBILoss(Generic[_LossParamsT]):
     class ReturnT(NamedTuple):
         loss: Tensor
         flat: list[Tensor] = None
         spec: TreeSpec = None
 
+        def __mul__(self, other) -> Self:
+            return type(self)(other * self.loss, [other * f for f in self.flat], self.spec)
+
+        __rmul__ = __mul__
+
+        def unflatten(self):
+            return tree_unflatten(self.flat, self.spec)
+
+    @abstractmethod
+    def __call__(self, *args, **kwargs) -> BaseSBILoss.ReturnT: ...
+
+
+@dataclass
+class MultiLoss(BaseSBILoss[_LossParamsT], Generic[_LossParamsT]):
+    losses: Mapping[str, BaseSBILoss]
+    weights: Mapping[str, Union[Number, Tensor]] = field(default_factory=dict)
+
+    def __call__(self, *args, **kwargs) -> BaseSBILoss.ReturnT:
+        losses: Mapping[str, BaseSBILoss.ReturnT] = {
+            key: l if w is None else w*l
+            for key, loss in self.losses.items()
+            for w, l in [(self.weights.get(key, None), loss(*args, **kwargs))]
+        }
+        return self.ReturnT(
+            sum(r.loss for r in losses.values()),
+            *tree_flatten({key: r.unflatten() for key, r in losses.items()}),
+        )
+
+
+@dataclass
+class SBILoss(BaseSBILoss[_LossParamsT], Generic[_LossParamsT], ABC):
     dim: _DimTreeT = Sentinel.empty
 
     @staticmethod
@@ -50,23 +83,32 @@ class SBILoss(Generic[_LossParamsT]):
             for args, dim in zip(flat, _broadcast_to_and_flatten(self.dim, spec))
         ]) / len(res), res, spec)
 
-    @abstractmethod
-    def __call__(self, *args, **kwargs) -> SBILoss.ReturnT: ...
+
+    def __call__(self, *args: _TreeT):
+        flats, specs = zip(*map(tree_flatten, args))
+        assert all_equal(specs)
+        return self._call(zip(*flats), specs[0])
 
 
-class MultiNPELoss(SBILoss):
-    def _loss(self, theta: Tensor, q: Distribution):
-        return - q.log_prob(theta)
+class NPELoss(SBILoss):
+    def _loss(self, nperes: NPEResult, *args):
+        return - nperes.log_prob
 
-    def __call__(self, nperes: _TreeT):
-        return self._call(*tree_flatten(nperes))
+    if TYPE_CHECKING:
+        def __call__(self, nperes: _TreeT, *args: _TreeT) -> BaseSBILoss.ReturnT: ...
 
 
-class MultiNRELoss(SBILoss):
+class GANPELoss(SBILoss):
+    def _loss(self, nperes: NPEResult, sim_log_prob_grad: Tensor):
+        return torch.linalg.vector_norm(nperes.log_prob_grad - sim_log_prob_grad, dim=-1)
+
+    if TYPE_CHECKING:
+        def __call__(self, nperes: _TreeT, simulator_grad: _TreeT) -> BaseSBILoss.ReturnT: ...
+
+
+class NRELoss(SBILoss):
     def _loss(self, log_ratio_joint: Tensor, log_ratio_marginal: Tensor):
         return - (logsigmoid(log_ratio_joint) + logsigmoid(-log_ratio_marginal))
 
-    def __call__(self, log_ratio_joint: _TreeT, log_ratio_marginal: _TreeT):
-        (flat_joint, spec), (flat_marginal, spec_marginal) = map(tree_flatten, (log_ratio_joint, log_ratio_marginal))
-        assert spec == spec_marginal
-        return self._call(zip(flat_joint, flat_marginal), spec)
+    if TYPE_CHECKING:
+        def __call__(self, log_ratio_joint: _TreeT, log_ratio_marginal: _TreeT) -> BaseSBILoss.ReturnT: ...

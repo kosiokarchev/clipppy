@@ -3,7 +3,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from functools import partial
 from operator import itemgetter
-from typing import Callable, Iterable, Mapping, Sequence
+from typing import Callable, Iterable, Mapping, Optional, Sequence
 
 import seaborn as sns
 import torch
@@ -40,11 +40,12 @@ class BaseNREValidator:
     nbatches: int
     batch_size: int
 
-    dataset: SBIDataset
+    dataset: Optional[SBIDataset]
     nrep: BaseNREPlotter
 
     def __post_init__(self):
-        self.dataset.dataset.batch_size = self.batch_size
+        if isinstance(self.dataset, SBIDataset):
+            self.dataset.dataset.batch_size = self.batch_size
 
     def _simulate(self, head: _HeadT, tail: _TailT, ranger: Callable[[int], Iterable] = trange):
         for _, (params, obs) in zip(ranger(self.nbatches), self.dataset):

@@ -7,18 +7,18 @@ from torch.utils._pytree import tree_unflatten
 
 from .command import LightningSBICommand
 from .config import Config
-from .loss import MultiNRELoss
+from .loss import NRELoss
 from ..sbi._typing import _SBIBatchT, DEFAULT_LOSS_NAME
 from ..sbi.data import DoublePipe
 from ...utils import Sentinel
 
 
-class NRE(LightningSBICommand[Tensor, MultiNRELoss]):
+class NRE(LightningSBICommand[Tensor, NRELoss]):
     @property
     def training_loader(self):
         return self.loader_config(DoublePipe(self.dataset))
 
-    loss_config: Config[MultiNRELoss] = Config(MultiNRELoss(), Sentinel.no_call)
+    loss_config: Config[NRELoss] = Config(NRELoss(), Sentinel.no_call)
 
     def training_step(self, batches: tuple[_SBIBatchT, _SBIBatchT], *args, **kwargs):
         theta_1, x_1 = self.head(*batches[0])

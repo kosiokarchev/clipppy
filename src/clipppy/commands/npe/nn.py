@@ -6,6 +6,7 @@ from functools import cached_property
 from typing import ClassVar, Generic, TYPE_CHECKING, TypeVar
 
 import attr
+import torch.autograd
 from pyro.distributions import MultivariateNormal, Normal
 from torch import Tensor
 from torch.distributions import biject_to
@@ -20,11 +21,24 @@ _DistributionT = TypeVar('_DistributionT', bound=Distribution)
 
 @dataclass
 class NPEResult(Generic[_DistributionT]):
+    # A namedtuple-like that does not get flattened by pytree (+ caching)
     theta: Tensor
     q: _DistributionT
+    requires_grad: bool = False
 
     def __iter__(self):
         return iter((self.theta, self.q))
+
+    @cached_property
+    def log_prob(self):
+        return self.q.log_prob(self.theta.requires_grad_(self.requires_grad))
+
+    @cached_property
+    def log_prob_grad(self):
+        return torch.autograd.grad(
+            self.log_prob, self.theta, torch.ones_like(self.log_prob),
+            create_graph=True
+        )[0]
 
 
 class BaseNPETail(BaseSBITail[_HeadPoutT, _HeadOoutT, NPEResult[_DistributionT]], Generic[_HeadPoutT, _HeadOoutT, _DistributionT], ABC):
@@ -33,7 +47,7 @@ class BaseNPETail(BaseSBITail[_HeadPoutT, _HeadOoutT, NPEResult[_DistributionT]]
 
 class NPETail(BaseNPETail[Tensor, _HeadOoutT, _DistributionT], Generic[_HeadOoutT, _DistributionT], ABC):
     @abstractmethod
-    def forward(self, theta: Tensor, x: _HeadOoutT) -> NPEResult[_DistributionT]: ...
+    def forward(self, theta: Tensor, x: _HeadOoutT, **kwargs) -> NPEResult[_DistributionT]: ...
 
     if TYPE_CHECKING:
         __call__ = forward
@@ -64,8 +78,8 @@ class NormalTail(NPETail[Tensor, TransformedDistribution]):
     def _get_dist(self, x: Tensor):
         return Normal(self.extract_loc(x), self.extract_scale(x))
 
-    def forward(self, theta: Tensor, x: Tensor) -> NPEResult[TransformedDistribution]:
-        return NPEResult(theta, self._transform(self._get_dist(x)))
+    def forward(self, theta: Tensor, x: Tensor, **kwargs) -> NPEResult[TransformedDistribution]:
+        return NPEResult(theta, self._transform(self._get_dist(x)), **kwargs)
 
     if TYPE_CHECKING:
         __call__ = forward
