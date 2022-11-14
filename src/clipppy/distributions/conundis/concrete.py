@@ -1,16 +1,20 @@
-from functools import partial
 from types import new_class
 
 import pyro.distributions as dist
 import torch
-from scipy import special as sp
 
 from .conundis_mixin import ConUnDisMixin
-from ...utils import call_nontensor
 
+try:
+    # TODO: dependence of phytorch
+    from phytorch.special.gammainc import gammainccinv, gammaincinv
+except ImportError:
+    from functools import partial
+    from scipy import special as sp
+    from ...utils import call_nontensor
 
-gammaincinv = partial(call_nontensor, sp.gammaincinv)
-gammainccinv = partial(call_nontensor, sp.gammainccinv)
+    gammaincinv = partial(call_nontensor, sp.gammaincinv)
+    gammainccinv = partial(call_nontensor, sp.gammainccinv)
 
 
 Uniform, Normal, HalfNormal, Exponential, Cauchy, HalfCauchy = (
