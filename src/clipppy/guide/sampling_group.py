@@ -16,7 +16,8 @@ from torch import BoolTensor, Size, Tensor
 from torch.distributions import biject_to
 
 from ..utils import to_tensor
-from ..utils.pyro import AbstractPyroModuleMeta, no_grad_msgr
+from ..utils.pyro import AbstractPyroModuleMeta
+from ..utils.messengers import no_grad_msgr
 from ..utils.typing import _Site
 
 

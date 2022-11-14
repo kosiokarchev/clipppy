@@ -99,7 +99,7 @@ class AnyRegex:
 _Site = TypedDict('_Site', {
     'done': bool,
     'name': str, 'fn': dist.TorchDistribution, 'mask': torch.Tensor,
-    'value': torch.Tensor, 'type': str, 'infer': dict,
+    'value': torch.Tensor, 'type': str, 'infer': dict, 'is_observed': bool,
     'cond_indep_stack': Iterable[CondIndepStackFrame]
 }, total=False)
 _Model = NewType('_Model', Callable)
