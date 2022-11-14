@@ -67,7 +67,7 @@ class HPMVNPlotter:
         return corner(self.samples_global, truths=self.truths, **locals())
 
     def plot_hier(self):
-        fig, axs = plt.subplots(len(self.names_hier), 2, figsize=(7, 2.5*len(self.names_hier) + 1), gridspec_kw=dict(width_ratios=(1.6, 1)))
+        fig, axs = plt.subplots(len(self.names_hier), 2, figsize=(7, 2.5*len(self.names_hier) + 1), gridspec_kw=dict(width_ratios=(1.6, 1)), squeeze=False)
         for ax, param in zip(axs, self.names_hier):
             ax[0].axhline(0)
             ax[0].errorbar(self.truths[param], self.errs[param], yerr=self.stds[param], ls='none',
@@ -78,3 +78,5 @@ class HPMVNPlotter:
             ax[1].hist(self.serrs[param].numpy(), density=True)
             ax[1].plot(_x := np.linspace(-3, 3, 101), np.exp(-_x**2/2) / (2*pi)**0.5)
             ax[1].set_xlabel(f'std. dev. from true {param}')
+
+        return fig, axs

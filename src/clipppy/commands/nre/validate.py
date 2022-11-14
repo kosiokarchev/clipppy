@@ -65,10 +65,10 @@ class BaseNREValidator:
             for post in [self.nrep._post(ratio)]
         )), self.nrep.prior_mean)
 
-    def plot_qq(self, qs, fig=None, sigmas=False) -> plt.Figure:
+    def plot_qq(self, qs, fig=None, *, flip_axes=False, sigmas=False) -> plt.Figure:
         if fig is None:
             fig = plt.figure()
-        ax = self.nrep.qq(qs, sigmas=sigmas)
+        ax = self.nrep.qq(qs, flip_axes=flip_axes, sigmas=sigmas)
         ax.legend()
         ax.set_aspect('equal')
         return fig

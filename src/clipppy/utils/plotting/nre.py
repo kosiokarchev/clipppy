@@ -133,15 +133,15 @@ class BaseNREPlotter(ABC):
     _qq_xlabel: str = 'nominal coverage'
     _qq_ylabel: str = 'empirical coverage'
 
-    def qq(self, *args, ax: plt.Axes = None, truth_kwargs=frozendict(), sigmas: bool = True, **kwargs):
+    def qq(self, *args, ax: plt.Axes = None, truth_kwargs=frozendict(), flip_axes: bool = False, sigmas: bool = True, **kwargs):
         if ax is None:
             ax: plt.Axes = plt.gca()
 
             # TODO: diagonal line for sigmas
             ax.plot(*2*((0, 3 if sigmas else 1),), **{**dict(color='black'), **truth_kwargs})
 
-            ax.set_xlabel(self._qq_xlabel)
-            ax.set_ylabel(self._qq_ylabel)
+            (ax.set_ylabel if flip_axes else ax.set_xlabel)(self._qq_xlabel)
+            (ax.set_xlabel if flip_axes else ax.set_ylabel)(self._qq_ylabel)
 
             if sigmas:
                 ax.set_xlabel(ax.get_xlabel() + ' (sigmas)')
@@ -219,12 +219,13 @@ class NREPlotter(BaseNREPlotter):
 
     def qq(
         self, qs: _qT = (), *,
-        ax: plt.Axes = None, truth_kwargs=frozendict(), sigmas: bool = False,
+        ax: plt.Axes = None, truth_kwargs=frozendict(),
+        flip_axes: bool = False, sigmas: bool = False,
         **kwargs
     ):
-        ax = super().qq(ax=ax, truth_kwargs=truth_kwargs, sigmas=sigmas)
+        ax = super().qq(ax=ax, truth_kwargs=truth_kwargs, flip_axes=flip_axes, sigmas=sigmas)
         xy = sorted(qs), np.linspace(0, 1, len(qs))
-        ax.plot(*(map(halfnorm().ppf, xy) if sigmas else xy), **kwargs)
+        ax.plot(*(map(halfnorm().ppf, xy) if sigmas else xy)[::-1 if flip_axes else 1], **kwargs)
 
         return ax
 
