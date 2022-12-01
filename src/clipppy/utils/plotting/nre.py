@@ -172,7 +172,7 @@ class NREPlotter(BaseNREPlotter):
     def grid_shape(self):
         return torch.Size(map(self.grid_sizes.get, self.param_names))
 
-    @property
+    @cached_property
     def prior(self) -> Tensor:
         return sum((
             self.priors[key].log_prob(self.grids[key]).rename_(key).align_to(*self.param_names)
@@ -189,7 +189,7 @@ class NREPlotter(BaseNREPlotter):
             return tail(*head(self.grid, {
                 key: val.unsqueeze(-head.event_dims.get(key, val.ndim)-1)
                 for key, val in obs.items()
-            })).unflatten(-1, tuple(zip(self.param_names, self.grid_shape)))
+            })).rename(..., 'grid').unflatten('grid', tuple(zip(self.param_names, self.grid_shape)))
 
     def ratio(self, obs, head: _HeadT, tail: _TailT) -> Tensor:
         # TODO: nan_to_num on named tensors
@@ -229,6 +229,9 @@ class NREPlotter(BaseNREPlotter):
 
         return ax
 
+    prior_kwargs = dict(ls='--', color='orange', label='prior')
+    post1d_kwargs = dict(ls='-', color='black', label='posterior')
+
     def corner(
         self,
         post: Tensor,
@@ -239,6 +242,7 @@ class NREPlotter(BaseNREPlotter):
         truth2d_type: Literal['lines', 'marker'] = 'lines',
         truth_marker: _MarkerT = '*',
         truth_color: _ColorT = 'green',
+        prior_kwargs=frozendict(), post1d_kwargs=frozendict(),
         figsize=None
     ):
         if figsize is None:
@@ -264,16 +268,20 @@ class NREPlotter(BaseNREPlotter):
             ax.set_axis_on()
             ax.set_yticklabels([])
 
-            ax.plot(self.grids[param], (
-                post.mean(tuple(set(self.param_names) - {param}))
-                if self.nparams > 1 else post
-            ).rename(None))
-
             if (truth := truths.get(param, None)) is not None:
                 ax.axvline(truth, color=truth_color)
 
+            # TODO: Python 3.10: dict | frozendict
+            for p, kw in ((self.prior, {**self.prior_kwargs, **prior_kwargs}), (post, {**self.post1d_kwargs, **post1d_kwargs})):
+                ax.plot(self.grids[param], (
+                    p.mean(tuple(set(self.param_names) - {param}))
+                    if self.nparams > 1 else p
+                ).rename(None), **kw)
+
             ax.set_xlim(*self.ranges[param])
             ax.set_ylim(bottom=0)
+
+            ax.legend()
 
         for (i1, param1), (i2, param2) in combinations(enumerate(self.param_names), 2):
             ax: plt.Axes = axs[i2, i1]
