@@ -7,7 +7,7 @@ import types
 from collections.abc import Callable
 from typing import (
     get_args, get_origin, Iterable, NewType, Optional, overload, Pattern,
-    Protocol, runtime_checkable, Tuple, Type, TypedDict, TypeVar, Union)
+    Protocol, runtime_checkable, Type, TypedDict, TypeVar, Union)
 
 import torch
 from more_itertools import collapse
@@ -16,7 +16,11 @@ from pyro.poutine.indep_messenger import CondIndepStackFrame
 from typing_extensions import TypeAlias
 
 
-__all__ = '_T', '_KT', '_VT', '_Tout', '_Tin', '_Site', '_Model', '_Guide'
+__all__ = (
+    '_T', '_KT', '_VT', '_Tout', '_Tin',
+    'AnyRegex',
+    '_Distribution', '_Site', '_Model', '_Guide'
+)
 
 
 _T = TypeVar('_T')
@@ -26,24 +30,6 @@ _KT = TypeVar('_KT')
 _VT = TypeVar('_VT')
 _Tin = TypeVar('_Tin')
 _Tout = TypeVar('_Tout')
-
-
-# if sys.version_info < (3, 8):
-#     def TypedDict(name: str, fields: Mapping[str, Any], total: bool = True):
-#         return NewType(name, MutableMapping[str, Any])
-#     TypedDict = TypedDict
-#
-#
-#     class Literal(type):
-#         @classmethod
-#         def __getitem__(mcs, item):
-#             typ = type(f'{mcs.__name__}[{repr(item)[1:-1]}]', (mcs,), {'__origin__': mcs})
-#             typ.__args__ = item
-#             return typ
-#     Literal = Literal
-#
-#     get_origin = lambda generic: getattr(generic, '__origin__', None)
-#     get_args = lambda generic: getattr(generic, '__args__', ())
 
 
 if sys.version_info < (3, 9):
@@ -96,9 +82,10 @@ class AnyRegex:
         return any(p.match(value, *args, **kwargs) for p in self.patterns)
 
 
+_Distribution: TypeAlias = dist.TorchDistribution
 _Site = TypedDict('_Site', {
     'done': bool,
-    'name': str, 'fn': dist.TorchDistribution, 'mask': torch.Tensor,
+    'name': str, 'fn': _Distribution, 'mask': torch.Tensor,
     'value': torch.Tensor, 'type': str, 'infer': dict, 'is_observed': bool,
     'cond_indep_stack': Iterable[CondIndepStackFrame]
 }, total=False)

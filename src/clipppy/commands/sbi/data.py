@@ -6,8 +6,10 @@ from contextlib import nullcontext
 from dataclasses import dataclass, field
 from functools import partial
 from itertools import chain
-from typing import (Any, cast, Collection, ContextManager, Generic, Iterable, Iterator, Mapping, Type, TYPE_CHECKING,
-                    Union)
+from numbers import Number
+from typing import (
+    Any, cast, Collection, ContextManager, Generic, Iterable, Iterator,
+    Mapping, Type, TYPE_CHECKING, Union)
 
 import pyro
 import torch
@@ -21,10 +23,14 @@ from ... import clipppy
 from ...distributions.conundis import ConstrainingMessenger
 from ...utils import _KT, _T, _Tin, _Tout, _VT
 from ...utils.messengers import CollectSitesMessenger, RequiresGradMessenger
+from ...utils.typing import _Distribution
 
 
 _OT: TypeAlias = Mapping[str, Tensor]
 _OOT: TypeAlias = tuple[OrderedDict[str, Tensor], OrderedDict[str, Tensor]]
+
+_RangeBoundT: TypeAlias = Union[Number, Tensor, None]
+_RangeT: TypeAlias = tuple[_RangeBoundT, _RangeBoundT]
 
 
 @dataclass
@@ -83,7 +89,6 @@ class PyroConditionPipe(BaseConditionPipe[_T], Generic[_T]):
 class DoublePipe(DataPipe[_Tin, tuple[_Tin, _Tin]], Generic[_Tin]):
     def __next__(self):
         return next(self._dataset), next(self._dataset)
-
 
 
 @dataclass
@@ -179,7 +184,7 @@ class ClipppyDataset(BaseConditionableDataset, IterableDataset[_OT]):
 
 @dataclass
 class CPDataset(ClipppyDataset):
-    ranges: Mapping[str, tuple[Union[float, Tensor, None], Union[float, Tensor, None]]] = field(default_factory=dict)
+    ranges: Mapping[str, _RangeT] = field(default_factory=dict)
 
     @property
     def context(self):

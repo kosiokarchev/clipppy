@@ -39,7 +39,7 @@ class UpToMessenger(PostEscapeMessenger):
         self.seen = set()
 
 
-class CollectSitesMessenger(UpToMessenger, dict):
+class CollectSitesMessenger(UpToMessenger, dict[str, _Site]):
     def escape_fn(self, msg: _Site):
         if msg['name'] in self.names:
             self[msg['name']] = msg

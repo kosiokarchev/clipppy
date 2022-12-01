@@ -10,7 +10,7 @@ from more_itertools import always_iterable, consume
 from torch import nn, Size, Tensor
 from torch.nn import Module
 
-from clipppy.utils.nn import _empty_module, WhitenOnline
+from clipppy.utils.nn import _empty_module, LazyWhitenOnline
 
 
 _KT = TypeVar('_KT')
@@ -78,7 +78,7 @@ class SBIHead(BaseSBIHead[Mapping[_KT, Tensor], _HeadOoutT, _KT]):
 @attr.s(auto_attribs=True, eq=False)
 class WhiteningHead(SBIHead):
     def __attrs_post_init__(self):
-        self.head = nn.Sequential(WhitenOnline(), self.head)
+        self.head = nn.Sequential(LazyWhitenOnline(), self.head)
 
 
 class BaseSBITail(AttrsModule, Generic[_HeadPoutT, _HeadOoutT, _TailOutT], ABC):

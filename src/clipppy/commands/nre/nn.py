@@ -10,7 +10,7 @@ from torch.nn import Module
 from phytorch.utils.broadcast import broadcast_cat
 
 from ..sbi.nn import BaseSBITail
-from ...utils.nn import _empty_module, WhitenOnline
+from ...utils.nn import _empty_module, LazyWhitenOnline
 
 
 __all__ = (
@@ -36,7 +36,7 @@ class NRETail(BaseSBITail[Tensor, Tensor, Tensor]):
 @attr.s(auto_attribs=True, eq=False)
 class WhiteningTail(NRETail):
     def __attrs_post_init__(self):
-        self.thead = nn.Sequential(WhitenOnline(), self.thead)
+        self.thead = nn.Sequential(LazyWhitenOnline(), self.thead)
 
 
 class UWhiteningTail(WhiteningTail):

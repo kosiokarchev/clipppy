@@ -4,9 +4,10 @@ from functools import partial
 from typing import Callable, Type, Union
 
 import torch
-from torch import Tensor
-from torch.nn import Conv1d, LazyLinear, Module, ReLU, Sequential
+from torch import Size, Tensor
+from torch.nn import (Conv1d, init, LazyLinear, Module, ReLU, Sequential, UninitializedBuffer)
 from torch.nn.modules.conv import _ConvNd, LazyConv1d
+from torch.nn.modules.lazy import LazyModuleMixin
 
 
 class EmptyModule(Module):
@@ -39,7 +40,7 @@ class USequential(Sequential):
 def linear(size: int, nonlinearity: Union[Type[Module], Callable[[], Union[Module, Callable[[Tensor], Tensor]]]] = partial(ReLU, inplace=True), whiten=True):
     return Sequential(
         LazyLinear(size),
-        *((WhitenOnline(),) if whiten else ()),
+        *((LazyWhitenOnline(),) if whiten else ()),
         nonlinearity()
     )
 
@@ -74,12 +75,28 @@ class LazyBatchedConv1d(BatchedConv1d, LazyConv1d):
 
 
 class WhitenOnline(Module):
-    def __init__(self, ndim=1):
-        super().__init__()
-        self.ndim = ndim
+    ndim: int
 
+    n: int
+    mean: Tensor
+    mean_square: Tensor
+    std: Tensor
+
+    _buffer_names = 'mean', 'mean_square', 'std'
+
+    def __init__(self, shape=Size(), device=None, dtype=None):
+        super().__init__()
+
+        self.ndim = len(shape)
         self.n = 0
-        self.mean = self.mean_square = self.std = 0.
+
+        for name in self._buffer_names:
+            self.register_buffer(name, torch.empty(shape, device=device, dtype=dtype))
+        self.reset_buffers()
+
+    def reset_buffers(self):
+        for name in self._buffer_names:
+            init.zeros_(getattr(self, name))
 
     def forward(self, a: Tensor):
         if self.training:
@@ -94,3 +111,31 @@ class WhitenOnline(Module):
                 self.n = nnew
 
         return a if self.n < 2 else (a - self.mean).divide_(self.std)
+
+
+class LazyWhitenOnline(LazyModuleMixin, WhitenOnline):
+    cls_to_become = WhitenOnline
+
+    mean: UninitializedBuffer
+    mean_square: UninitializedBuffer
+    std: UninitializedBuffer
+
+    def __init__(self, ndim=1):
+        super().__init__()
+        self.ndim = ndim
+        for name in self._buffer_names:
+            setattr(self, name, UninitializedBuffer())
+
+    def reset_buffers(self):
+        if not self.has_uninitialized_params():
+            super().reset_buffers()
+
+    def initialize_parameters(self, a: Tensor):
+        if self.has_uninitialized_params():
+            with torch.no_grad():
+                for name in self._buffer_names:
+                    getattr(self, name).materialize(
+                        shape=a.shape[a.ndim-self.ndim:],
+                        device=a.device, dtype=a.dtype
+                    )
+                self.reset_buffers()
