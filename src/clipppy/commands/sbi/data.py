@@ -20,7 +20,7 @@ from typing_extensions import TypeAlias
 from ... import clipppy
 from ...distributions.conundis import ConstrainingMessenger
 from ...utils import _KT, _T, _Tin, _Tout, _VT
-from ...utils.messengers import RequiresGradMessenger
+from ...utils.messengers import CollectSitesMessenger, RequiresGradMessenger
 
 
 _OT: TypeAlias = Mapping[str, Tensor]
@@ -144,6 +144,15 @@ class ClipppyDataset(BaseConditionableDataset, IterableDataset[_OT]):
     @property
     def context(self) -> ContextManager:
         return nullcontext()
+
+    def get_priors(self, param_names: Iterable[str]) -> Mapping[str, _Distribution]:
+        with CollectSitesMessenger(*param_names) as trace:
+            self.get_trace()
+        return {name: site['fn'] for name, site in trace.items()}
+
+    def get_prior_ranges(self, param_names: Iterable[str] = None, priors=None) -> Mapping[str, _RangeT]:
+        return {key: (prior.support.lower_bound, prior.support.upper_bound)
+                for key, prior in (priors or self.get_priors(param_names)).items()}
 
     def get_trace(self) -> Trace:
         # TODO: retrying when an error occurs in simulator?!?
