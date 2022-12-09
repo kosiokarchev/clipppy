@@ -5,6 +5,7 @@ from typing import Mapping
 from pyro import condition
 from torch import Tensor
 
+# noinspection PyCompatibility
 from . import commands
 from .commands.commandable import Commandable
 from .guide.guide import Guide
@@ -51,4 +52,3 @@ class Clipppy(Commandable):
     lightning_npe: commands.LightningNPE
     lightning_ganpe: commands.LightningGANPE
     lightning_nre: commands.LightningNRE
-    emcee: commands.Emcee

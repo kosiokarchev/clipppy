@@ -29,6 +29,7 @@ class NRE(LightningSBICommand[Tensor, NRELoss]):
 
         loss = (ret_1.loss + ret_2.loss) / 2
 
+        # noinspection PyUnboundLocalVariable
         self.log_loss(loss, tree if ret_1.spec is not None and isinstance(tree := tree_unflatten([
             (a + b) / 2 for a, b in zip(ret_1.flat, ret_2.flat)
         ], ret_1.spec), Mapping) else None)

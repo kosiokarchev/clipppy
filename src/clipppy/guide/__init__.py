@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from torch.distributions import ComposeTransform
 
 from .guide import Guide

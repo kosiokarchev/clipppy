@@ -1,4 +1,4 @@
-## Clipppy: a convenience layer for inference and probabilistic programming in Python
+# Clipppy: a convenience layer for inference and probabilistic programming in Python
 #### (*prevously: Command Line Interface for Probabilistic Programming in PYthon*) 
 
 ---
@@ -8,9 +8,9 @@
 ![license](https://img.shields.io/pypi/l/clipppy)
 
 ![github](https://github.com/kosiokarchev/clipppy/actions/workflows/codecov_workflow.yml/badge.svg?branch=master)
-[![travis](https://app.travis-ci.com/kosiokarchev/clipppy.svg?branch=master)](https://app.travis-ci.com/kosiokarchev/clipppy)
 [![codecov](https://codecov.io/gh/kosiokarchev/clipppy/branch/master/graph/badge.svg?token=OC73ONCJ9K)](https://codecov.io/gh/kosiokarchev/clipppy)
-
+[![travis](https://app.travis-ci.com/kosiokarchev/clipppy.svg?branch=master)](https://app.travis-ci.com/kosiokarchev/clipppy)
+[![pyversions](https://img.shields.io/pypi/pyversions/clipppy)](https://img.shields.io/pypi/pyversions/clipppy)
 
 ---
 

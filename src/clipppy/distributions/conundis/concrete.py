@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from types import new_class
 
 import pyro.distributions as dist

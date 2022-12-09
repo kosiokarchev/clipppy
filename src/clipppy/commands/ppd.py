@@ -35,6 +35,7 @@ class PPD(SamplingCommand):
         with pyro.poutine.trace() as guide_tracer, self.plate:
             guide(*args, **kwargs)
         if guide_is_trainable:
+            # noinspection PyUnboundLocalVariable
             guide.train(was_training)
         ret = {'guide_trace': guide_tracer.trace}
 

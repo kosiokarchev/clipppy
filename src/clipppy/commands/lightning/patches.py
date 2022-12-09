@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from copy import deepcopy
 from functools import partial
 from typing import MutableMapping
@@ -7,6 +9,7 @@ import pytorch_lightning.loggers
 
 
 class LightningModule(pl.LightningModule):
+    # noinspection PyAttributeOutsideInit
     def just_save_hyperparameters(self, hparams: MutableMapping, logger: bool = True):
         self._log_hyperparams = logger
         self._set_hparams(hparams)

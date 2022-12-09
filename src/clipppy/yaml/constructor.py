@@ -34,22 +34,22 @@ class ClipppyConstructor(ScopeMixin, TaggerMixin, Constructor):
 
     resolver: resolver_.ClipppyResolver
 
-    def bind_scalar(self, node: ScalarNode, signature: Signature):
+    def bind_scalar(self, node: ScalarNode, sig: Signature):
         if node.value is Sentinel.call:
-            return signature.bind()
+            return sig.bind()
 
         return (None if (val := self.yaml_constructors[
             self.resolver.resolve(ScalarNode, node.value, (True, False))
-        ](self, node)) is None else signature.bind(val))
+        ](self, node)) is None else sig.bind(val))
 
-    def bind_sequence(self, node: SequenceNode, signature: Signature):
+    def bind_sequence(self, node: SequenceNode, sig: Signature):
         return tuple(map(self.construct_object, starmap(self.tag_from_param, zip_asymmetric(
-            node.value, iter_positional(signature),
+            node.value, iter_positional(sig),
             TypeError(Sentinel.sentinel, node.value, {})
         ))))
 
-    def bind_mapping(self, node: MappingNode, signature: Signature):
-        pos_params = iter_positional(signature)
+    def bind_mapping(self, node: MappingNode, sig: Signature):
+        pos_params = iter_positional(sig)
         args, kwargs = [], {}
         for key, val in node.value:  # type: Union[Node, str], Union[Node, Iterable]
             if isinstance(key, Node) and key.value == '__args':
@@ -69,28 +69,28 @@ class ClipppyConstructor(ScopeMixin, TaggerMixin, Constructor):
                 if val.tag in (self.resolver.DEFAULT_SCALAR_TAG, self.resolver.DEFAULT_SEQUENCE_TAG):
                     raise NodeTypeMismatchError(f'Expected {MappingNode} for \'{key}\', but got {val}.')
                 elif self.is_default_tagged(val):
-                    consume(self.tag_from_param(v, get_param_for_name(signature, self.construct_object(k))) for k, v in val.value)
+                    consume(self.tag_from_param(v, get_param_for_name(sig, self.construct_object(k))) for k, v in val.value)
                 kwargs.update(self.construct_object(val))
             else:
                 key = self.construct_object(key)
-                kwargs[key] = self.construct_object(self.tag_from_param(val, get_param_for_name(signature, key)))
+                kwargs[key] = self.construct_object(self.tag_from_param(val, get_param_for_name(sig, key)))
 
         return args, kwargs
 
-    def bind(self, node: Node, signature: Signature = free_signature) -> Optional[BoundArguments]:
+    def bind(self, node: Node, sig: Signature = free_signature) -> Optional[BoundArguments]:
         if isinstance(node, ScalarNode):
-            return self.bind_scalar(node, signature)
+            return self.bind_scalar(node, sig)
         else:
             if isinstance(node, SequenceNode):
-                args = self.bind_sequence(node, signature)
+                args = self.bind_sequence(node, sig)
                 kwargs = {}
             elif isinstance(node, MappingNode):
-                args, kwargs = self.bind_mapping(node, signature)
+                args, kwargs = self.bind_mapping(node, sig)
             else:
                 raise TypeError(f'Invalid node type: {node}')
 
             try:
-                return signature.bind(*args, **kwargs)
+                return sig.bind(*args, **kwargs)
             except TypeError:
                 raise TypeError(Sentinel.sentinel, args, kwargs)
 
@@ -141,7 +141,7 @@ class ClipppyConstructor(ScopeMixin, TaggerMixin, Constructor):
             # try:
             return obj(*sig.args, **sig.kwargs)
             # except Exception as e:
-            #     raise TypeError(f'''Could not instantiate\nobj: {obj}\n*args: {signature.args}\n**kwargs: {signature.kwargs}.''')
+            #     raise TypeError(f'''Could not instantiate\nobj: {obj}\n*args: {sig.args}\n**kwargs: {sig.kwargs}.''')
 
 
     @classmethod
