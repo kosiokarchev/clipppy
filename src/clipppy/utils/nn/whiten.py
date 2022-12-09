@@ -1,77 +1,9 @@
 from __future__ import annotations
 
-from functools import partial
-from typing import Callable, Type, Union
-
 import torch
-from torch import Size, Tensor
-from torch.nn import (Conv1d, init, LazyLinear, Module, ReLU, Sequential, UninitializedBuffer)
-from torch.nn.modules.conv import _ConvNd, LazyConv1d
+from torch import Tensor, Size
+from torch.nn import Module, init, UninitializedBuffer
 from torch.nn.modules.lazy import LazyModuleMixin
-
-
-class EmptyModule(Module):
-    @staticmethod
-    def forward(a): return a
-
-
-_empty_module = EmptyModule()
-
-
-class PartialModule(Module):
-    def __init__(self, func, *args, **kwargs):
-        super().__init__()
-        self.func = partial(func, *args, **kwargs)
-
-    def forward(self, *args, **kwargs):
-        return self.func(*args, **kwargs)
-
-
-Movedim = partial(PartialModule, torch.movedim)
-Squeeze = partial(PartialModule, torch.squeeze)
-Unsqueeze = partial(PartialModule, torch.unsqueeze)
-
-
-class USequential(Sequential):
-    def forward(self, arg):
-        return arg, super().forward(arg)
-
-
-def linear(size: int, nonlinearity: Union[Type[Module], Callable[[], Union[Module, Callable[[Tensor], Tensor]]]] = partial(ReLU, inplace=True), whiten=True):
-    return Sequential(
-        LazyLinear(size),
-        *((LazyWhitenOnline(),) if whiten else ()),
-        nonlinearity()
-    )
-
-
-def mlp(*sizes: int, nonlinearity: Union[Type[Module], Callable[[], Union[Module, Callable[[Tensor], Tensor]]]] = partial(ReLU, inplace=True), whiten=True):
-    return Sequential(*map(partial(linear, nonlinearity=nonlinearity, whiten=whiten), sizes))
-
-
-def omlp(*sizes: int, osize: int = 1, nonlinearity: Union[Type[Module], Callable[[], Union[Module, Callable[[Tensor], Tensor]]]] = partial(ReLU, inplace=True), whiten=True):
-    return Sequential(mlp(*sizes, nonlinearity=nonlinearity, whiten=whiten), LazyLinear(osize))
-
-
-class BatchedConv(_ConvNd):
-    ndim: int
-
-    @property
-    def _ndim(self):
-        return - (self.ndim + 2)
-
-    def forward(self, input: Tensor) -> Tensor:
-        res = super().forward(input.unsqueeze(self._ndim).flatten(end_dim=self._ndim))
-        return res.reshape(input.shape[:self._ndim+1] + res.shape[self._ndim+1:])
-
-
-class BatchedConv1d(BatchedConv, Conv1d):
-    ndim = 1
-
-
-class LazyBatchedConv1d(BatchedConv1d, LazyConv1d):
-    cls_to_become = BatchedConv1d
-    ndim = 1
 
 
 class WhitenOnline(Module):

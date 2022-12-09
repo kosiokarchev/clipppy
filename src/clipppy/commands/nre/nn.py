@@ -10,8 +10,8 @@ from torch.nn import Module
 from phytorch.utils.broadcast import broadcast_cat
 
 from ..sbi.nn import BaseSBITail
-from ...utils.nn import _empty_module, LazyWhitenOnline
-
+from ...utils.nn import LazyWhitenOnline
+from ...utils.nn.empty import _empty_module
 
 __all__ = (
     'NRETail', 'WhiteningTail', 'UWhiteningTail', 'IUWhiteningTail'

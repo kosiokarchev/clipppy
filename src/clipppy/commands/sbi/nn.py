@@ -10,7 +10,9 @@ from more_itertools import always_iterable, consume
 from torch import nn, Size, Tensor
 from torch.nn import Module
 
-from clipppy.utils.nn import _empty_module, LazyWhitenOnline
+from ...utils.nn import LazyWhitenOnline
+from ...utils.nn.attrs import AttrsModule
+from ...utils.nn.empty import _empty_module
 
 
 _KT = TypeVar('_KT')
@@ -47,12 +49,6 @@ class ParamPackerMixin:
             (key, val.shape[val.ndim-self.param_event_dims.get(key, 0):])
             for key, val in d.items()
         ))
-
-
-@attr.s(eq=False)
-class AttrsModule(Module):
-    def __attrs_pre_init__(self):
-        super().__init__()
 
 
 class BaseSBIHead(AttrsModule, Generic[_HeadPoutT, _HeadOoutT, _KT], ABC):

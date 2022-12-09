@@ -9,8 +9,8 @@ from torch import Tensor
 from torch.nn import Module
 
 from .config import SchedulerConfig, schedulers as lrs
-from ...utils.nn import _empty_module, linear, mlp, omlp
-
+from ...utils.nn import linear, mlp, omlp
+from ...utils.nn.empty import _empty_module
 
 _non_iterables = (str, np.ndarray, Tensor)
 
