@@ -10,9 +10,9 @@ from more_itertools import always_iterable, consume
 from torch import nn, Size, Tensor
 from torch.nn import Module
 
-from ...utils.nn import LazyWhitenOnline
-from ...utils.nn.attrs import AttrsModule
-from ...utils.nn.empty import _empty_module
+from ..utils.nn import LazyWhitenOnline
+from ..utils.nn.attrs import AttrsModule
+from ..utils.nn.empty import _empty_module
 
 
 _KT = TypeVar('_KT')

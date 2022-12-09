@@ -5,8 +5,8 @@ from contextlib import nullcontext
 
 import pyro
 
-from clipppy.commands import Command
-from clipppy.utils.messengers import init_msgr
+from ..commands import Command
+from ..utils.messengers import init_msgr
 
 
 class SamplingCommand(Command, ABC):

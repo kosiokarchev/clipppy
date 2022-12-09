@@ -8,9 +8,9 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from torch import Tensor
 from torch.utils.tensorboard import SummaryWriter
 
-from clipppy.commands.nre.validate import MultiNREValidator
-from clipppy.commands.sbi._typing import MultiNREProtocol
-from clipppy.utils.plotting.nre import multi_posterior, MultiNREPlotter
+from ..nre.validate import MultiNREValidator
+from ...sbi._typing import MultiSBIProtocol
+from ...utils.plotting.nre import multi_posterior, MultiNREPlotter
 
 
 @dataclass
@@ -54,7 +54,7 @@ class DiagnosticfigureCallback(EveryNStepsCallback, TensorBoardCallback, ABC):
 
 @dataclass
 class MultiValidationCallback(DiagnosticfigureCallback):
-    nre: MultiNREProtocol
+    nre: MultiSBIProtocol
     validator: MultiNREValidator
 
     validate_name: str = 'validate'
@@ -72,7 +72,7 @@ class MultiValidationCallback(DiagnosticfigureCallback):
 
 @dataclass
 class MultiPosteriorCallback(DiagnosticfigureCallback):
-    nre: MultiNREProtocol
+    nre: MultiSBIProtocol
     nrep: MultiNREPlotter
     trace: Mapping[str, Tensor]
 

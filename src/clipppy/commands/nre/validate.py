@@ -11,7 +11,7 @@ from matplotlib import pyplot as plt
 from torch import Tensor
 from tqdm.auto import tqdm, trange
 
-from ..sbi._typing import SBIDataset
+from ...sbi._typing import SBIDataset
 from ...utils import _KT, _T, _VT
 from ...utils.plotting.nre import _HeadT, _TailT, BaseNREPlotter, MultiNREPlotter, NREPlotter
 

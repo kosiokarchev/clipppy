@@ -8,8 +8,8 @@ from torch.utils._pytree import tree_unflatten
 from .command import LightningSBICommand
 from .config import Config
 from .loss import NRELoss
-from ..sbi._typing import _SBIBatchT, DEFAULT_LOSS_NAME
-from ..sbi.data import DoublePipe
+from ...sbi._typing import _SBIBatchT, DEFAULT_LOSS_NAME
+from ...sbi.data import DoublePipe
 from ...utils import Sentinel
 
 

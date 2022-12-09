@@ -9,7 +9,7 @@ from typing import Any, Callable, ClassVar, Container, Generic, Literal, Mapping
 import forge
 from torch.utils.data import DataLoader, Dataset
 
-from clipppy.commands.sbi._typing import _OptimizerT, _SchedulerT, DEFAULT_LOSS_NAME
+from ....sbi._typing import _OptimizerT, _SchedulerT, DEFAULT_LOSS_NAME
 from ....utils import _T, merge_if_not_skip, Sentinel
 
 

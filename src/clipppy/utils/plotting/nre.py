@@ -25,8 +25,8 @@ from typing_extensions import TypeAlias
 from phytorch.utils import _mid_many, ravel_multi_index
 from uplot import imshow_with_cbar, midtraffic
 
-from ...commands.sbi.nn import BaseSBIHead, MultiSBITail
-from ...commands.sbi._typing import _SBIBatchT, MultiNREProtocol
+from ...sbi.nn import BaseSBIHead, MultiSBITail
+from ...sbi._typing import _SBIBatchT, MultiSBIProtocol
 
 
 _HeadT: TypeAlias = BaseSBIHead
@@ -443,7 +443,7 @@ class MultiNREPlotter(MappedMixin, BaseNREPlotter, mapped_funcs=(
         return ax
 
 
-def multi_posterior(nre: MultiNREProtocol, nrep: MultiNREPlotter, trace):
+def multi_posterior(nre: MultiSBIProtocol, nrep: MultiNREPlotter, trace):
     obs = {key: trace[key] for key in nre.obs_names}
     return {
         key: nrep.plotters[key].corner(

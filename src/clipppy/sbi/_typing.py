@@ -10,7 +10,7 @@ from .data import SBIDataLoader, SBIDataset
 from .nn import BaseSBIHead, MultiSBITail
 
 
-class MultiNREProtocol(Protocol):
+class MultiSBIProtocol(Protocol):
     param_names: Iterable[str]
     obs_names: Iterable[str]
 

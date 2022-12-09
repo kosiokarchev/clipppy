@@ -13,7 +13,7 @@ from typing import Iterable, Mapping
 
 __all__ = 'is_variadic', 'iter_positional', 'get_kwargs', 'get_param_for_name', 'signature', 'has_var_args'
 
-from clipppy.utils import tryme
+from ..utils import tryme
 
 
 def is_variadic(param: Parameter) -> bool:

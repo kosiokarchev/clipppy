@@ -19,11 +19,11 @@ from torch import Tensor
 from torch.utils.data import DataLoader, Dataset, IterableDataset
 from typing_extensions import TypeAlias
 
-from ... import clipppy
-from ...distributions.conundis import ConstrainingMessenger
-from ...utils import _KT, _T, _Tin, _Tout, _VT
-from ...utils.messengers import CollectSitesMessenger, RequiresGradMessenger
-from ...utils.typing import _Distribution
+from .. import clipppy
+from ..distributions.conundis import ConstrainingMessenger
+from ..utils import _KT, _T, _Tin, _Tout, _VT
+from ..utils.messengers import CollectSitesMessenger, RequiresGradMessenger
+from ..utils.typing import _Distribution
 
 
 _OT: TypeAlias = Mapping[str, Tensor]

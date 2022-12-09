@@ -3,7 +3,7 @@ from typing import Iterable, Sequence
 import torch.optim.lr_scheduler as lrs
 
 from . import BaseSchedulerConfig, SchedulerConfig
-from clipppy.commands.sbi._typing import _OptimizerT, _SchedulerT
+from ....sbi._typing import _OptimizerT, _SchedulerT
 
 
 def LambdaLR(

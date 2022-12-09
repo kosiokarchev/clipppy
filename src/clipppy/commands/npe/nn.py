@@ -13,7 +13,7 @@ from torch.distributions import biject_to
 from torch.distributions.constraints import Constraint, corr_cholesky, positive, real
 
 from ..npe._typing import Distribution, TransformedDistribution
-from ..sbi.nn import _HeadOoutT, _HeadPoutT, BaseSBITail
+from ...sbi.nn import _HeadOoutT, _HeadPoutT, BaseSBITail
 
 
 _DistributionT = TypeVar('_DistributionT', bound=Distribution)

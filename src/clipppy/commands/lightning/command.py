@@ -10,9 +10,9 @@ from .hyper import nested_iterables
 from .loss import BaseSBILoss
 from .patches import LightningModule
 from .. import Command
-from ..sbi._typing import _SBIBatchT, DEFAULT_LOSS_NAME
-from ..sbi.data import ClipppyDataset, SBIDataset
-from ..sbi.nn import _HeadOoutT, _HeadPoutT, _KT, _TailOutT, BaseSBIHead, BaseSBITail
+from ...sbi._typing import _SBIBatchT, DEFAULT_LOSS_NAME
+from ...sbi.data import ClipppyDataset, SBIDataset
+from ...sbi.nn import _HeadOoutT, _HeadPoutT, _KT, _TailOutT, BaseSBIHead, BaseSBITail
 from ... import clipppy
 from ...utils import Sentinel
 

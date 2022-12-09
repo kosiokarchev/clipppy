@@ -10,8 +10,8 @@ from torch import Tensor
 from tqdm.auto import trange
 from typing_extensions import TypeAlias
 
-from clipppy.commands import Command
-from clipppy.utils import merge_if_not_skip, Sentinel
+from ..commands import Command
+from ..utils import merge_if_not_skip, Sentinel
 
 
 class LossTracker(list[float]):
