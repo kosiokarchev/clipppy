@@ -6,9 +6,10 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from ._clipppy import *
 
+from ._version import __version__, version, __version_tuple__, version_tuple
 
-__version__ = '0.42.0a1'
-__all__ = 'load_config', 'load', 'loads', 'Clipppy', 'ClipppyYAML', '__version__'
+
+__all__ = 'load_config', 'load', 'loads', 'Clipppy', 'ClipppyYAML'
 
 
 def __getattr__(name):

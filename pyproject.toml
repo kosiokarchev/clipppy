@@ -1,0 +1,63 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "clipppy"
+description = "Convenience Layer for Inference and Probabilistic Programming in Python"
+authors = [{name = "Kosio Karchev", email = "kosiokarchev@gmail.com"}]
+
+readme = "README.md"
+license = {text = "GPLv3"}
+
+classifiers = [
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Intended Audience :: Science/Research",
+    "Typing :: Typed"
+]
+
+requires-python = ">=3.9"
+
+dependencies = [
+    "frozendict",
+    "more-itertools",
+    "typing-extensions",
+    "ruamel.yaml",
+    "python-forge",
+    "pyro-ppl",
+    "torch>=1.11",
+    "pytorch_lightning"
+]
+
+dynamic = ["version"]
+
+[project.urls]
+"GitHub" = "https://github.com/kosiokarchev/clipppy"
+"Read the Docs" = "https://clipppy.readthedocs.org/"
+
+[project.optional-dependencies]
+docs = ["sphinx-autoapi"]
+testing = ["pytest", "hypothesis", "scipy"]
+jinja = ["jinja"]
+lightning = ["pytorch_lightning"]
+emcee = ["emcee"]
+zarr = ["zarr"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+src = ["**/*.pyi"]
+
+[tool.setuptools.dynamic]
+version = {attr = "clipppy.__version__"}
+
+[tool.setuptools_scm]
+write_to = "src/clipppy/_version.py"
+version_scheme = "no-guess-dev"
+
+[tool.pytest]
+testpaths = "tests"
