@@ -52,6 +52,12 @@ class ConUnDisMixin(_Distribution, Generic[_DT], ABC):
         constraint_upper: _constraintT = None
     ) -> Union[_CDT[_DT], _DT]:
         d = copy(d)
+
+        # TODO: that's a hack for LeftIndependent
+        if hasattr(d, 'prepare_sample'):
+            constraint_lower = d.prepare_sample(constraint_lower)
+            constraint_upper = d.prepare_sample(constraint_upper)
+
         if isinstance(d, ConUnDisMixin):
             if constraint_lower is None or (d.constraint_lower is not None and constraint_lower < d.constraint_lower):
                 constraint_lower = d.constraint_lower
@@ -63,7 +69,12 @@ class ConUnDisMixin(_Distribution, Generic[_DT], ABC):
             d.constrain(constraint_lower, constraint_upper)
         elif type(d) in cls._concrete:
             d.__class__ = cls._concrete[type(d)]
+            d: ConUnDisMixin
             d.constrain(constraint_lower, constraint_upper)
+            if len(d.constraint_shape) > len(d.batch_shape + d.event_shape):
+                raise ValueError(f'constraint shape {d.constraint_shape}'
+                                 ' has more dimensions than the sample shape'
+                                 f' {d.batch_shape + d.event_shape}')
         elif isinstance(d, TransformedDistribution):
             t = ComposeTransform(d.transforms).inv
             d.base_dist = cls.new_constrained(d.base_dist, *(
@@ -78,6 +89,13 @@ class ConUnDisMixin(_Distribution, Generic[_DT], ABC):
 
     constraint_lower: _constraintT = -inf
     constraint_upper: _constraintT = inf
+
+    @cached_property
+    def constraint_shape(self) -> Size:
+        return torch.broadcast_shapes(*(
+            getattr(v, 'shape', Size())
+            for v in (self.constraint_lower, self.constraint_upper)
+        ))
 
     @cached_property
     def constraint_range(self):

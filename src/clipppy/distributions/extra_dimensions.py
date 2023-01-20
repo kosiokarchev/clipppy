@@ -1,12 +1,43 @@
 from __future__ import annotations
 
 import torch
+from pyro.distributions import ExpandedDistribution
 from torch import Tensor
 
 from .wrapper import _Distribution, _size, DistributionWrapper
 
 
 _sizeify = lambda size: None if size is None else torch.Size(size)
+
+
+class LeftIndependent(DistributionWrapper):
+    """Reinterpret some of the *leftmost* batch dimensions as an event."""
+
+    def __init__(self, base_dist: _Distribution, reinterpreted_batch_ndims: int, validate_args=None):
+        super().__init__(
+            base_dist,
+            batch_shape=base_dist.batch_shape[reinterpreted_batch_ndims:],
+            event_shape=base_dist.batch_shape[:reinterpreted_batch_ndims] + base_dist.event_shape,
+            validate_args=validate_args)
+        self.reinterpreted_batch_ndims = reinterpreted_batch_ndims
+
+        base_ndim = len(base_dist.batch_shape + base_dist.event_shape)
+        self.reinterpreted_dims = tuple(range(-base_ndim, -base_ndim+reinterpreted_batch_ndims))
+        self.target_dims = tuple(range(-base_dist.event_dim-reinterpreted_batch_ndims, -base_dist.event_dim))
+
+    def expand(self, batch_shape, _instance=None):
+        return ExpandedDistribution(self, batch_shape)
+
+    def prepare_sample(self, value: Tensor) -> Tensor:
+        return value.expand(
+            value.shape[:value.ndim - (self.batch_dim+self.event_dim)] + self.batch_shape + self.event_shape
+        ).movedim(self.target_dims, self.reinterpreted_dims)
+
+    def rsample(self, sample_shape: _size = torch.Size()) -> Tensor:
+        return self.base_dist.rsample(sample_shape).movedim(self.reinterpreted_dims, self.target_dims)
+
+    def log_prob(self, value: Tensor) -> Tensor:
+        return self.base_dist.log_prob(self.prepare_sample(value)).sum(self.reinterpreted_dims)
 
 
 class ExtraDimensions(DistributionWrapper):
@@ -39,10 +70,13 @@ class ExtraDimensions(DistributionWrapper):
     def rsample(self, sample_shape: _size = torch.Size()) -> Tensor:
         return self.roll_to_right(self.base_dist.rsample(self.extra_shape + sample_shape))
 
+    def prepare_sample(self, value: Tensor) -> Tensor:
+        return self.roll_to_left(value.expand(
+            value.shape[:value.ndim - (self.batch_dim+self.event_dim)] + self.batch_shape + self.event_shape
+        ))
+
     def log_prob(self, value: Tensor) -> Tensor:
-        return super().log_prob(self.roll_to_left(value.expand(
-            value.shape[:value.ndim - (self.batch_dim+self.event_dim)] + self.batch_shape + self.event_shape)
-        )).movedim(
+        return super().log_prob(self.prepare_sample(value)).movedim(
             tuple(range(self.extra_dim)), tuple(range(-self.extra_dim, 0)))
 
     def entropy(self):
