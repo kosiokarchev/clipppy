@@ -19,7 +19,7 @@ from torch import Tensor
 from torch.utils.data import DataLoader, Dataset, IterableDataset
 from typing_extensions import TypeAlias
 
-from .. import clipppy
+import clipppy
 from ..distributions.conundis import ConstrainingMessenger
 from ..utils import _KT, _T, _Tin, _Tout, _VT
 from ..utils.messengers import CollectSitesMessenger, RequiresGradMessenger
@@ -161,15 +161,15 @@ class ClipppyDataset(BaseConditionableDataset, IterableDataset[_OT]):
 
     def get_trace(self) -> Trace:
         # TODO: retrying when an error occurs in simulator?!?
-        while True:
-            try:
-                with self.context:
-                    return self.config.mock(
-                        plate_stack=(self.batch_size,) if self.batch_size else None,
-                        **self.mock_args
-                    )
-            except ValueError:
-                pass
+        # while True:
+        #     try:
+        with self.context:
+            return self.config.mock(
+                plate_stack=(self.batch_size,) if self.batch_size else None,
+                **self.mock_args
+            )
+            # except ValueError:
+            #     pass
 
     @staticmethod
     def get_values(trace: Trace) -> _OT:

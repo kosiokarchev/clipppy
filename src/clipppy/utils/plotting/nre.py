@@ -23,7 +23,7 @@ from torch.distributions import Distribution
 from torch.nn import Module
 from typing_extensions import TypeAlias
 
-# TODO: dependency on phytorch, uplot
+# TODO: dependence on phytorch, uplot
 from phytorch.utils import _mid_many, ravel_multi_index
 from uplot import imshow_with_cbar, midtraffic
 
@@ -445,13 +445,14 @@ class MultiNREPlotter(MappedMixin, BaseNREPlotter, mapped_funcs=(
         return ax
 
 
-def multi_posterior(nre: MultiSBIProtocol, nrep: MultiNREPlotter, trace):
+def multi_posterior(nre: MultiSBIProtocol, nrep: MultiNREPlotter, trace, **kwargs):
     obs = {key: trace[key] for key in nre.obs_names}
     return {
         key: nrep.plotters[key].corner(
             nrep.plotters[key].post(obs, nre.head, subtail),
             truths={key: float(trace[key]) for key in nre.param_names
-                    if not torch.is_tensor(trace[key]) or trace[key].numel() == 1}
+                    if not torch.is_tensor(trace[key]) or trace[key].numel() == 1},
+            **kwargs
         )[0]
         for key, subtail in nrep.subtails(nre.tail).items()
     }

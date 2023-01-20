@@ -82,12 +82,13 @@ class AnyRegex:
         return any(p.match(value, *args, **kwargs) for p in self.patterns)
 
 
-_Distribution: TypeAlias = dist.TorchDistribution
+_Distribution: TypeAlias = Union[dist.torch_distribution.TorchDistributionMixin, dist.TorchDistribution]
 _Site = TypedDict('_Site', {
     'done': bool,
     'name': str, 'fn': _Distribution, 'mask': torch.Tensor,
     'value': torch.Tensor, 'type': str, 'infer': dict, 'is_observed': bool,
-    'cond_indep_stack': Iterable[CondIndepStackFrame]
+    'cond_indep_stack': Iterable[CondIndepStackFrame],
+    'args': tuple, 'kwargs': dict
 }, total=False)
 _Model = NewType('_Model', Callable)
 _Guide = NewType('_Guide', Callable)

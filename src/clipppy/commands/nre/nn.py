@@ -58,7 +58,7 @@ class IUWhiteningTail(UWhiteningTail):
         if self.additional is not False:
             args += self.ihead(
                 self.additional if torch.is_tensor(self.additional)
-                else torch.linspace(-1, 1, theta.shape[-1]).unsqueeze(-1),
+                else torch.linspace(-1, 1, args[0].shape[-2]).unsqueeze(-1),
             ),
         if self.summarize:
             args += self.shead(x[1].unsqueeze(-2)),

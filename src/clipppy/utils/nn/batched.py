@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import ClassVar
+from typing import ClassVar, Optional
 
 import torch
 from torch import Tensor, Size
@@ -11,8 +11,9 @@ def to_batchdim(t: Tensor, event_ndim: int, batch_dim=0):
     return t.unsqueeze(-event_ndim - 1).flatten(end_dim=-event_ndim - 1).movedim(0, batch_dim)
 
 
-def from_batchdim(t: Tensor, batch_shape: Size, event_ndim: int, batch_dim=0):
-    return t.movedim(batch_dim, 0).reshape(batch_shape + t.shape[-event_ndim:])
+def from_batchdim(t: Optional[Tensor], batch_shape: Size, event_ndim: int, batch_dim=0):
+    if t is not None:
+        return t.movedim(batch_dim, 0).reshape(batch_shape + t.shape[-event_ndim:])
 
 
 class BatchedModule(Module):
@@ -47,4 +48,4 @@ class BatchedMultiheadAttention(MultiheadAttention):
             to_batchdim(_.expand(batch_shape + _.shape[-2:]), **kw)
             for _ in (query, key, value)
         ), *args, **kwargs)
-        return from_batchdim(res[0], batch_shape, **kw), res[1]
+        return from_batchdim(res[0], batch_shape, **kw), from_batchdim(res[1], batch_shape, **kw)

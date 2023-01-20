@@ -15,8 +15,8 @@ class AttrsModule(Module):
 
 @attr.s(auto_attribs=True, eq=False)
 class ParametrizedAttrsModel(AttrsModule):
-    device: Union[str, torch.device] = attr.field(default=None, kw_only=True)
-    dtype: torch.dtype = attr.field(default=None, kw_only=True)
+    device: Union[str, torch.device] = attr.field(default=None, kw_only=True, repr=False)
+    dtype: torch.dtype = attr.field(default=None, kw_only=True, repr=False)
 
     @property
     def factory_kwargs(self):
