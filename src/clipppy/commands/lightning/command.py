@@ -10,7 +10,7 @@ from .hyper import nested_iterables
 from .loss import BaseSBILoss
 from .patches import LightningModule
 from .. import Command
-from ...sbi._typing import _SBIBatchT, DEFAULT_LOSS_NAME
+from ...sbi._typing import _SBIBatchT, DEFAULT_LOSS_NAME, DEFAULT_VAL_NAME
 from ...sbi.data import ClipppyDataset, SBIDataset
 from ...sbi.nn import _HeadOoutT, _HeadPoutT, _KT, _TailOutT, BaseSBIHead, BaseSBITail
 from ... import clipppy
@@ -52,9 +52,12 @@ class LightningSBICommand(Command, LightningModule, Generic[_TailOutT, _LossT]):
     def raw_dataset(self):
         return self.dataset_config(config=self.commander)
 
+    def _dataset(self, raw_dataset):
+        return self.dataset_cls(raw_dataset, param_names=self.param_names, obs_names=self.obs_names)
+
     @property
     def dataset(self):
-        return self.dataset_cls(self.raw_dataset, param_names=self.param_names, obs_names=self.obs_names)
+        return self._dataset(self.raw_dataset)
 
     # LOADER
     # ------
@@ -65,9 +68,12 @@ class LightningSBICommand(Command, LightningModule, Generic[_TailOutT, _LossT]):
     def loader(self):
         return self.loader_config(self.dataset)
 
+    def _training_loader(self, dataset):
+        return self.loader_config(dataset)
+
     @property
     def training_loader(self):
-        return self.loader_config(self.dataset)
+        return self._training_loader(self.dataset)
 
     # OPTIMIZER
     # ---------
@@ -103,14 +109,15 @@ class LightningSBICommand(Command, LightningModule, Generic[_TailOutT, _LossT]):
         return self.loss_config()
 
     _loss_name = DEFAULT_LOSS_NAME
-    _log_loss_kwargs = dict(prog_bar=False, logger=True, on_step=True, on_epoch=False)
+    _val_name = DEFAULT_VAL_NAME
+    _log_loss_kwargs = dict(prog_bar=False, logger=True)
 
-    def log_loss(self, loss, tree=None):
-        self.log(self._loss_name, loss, **self._log_loss_kwargs)
+    def log_loss(self, loss, tree=None, loss_name=None):
+        self.log((loss_name := loss_name or self._loss_name), loss, **self._log_loss_kwargs)
         if tree is not None:
             self.log_dict({
                 '/'.join(map(str, key)): val.mean()
-                for key, val in nested_iterables(tree, keys=(self._loss_name,))
+                for key, val in nested_iterables(tree, keys=(loss_name,))
             }, **self._log_loss_kwargs)
 
     def on_save_checkpoint(self, checkpoint: dict[str, Any]):

@@ -25,3 +25,4 @@ _OptimizerT = TypeVar('_OptimizerT', bound=Optimizer)
 _SchedulerT = TypeVar('_SchedulerT')
 _SBIBatchT: TypeAlias = tuple[Mapping[str, Tensor], Mapping[str, Tensor]]
 DEFAULT_LOSS_NAME = 'loss'
+DEFAULT_VAL_NAME = 'val'
