@@ -11,6 +11,7 @@ from torch.nn import Module
 from .config import SchedulerConfig, schedulers as lrs
 from ...utils.nn import linear, mlp, omlp
 from ...utils.nn.empty import _empty_module
+from ...utils.nn.sets.transformer import MAB as nn_MAB, SAB as nn_SAB, PMA as nn_PMA
 
 _non_iterables = (str, np.ndarray, Tensor)
 
@@ -100,6 +101,35 @@ class OMLP(MLP):
 
     def make(self, **kwargs):
         return omlp(*self.nlayers*(self.size,), osize=self.osize, whiten=self.whiten)
+
+
+@dataclass
+class MAB(ModuleHP):
+    embed_dim: int
+    num_heads: int = 1
+    rFF: ModuleHP = field(default_factory=ModuleHP)
+    use_layer_norm: bool = True
+
+    def make(self, **kwargs) -> nn_MAB:
+        return nn_MAB(self.embed_dim, self.num_heads, self.rFF.make(), self.use_layer_norm)
+
+
+@dataclass
+class SAB(ModuleHP):
+    mab: MAB
+
+    def make(self, **kwargs) -> nn_SAB:
+        return nn_SAB(self.mab.make(**kwargs))
+
+
+@dataclass
+class PMA(ModuleHP):
+    mab: MAB
+    k: int = 1
+    rFF: ModuleHP = field(default_factory=ModuleHP)
+
+    def make(self, **kwargs) -> nn_PMA:
+        return nn_PMA(self.mab.make(), self.k, self.rFF.make())
 
 
 class Scheduler(BaseHParams):

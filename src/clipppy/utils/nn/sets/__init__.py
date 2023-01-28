@@ -8,7 +8,6 @@ import attr
 from more_itertools import last, always_iterable
 from torch import Tensor
 from torch.nn import Module, ModuleList
-from torch_scatter import segment_csr
 from typing_extensions import TypeAlias
 
 from ..attrs import AttrsModule
@@ -21,6 +20,8 @@ _collapse_fn_t: TypeAlias = Callable[[Tensor, Iterable[int], int], Tensor]
 class NestedSetsProcessor(AttrsModule):
     @staticmethod
     def _collapse(t: Tensor, lens: Iterable[int], dim: int, reduce: Literal['mean', 'sum']):
+        from torch_scatter import segment_csr
+
         return segment_csr(
             t,
             t.new_tensor((
