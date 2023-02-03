@@ -24,6 +24,7 @@ from . import _typing
 from ..distributions.conundis import ConstrainingMessenger
 from ..utils import _KT, _T, _Tin, _Tout, _VT
 from ..utils.messengers import CollectSitesMessenger, RequiresGradMessenger
+from ..utils.trace import ClipppyTrace
 from ..utils.typing import _Distribution
 
 
@@ -181,7 +182,7 @@ class ClipppyDataset(BaseConditionableDataset, IterableDataset[_ValuesT]):
         return {key: (prior.support.lower_bound, prior.support.upper_bound)
                 for key, prior in (priors or self.get_priors(param_names)).items()}
 
-    def get_trace(self) -> Trace:
+    def get_trace(self) -> ClipppyTrace:
         # TODO: retrying when an error occurs in simulator?!?
         # while True:
         #     try:
@@ -211,3 +212,7 @@ class CPDataset(ClipppyDataset):
     @property
     def context(self):
         return ConstrainingMessenger(self.ranges)
+
+    @staticmethod
+    def get_constrained_log_probs(trace: ClipppyTrace):
+        return trace.compute_constrained_log_prob()
