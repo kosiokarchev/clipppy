@@ -36,8 +36,11 @@ class LeftIndependent(DistributionWrapper):
     def rsample(self, sample_shape: _size = torch.Size()) -> Tensor:
         return self.base_dist.rsample(sample_shape).movedim(self.reinterpreted_dims, self.target_dims)
 
+    def process_log_prob(self, value: Tensor) -> Tensor:
+        return value.sum(self.reinterpreted_dims)
+
     def log_prob(self, value: Tensor) -> Tensor:
-        return self.base_dist.log_prob(self.prepare_sample(value)).sum(self.reinterpreted_dims)
+        return self.process_log_prob(self.base_dist.log_prob(self.prepare_sample(value)))
 
 
 class ExtraDimensions(DistributionWrapper):

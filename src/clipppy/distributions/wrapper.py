@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Iterable, Union
+from typing import Iterable, Union, Protocol, runtime_checkable, Any
 
 from pyro.distributions import constraints
 from pyro.distributions.torch_distribution import TorchDistribution, TorchDistributionMixin
@@ -9,6 +9,18 @@ from torch import Size
 
 _size = Union[Size, Iterable[int]]
 _Distribution = Union[TorchDistribution, TorchDistributionMixin]
+
+
+@runtime_checkable
+class DistributionWrapperProtocol(Protocol):
+    base_dist: _Distribution
+
+
+def unwrap(obj: Union[Any, DistributionWrapperProtocol], bound=type(None)):
+    while isinstance(obj, DistributionWrapperProtocol) and not isinstance(obj, bound):
+        yield obj
+        obj = obj.base_dist
+    yield obj
 
 
 class DistributionWrapper(TorchDistribution):
@@ -46,6 +58,10 @@ class DistributionWrapper(TorchDistribution):
     @constraints.dependent_property
     def support(self):
         return self.base_dist.support
+
+    @property
+    def mode(self):
+        return self.base_dist.mode
 
     @property
     def mean(self):

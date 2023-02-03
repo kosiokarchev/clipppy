@@ -246,11 +246,11 @@ class NREPlotter(BaseNREPlotter):
         truth_color: _ColorT = 'green',
         prior_kwargs=frozendict(), post1d_kwargs=frozendict(),
         figsize=None
-    ):
+    ) -> tuple[plt.Figure, Union[np.ndarray, Sequence[Sequence[plt.Axes]]]]:
         if figsize is None:
             figsize = 3 * np.array(2 * (len(self.param_names),)) + 1
 
-        fig, axs = plt.subplots(self.nparams, self.nparams, figsize=figsize)
+        fig, axs = plt.subplots(self.nparams, self.nparams, figsize=figsize, squeeze=False)
 
         axs = np.atleast_2d(axs)
 
@@ -445,7 +445,7 @@ class MultiNREPlotter(MappedMixin, BaseNREPlotter, mapped_funcs=(
         return ax
 
 
-def multi_posterior(nre: MultiSBIProtocol, nrep: MultiNREPlotter, trace, **kwargs):
+def multi_posterior(nre: MultiSBIProtocol, nrep: MultiNREPlotter, trace, **kwargs) -> Mapping[_MultiTailKT, plt.Figure]:
     obs = {key: trace[key] for key in nre.obs_names}
     return {
         key: nrep.plotters[key].corner(

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass, field, InitVar
 from functools import partial
 from operator import itemgetter
 from os import PathLike
@@ -11,16 +12,20 @@ from more_itertools import all_equal, one, unique_everseen
 from torch import Tensor
 from torch.utils.data import Dataset
 
-from .data import _OT
+from .data import _ValuesT
 
 
 _T = TypeVar('_T')
 
 
-class ZarrDataset(Dataset[_OT]):
-    def __init__(self, store: Union[zarr.storage.Store, PathLike, str], keys: Optional[Collection[str]] = None):
+@dataclass
+class ZarrDataset(Dataset[_ValuesT]):
+    store: InitVar[Union[zarr.storage.Store, PathLike, str]]
+    keys: Collection[str] = None
+    group: zarr.Group = field(init=False)
+
+    def __post_init__(self, store: Union[zarr.storage.Store, PathLike, str]):
         self.group = zarr.hierarchy.open_group(store)
-        self.keys = keys
 
     @staticmethod
     def tensor_to_zarrable(t: Tensor):
@@ -52,7 +57,7 @@ class ZarrDataset(Dataset[_OT]):
             ((key, self.group[key]) for key in self.keys)
         )
 
-    def __getitem__(self, item) -> _OT:
+    def __getitem__(self, item) -> _ValuesT:
         return {key: val[item] for key, val in self.arrays}
 
     def __len__(self) -> int:

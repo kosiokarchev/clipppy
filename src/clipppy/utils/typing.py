@@ -9,10 +9,10 @@ from typing import (
     get_args, get_origin, Iterable, NewType, Optional, overload, Pattern,
     Protocol, runtime_checkable, Type, TypedDict, TypeVar, Union)
 
-import torch
 from more_itertools import collapse
 from pyro import distributions as dist
 from pyro.poutine.indep_messenger import CondIndepStackFrame
+from torch import Tensor
 from typing_extensions import TypeAlias
 
 
@@ -85,10 +85,12 @@ class AnyRegex:
 _Distribution: TypeAlias = Union[dist.torch_distribution.TorchDistributionMixin, dist.TorchDistribution]
 _Site = TypedDict('_Site', {
     'done': bool,
-    'name': str, 'fn': _Distribution, 'mask': torch.Tensor,
-    'value': torch.Tensor, 'type': str, 'infer': dict, 'is_observed': bool,
+    'name': str, 'fn': _Distribution, 'mask': Tensor,
+    'value': Tensor, 'type': str, 'infer': dict, 'is_observed': bool,
     'cond_indep_stack': Iterable[CondIndepStackFrame],
-    'args': tuple, 'kwargs': dict
+    'args': tuple, 'kwargs': dict,
+    'log_prob': Tensor, 'log_prob_sum': Tensor,
+    'constrained_log_prob': Tensor,
 }, total=False)
 _Model = NewType('_Model', Callable)
 _Guide = NewType('_Guide', Callable)

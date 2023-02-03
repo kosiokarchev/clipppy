@@ -45,8 +45,7 @@ class EventMaskedDistribution(MaskedDistribution):
         while isinstance(d, Independent) or isinstance(d, ExpandedDistribution):
             d = d.base_dist
 
-        d: Union[TorchDistribution, TorchDistributionMixin] \
-            = copy(d)
+        d: Union[TorchDistribution, TorchDistributionMixin] = copy(d)
         d._batch_shape = d.shape()[:-len(event_shape)]
         d._event_shape = event_shape
         ret = d.log_prob(value)[..., self._mask]

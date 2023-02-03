@@ -13,7 +13,7 @@ from matplotlib import pyplot as plt
 from torch import Tensor
 from tqdm.auto import tqdm, trange
 
-from ...sbi._typing import SBIDataset
+from ...sbi.data import SBIDataset
 from ...utils import _KT, _T, _VT
 from ...utils.plotting.nre import _HeadT, _TailT, BaseNREPlotter, MultiNREPlotter, NREPlotter
 
@@ -37,6 +37,9 @@ def get_n_batches_mapping(dataset: Iterable[_T], nbatches: int, *funcs: Callable
         yield ress
 
 
+_default_ranger = partial(trange, leave=False)
+
+
 @dataclass
 class BaseNREValidator:
     nbatches: int
@@ -49,7 +52,7 @@ class BaseNREValidator:
         if isinstance(self.dataset, SBIDataset):
             self.dataset.dataset.batch_size = self.batch_size
 
-    def _simulate(self, head: _HeadT, tail: _TailT, ranger: Callable[[int], Iterable] = trange):
+    def _simulate(self, head: _HeadT, tail: _TailT, ranger: Callable[[int], Iterable] = _default_ranger):
         for _, (params, obs) in zip(ranger(self.nbatches), self.dataset):
             yield params, self.nrep.ratio(obs, head, tail)
 
@@ -61,7 +64,7 @@ class BaseNREValidator:
             (torch.cat(posts, 0).rename_(None).flatten(start_dim=1).mean(-1) / prior_mean).tolist()
         )
 
-    def simulate(self, head: _HeadT, tail: _TailT, ranger: Callable[[int], Iterable] = trange):
+    def simulate(self, head: _HeadT, tail: _TailT, ranger: Callable[[int], Iterable] = _default_ranger):
         return self._simulate_finalize(*zip(*(
             (self.nrep.perc(params, post), ratio, post)
             for params, ratio in self._simulate(head, tail, ranger)
@@ -154,13 +157,3 @@ class MultiNREValidator(BaseMultiNREValidator):
                 list(map(itemgetter(group), _)) for _ in (qs, ratios, posts)
             ), prior_mean[group])
         return _qs, _ratios, _posts
-    # def simulate(self, head: _HeadT, tail: _TailT, ranger: Callable[[int], Iterable] = trange):
-    #     qs = defaultdict(list)
-    #     norms = defaultdict(list)
-    #     for params, post in self._simulate(head, tail, ranger):
-    #         for key, val in self.nrep.perc(params, post).items():
-    #             qs[key] += val.tolist()
-    #         for key, val in post.items():
-    #             norms[key] += (val.mean(key)).tolist()
-    #
-    #     return qs, pd.DataFrame(norms).mul(pd.Series({g: plotter.range_area for g, plotter in self.nrep.plotters.items()}), axis='columns')
