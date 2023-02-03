@@ -53,8 +53,8 @@ class BaseNREValidator:
             self.dataset.dataset.batch_size = self.batch_size
 
     def _simulate(self, head: _HeadT, tail: _TailT, ranger: Callable[[int], Iterable] = _default_ranger):
-        for _, (params, obs) in zip(ranger(self.nbatches), self.dataset):
-            yield params, self.nrep.ratio(obs, head, tail)
+        for _, batch in zip(ranger(self.nbatches), self.dataset):
+            yield batch.params, self.nrep.ratio(batch.obs, head, tail)
 
     @staticmethod
     def _simulate_finalize(qs, ratios, posts, prior_mean):

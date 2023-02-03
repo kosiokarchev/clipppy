@@ -10,10 +10,10 @@ from .hyper import nested_iterables
 from .loss import BaseSBILoss
 from .patches import LightningModule
 from .. import Command
-from ...sbi._typing import _SBIBatchT, DEFAULT_LOSS_NAME, DEFAULT_VAL_NAME
+from ... import clipppy
+from ...sbi._typing import DEFAULT_LOSS_NAME, DEFAULT_VAL_NAME, SBIBatch
 from ...sbi.data import ClipppyDataset, SBIDataset
 from ...sbi.nn import _HeadOoutT, _HeadPoutT, _KT, _TailOutT, BaseSBIHead, BaseSBITail
-from ... import clipppy
 from ...utils import Sentinel
 
 
@@ -30,8 +30,8 @@ class LightningSBICommand(Command, LightningModule, Generic[_TailOutT, _LossT]):
     head: BaseSBIHead[_HeadPoutT, _HeadOoutT, _KT]
     tail: BaseSBITail[_HeadPoutT, _HeadOoutT, _TailOutT]
 
-    def forward(self, batch: _SBIBatchT, *, head_kwargs=frozendict(), tail_kwargs=frozendict()) -> _TailOutT:
-        return self.tail(*self.head(*batch, **head_kwargs), **tail_kwargs)
+    def forward(self, batch: SBIBatch, *, head_kwargs=frozendict(), tail_kwargs=frozendict()) -> _TailOutT:
+        return self.tail(*self.head(batch.params, batch.obs, **head_kwargs), **tail_kwargs)
 
     if TYPE_CHECKING:
         __call__ = forward

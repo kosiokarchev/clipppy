@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from itertools import starmap
 from numbers import Number
-from typing import Any, Generic, Iterable, Literal, Mapping, NamedTuple, TYPE_CHECKING, TypeVar, Union
+from typing import Any, Generic, Iterable, Literal, Mapping, NamedTuple, TYPE_CHECKING, Union, TypeVar, Callable
 
 import torch
 from more_itertools import all_equal
@@ -13,12 +14,11 @@ from torch.utils._pytree import _broadcast_to_and_flatten, tree_flatten, tree_un
 from typing_extensions import ParamSpec, Self, TypeAlias
 
 from ..npe.nn import NPEResult
+from ...sbi._typing import _Tree
 from ...utils import Sentinel
 
 
-_Tree: TypeAlias = Union[Tensor, Iterable['_Tree'], Mapping[Any, '_Tree']]
-_TreeT = TypeVar('_TreeT', bound=_Tree)
-
+_Tin = TypeVar('_Tin')
 _DimT: TypeAlias = Union[int, tuple[int, ...], tuple[str, ...], Literal[Sentinel.skip]]
 _DimTreeT: TypeAlias = Union[_DimT, Iterable['_DimTreeT'], Mapping[Any, '_DimTreeT']]
 
@@ -31,6 +31,10 @@ class BaseSBILoss(Generic[_LossParamsT]):
         loss: Tensor
         flat: list[Tensor] = None
         spec: TreeSpec = None
+
+        def tree_binary_op(self, op: Callable[[Tensor, _Tin], Tensor], other: _Tree) -> Self:
+            newflat = list(starmap(op, zip(self.flat, _broadcast_to_and_flatten(other, self.spec))))
+            return type(self)(sum(newflat), newflat, self.spec)
 
         def __mul__(self, other) -> Self:
             return type(self)(other * self.loss, [other * f for f in self.flat], self.spec)
@@ -83,8 +87,7 @@ class SBILoss(BaseSBILoss[_LossParamsT], Generic[_LossParamsT], ABC):
             for args, dim in zip(flat, _broadcast_to_and_flatten(self.dim, spec))
         ]) / len(res), res, spec)
 
-
-    def __call__(self, *args: _TreeT):
+    def __call__(self, *args: _Tree):
         flats, specs = zip(*map(tree_flatten, args))
         assert all_equal(specs)
         return self._call(zip(*flats), specs[0])
@@ -95,7 +98,7 @@ class NPELoss(SBILoss):
         return - nperes.log_prob
 
     if TYPE_CHECKING:
-        def __call__(self, nperes: _TreeT, *args: _TreeT) -> BaseSBILoss.ReturnT: ...
+        def __call__(self, nperes: _Tree[NPEResult], *args: _Tree) -> BaseSBILoss.ReturnT: ...
 
 
 class GANPELoss(SBILoss):
@@ -103,7 +106,7 @@ class GANPELoss(SBILoss):
         return torch.linalg.vector_norm(nperes.log_prob_grad - sim_log_prob_grad, dim=-1)
 
     if TYPE_CHECKING:
-        def __call__(self, nperes: _TreeT, simulator_grad: _TreeT) -> BaseSBILoss.ReturnT: ...
+        def __call__(self, nperes: _Tree[NPEResult], sim_log_prob_grad: _Tree[Tensor]) -> BaseSBILoss.ReturnT: ...
 
 
 class NRELoss(SBILoss):
@@ -111,4 +114,5 @@ class NRELoss(SBILoss):
         return - (logsigmoid(log_ratio_joint) + logsigmoid(-log_ratio_marginal))
 
     if TYPE_CHECKING:
-        def __call__(self, log_ratio_joint: _TreeT, log_ratio_marginal: _TreeT) -> BaseSBILoss.ReturnT: ...
+        def __call__(self, log_ratio_joint: _Tree[Tensor], log_ratio_marginal: _Tree[Tensor],
+                     weight_joint: _Tree[Union[Tensor, Number]] = 1., weight_marginal: _Tree[Union[Tensor, Number]] = 1.) -> BaseSBILoss.ReturnT: ...

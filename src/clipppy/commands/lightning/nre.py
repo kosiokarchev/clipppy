@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from functools import partialmethod
 from typing import Mapping
 
 from torch import Tensor
@@ -8,7 +9,7 @@ from torch.utils._pytree import tree_unflatten
 from .command import LightningSBICommand
 from .config import Config
 from .loss import NRELoss
-from ...sbi._typing import _SBIBatchT
+from ...sbi._typing import SBIBatch
 from ...sbi.data import DoublePipe
 from ...utils import Sentinel
 
@@ -19,9 +20,9 @@ class NRE(LightningSBICommand[Tensor, NRELoss]):
 
     loss_config: Config[NRELoss] = Config(NRELoss(), Sentinel.no_call)
 
-    def _loss_tree(self, batches: tuple[_SBIBatchT, _SBIBatchT]):
-        theta_1, x_1 = self.head(*batches[0])
-        theta_2, x_2 = self.head(*batches[1])
+    def _loss_tree(self, batches: tuple[SBIBatch, SBIBatch]):
+        theta_1, x_1 = self.head(batches[0].params, batches[0].obs)
+        theta_2, x_2 = self.head(batches[1].params, batches[1].obs)
 
         ret_1 = self.lossfunc(self.tail(theta_1, x_1), self.tail(theta_2, x_1))
         ret_2 = self.lossfunc(self.tail(theta_2, x_2), self.tail(theta_1, x_2))
@@ -32,12 +33,10 @@ class NRE(LightningSBICommand[Tensor, NRELoss]):
             (a + b) / 2 for a, b in zip(ret_1.flat, ret_2.flat)
         ], ret_1.spec), Mapping) else None
 
-    def training_step(self, batches: tuple[_SBIBatchT, _SBIBatchT], *args, **kwargs):
+    def _step(self, batches: tuple[SBIBatch, SBIBatch], *args, _log_name, **kwargs):
         loss, tree = self._loss_tree(batches)
-        self.log_loss(loss, tree, self._loss_name)
+        self.log_loss(loss, tree, getattr(self, _log_name))
         return loss
 
-    def validation_step(self, batches: tuple[_SBIBatchT, _SBIBatchT], *args, **kwargs):
-        loss, tree = self._loss_tree(batches)
-        self.log_loss(loss, tree, self._val_name)
-        return loss
+    training_step = partialmethod(_step, _log_name='_loss_name')
+    validation_step = partialmethod(_step, _log_name='_val_name')

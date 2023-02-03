@@ -1,28 +1,41 @@
 from __future__ import annotations
 
-from typing import Iterable, Mapping, Protocol, TypeVar
+from dataclasses import dataclass
+from numbers import Number
+from typing import Iterable, Mapping, Protocol, TypeVar, Generic, Any, Union
 
 from torch import Tensor
 from torch.optim import Optimizer
 from typing_extensions import TypeAlias
 
-from .data import SBIDataLoader, SBIDataset
-from .nn import BaseSBIHead, MultiSBITail
+from . import data, nn
 
 
 class MultiSBIProtocol(Protocol):
     param_names: Iterable[str]
     obs_names: Iterable[str]
 
-    loader: SBIDataLoader
-    dataset: SBIDataset
+    loader: data.SBIDataLoader
+    dataset: data.SBIDataset
 
-    head: BaseSBIHead
-    tail: MultiSBITail
+    head: nn.BaseSBIHead
+    tail: nn.MultiSBITail
+
+
+_TreeV = TypeVar('_TreeV')
+_Tree: TypeAlias = Union[_TreeV, Iterable['_Tree'], Mapping[Any, '_Tree']]
+_MappingT = TypeVar('_MappingT', bound=Mapping[str, Tensor])
+_SBIWeightT: TypeAlias = _Tree[Union[Tensor, Number]]
+
+
+@dataclass
+class SBIBatch(Generic[_MappingT]):
+    params: _MappingT
+    obs: _MappingT
+    weight: _SBIWeightT = 1
 
 
 _OptimizerT = TypeVar('_OptimizerT', bound=Optimizer)
 _SchedulerT = TypeVar('_SchedulerT')
-_SBIBatchT: TypeAlias = tuple[Mapping[str, Tensor], Mapping[str, Tensor]]
 DEFAULT_LOSS_NAME = 'loss'
 DEFAULT_VAL_NAME = 'val'

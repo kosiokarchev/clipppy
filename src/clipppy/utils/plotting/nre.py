@@ -28,7 +28,7 @@ from phytorch.utils import _mid_many, ravel_multi_index
 from uplot import imshow_with_cbar, midtraffic
 
 from ...sbi.nn import BaseSBIHead, MultiSBITail
-from ...sbi._typing import _SBIBatchT, MultiSBIProtocol
+from ...sbi._typing import MultiSBIProtocol, SBIBatch
 
 
 _HeadT: TypeAlias = BaseSBIHead
@@ -209,8 +209,8 @@ class NREPlotter(BaseNREPlotter):
             -1
         ).squeeze(-1)
 
-    def percentile_of_truth(self, trace: _SBIBatchT, head: _HeadT, tail: _TailT):
-        return self.perc(trace[0], self.post(trace[1], head, tail))
+    def percentile_of_truth(self, trace: SBIBatch, head: _HeadT, tail: _TailT):
+        return self.perc(trace.params, self.post(trace.obs, head, tail))
 
     def get_bounds_from_post(self, post: Tensor, thresh: float = 1e-4) -> Mapping[str, tuple[Tensor, Tensor]]:
         mask = to_percentiles(post, len(post.names)).rename(None).flatten(-len(post.names)) < 1 - thresh

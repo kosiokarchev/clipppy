@@ -8,8 +8,8 @@ from functools import partial
 from itertools import chain
 from numbers import Number
 from typing import (
-    Any, cast, Collection, ContextManager, Generic, Iterable, Iterator,
-    Mapping, Type, TYPE_CHECKING, Union)
+    Any, Collection, ContextManager, Generic, Iterable, Iterator,
+    Mapping, Type, TYPE_CHECKING, Union, cast)
 
 import pyro
 import torch
@@ -20,14 +20,17 @@ from torch.utils.data import DataLoader, Dataset, IterableDataset
 from typing_extensions import TypeAlias
 
 import clipppy
+from . import _typing
 from ..distributions.conundis import ConstrainingMessenger
 from ..utils import _KT, _T, _Tin, _Tout, _VT
 from ..utils.messengers import CollectSitesMessenger, RequiresGradMessenger
 from ..utils.typing import _Distribution
 
 
-_OT: TypeAlias = Mapping[str, Tensor]
-_OOT: TypeAlias = tuple[OrderedDict[str, Tensor], OrderedDict[str, Tensor]]
+_ValuesT: TypeAlias = Mapping[str, Tensor]
+_WeightsT: TypeAlias = Mapping[str, Tensor]
+_WeightedT: TypeAlias = tuple[_ValuesT, _WeightsT]
+_SBIBatchT: TypeAlias = '_typing.SBIBatch[OrderedDict[str, Tensor]]'
 
 _RangeBoundT: TypeAlias = Union[Number, Tensor, None]
 _RangeT: TypeAlias = tuple[_RangeBoundT, _RangeBoundT]
@@ -92,26 +95,45 @@ class DoublePipe(DataPipe[_Tin, tuple[_Tin, _Tin]], Generic[_Tin]):
 
 
 @dataclass
-class SBIDataset(DataPipe[_OT, _OOT]):
-    dataset: Union[Iterable[_OT], BaseConditionableDataset[_OT]]
+class AbstractSBIDataset(DataPipe[_Tin, _SBIBatchT], ABC, Generic[_Tin]):
+    dataset: Union[Iterable[_Tin], BaseConditionableDataset[_Tin]]
 
     param_names: Iterable[str]
     obs_names: Iterable[str]
 
-    def split(self, values: _OT) -> _OOT:
-        return cast(_OOT, tuple(
+    def split(self, values: _ValuesT) -> tuple[OrderedDict[str, Tensor], OrderedDict[str, Tensor]]:
+        return cast(tuple[OrderedDict[str, Tensor], OrderedDict[str, Tensor]], tuple(
             OrderedDict((name, values[name]) for name in names)
             for names in (self.param_names, self.obs_names)
         ))
 
-    def __next__(self) -> _OOT:
-        return self.split(next(self._dataset))
+    @abstractmethod
+    def __next__(self) -> _SBIBatchT: ...
+
+
+@dataclass
+class SBIDataset(AbstractSBIDataset[_ValuesT]):
+    def __next__(self) -> _SBIBatchT:
+        return _typing.SBIBatch(*self.split(next(self._dataset)))
+
+
+@dataclass
+class WeightedSBIDataset(AbstractSBIDataset[_WeightedT]):
+    # TODO: unsqueezing weights
+    param_event_dims: Mapping = field(default_factory=dict)
+
+    def __next__(self) -> _SBIBatchT:
+        values, weights = next(self._dataset)
+        return _typing.SBIBatch(*self.split(values), {
+            key: val.reshape(val.shape + self.param_event_dims.get(key, 0)*(1,))
+            for key, val in weights.items()
+        })
 
 
 class GASBIDataset(SBIDataset):
     param_names: Collection[str]
 
-    def __next__(self):
+    def __next__(self) -> _SBIBatchT:
         with RequiresGradMessenger(self.param_names, func_other=Tensor.detach):
             trace: Trace = pyro.poutine.trace(super().__next__).get_trace()
         log_prob = sum(val['fn'].log_prob(val['value'])
@@ -121,7 +143,7 @@ class GASBIDataset(SBIDataset):
         params, obs = trace.nodes['_RETURN']['value']
         consume(map(partial(Tensor.requires_grad_, requires_grad=False),
                     chain(params.values(), obs.values())))
-        return params, obs
+        return _typing.SBIBatch(params, obs)
 
 
 class SBIDataLoader(DataLoader):
@@ -136,7 +158,7 @@ class BaseConditionableDataset(Dataset):
 
 
 @dataclass
-class ClipppyDataset(BaseConditionableDataset, IterableDataset[_OT]):
+class ClipppyDataset(BaseConditionableDataset, IterableDataset[_ValuesT]):
     conditioner_cls = PyroConditionPipe
 
     config: clipppy.Clipppy
@@ -172,7 +194,7 @@ class ClipppyDataset(BaseConditionableDataset, IterableDataset[_OT]):
             #     pass
 
     @staticmethod
-    def get_values(trace: Trace) -> _OT:
+    def get_values(trace: Trace) -> _ValuesT:
         return {key: val['value'] for key, val in trace.nodes.items() if 'value' in val}
 
     def __next__(self):
