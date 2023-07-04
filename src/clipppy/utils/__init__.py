@@ -103,7 +103,7 @@ class PseudoString(str, Generic[_T]):
 
 # TODO: Decide on to_tensor strategy in general!
 def to_tensor(val):
-    return torch.tensor(val) if not torch.is_tensor(val) else val
+    return torch.tensor(val, dtype=torch.get_default_dtype(), device=torch_get_default_device()) if not torch.is_tensor(val) else val
 
 
 def torch_get_default_device():

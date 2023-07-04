@@ -26,7 +26,7 @@ from ..stochastic.capsule import AllEncapsulator, Encapsulator
 from ..stochastic.infinite import InfiniteUniform, SemiInfiniteUniform
 from ..stochastic.sampler import (
     Context, Deterministic, Effect, Factor, NamedSampler, Param, PseudoSampler,
-    Sampler, UnbindEffect, UnsqueezeEffect)
+    Sampler, UnbindEffect, UnsqueezeEffect, MovedimEffect)
 from ..stochastic.stochastic import Stochastic
 from ..utils import torch_get_default_device
 
@@ -122,12 +122,23 @@ for func in (ClipppyYAML.txt, ClipppyYAML.npy, ClipppyYAML.npz, ClipppyYAML.pt, 
 
 op = get_pure_python_module('operator')
 
+
+def _getattr(o, name, *args, **kwargs):
+    args = args or ('default' in kwargs and kwargs['default'] or ())
+    return getattr(o, name, *args)
+
+
+def _call(obj, /, *args, **kwargs):
+    return obj(*args, **kwargs)
+
+
 for o, func in {
     '==': op.eq, 'ne': op.ne, 'lt': op.lt, 'le': op.le, 'gt': op.gt, 'ge': op.ge,
     '+': op.add, '-': op.sub, '*': op.mul, '/': op.truediv,
     '@': op.matmul, '**': op.pow,
     # '%': op.mod,
-    '[]': op.getitem, '.': getattr, ':': slice
+    '[]': op.getitem, '.': _getattr, ':': slice,
+    '()': _call,
 }.items():
     CC.add_constructor(f'!{o}', CC.apply(func))
 
@@ -141,7 +152,7 @@ CC.type_to_tag[torch.Tensor] = '!tensor'
 for typ in (AllEncapsulator, Encapsulator, Stochastic,
             Param, Sampler, Deterministic, Factor,
             PseudoSampler, Context, Effect,
-            UnbindEffect, UnsqueezeEffect):
+            UnbindEffect, UnsqueezeEffect, MovedimEffect):
     CC.add_constructor(f'!{typ.__name__}', CC.apply(typ))
 CC.add_constructor('!InfiniteSampler', CC.apply(partial(Sampler, d=InfiniteUniform())))
 CC.add_constructor('!SemiInfiniteSampler', CC.apply(partial(Sampler, d=SemiInfiniteUniform())))

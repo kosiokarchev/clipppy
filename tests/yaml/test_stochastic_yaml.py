@@ -6,7 +6,7 @@ from torch.distributions.constraints import positive
 from clipppy import loads
 from clipppy.stochastic.stochastic import Stochastic
 from clipppy.stochastic.capsule import AllEncapsulator, Encapsulator
-from clipppy.stochastic.sampler import Sampler, Context, Deterministic, Effect, Factor, Param, PseudoSampler, UnbindEffect
+from clipppy.stochastic.sampler import Sampler, Context, Deterministic, Effect, Factor, Param, PseudoSampler, UnbindEffect, UnsqueezeEffect, MovedimEffect
 
 
 def test_registered():
@@ -19,7 +19,8 @@ def test_registered():
     named = (Param, Sampler, Deterministic, Factor)
 
     for cls in (Param, Sampler, Deterministic, Factor,
-                PseudoSampler, Context, Effect, UnbindEffect,
+                PseudoSampler, Context,
+                Effect, UnbindEffect, UnsqueezeEffect, MovedimEffect,
                 AllEncapsulator, Encapsulator, Stochastic):
         arg = null_params.get(cls, 'null')
         assert isinstance(loads(f'!{cls.__name__} [{arg}]'), cls)
@@ -111,6 +112,14 @@ class TestEffects:
     def test_unbind_effect(self):
         assert all(a.shape == (5,) for a in loads('!UnbindEffect [!py:torch.rand [5, 6]]')())
         assert all(a.shape == (6,) for a in loads('!UnbindEffect {/: !py:torch.rand [5, 6], dim: 0}')())
+
+    def test_unsqueeze_effect(self):
+        assert loads('!UnsqueezeEffect [!py:torch.rand [5, 6]]')().shape == (5, 6, 1)
+        assert loads('!UnsqueezeEffect {/: !py:torch.rand [5, 6], dim: 1}')().shape == (5, 1, 6)
+
+    def test_movedim_effect(self):
+        assert loads('!MovedimEffect [!py:torch.rand [5, 3, 6]]')().shape == (6, 5, 3)
+        assert loads('!MovedimEffect {/: !py:torch.rand [5, 3, 6], source: 1, destination: 2}')().shape == (5, 6, 3)
 
 
 def test_param():

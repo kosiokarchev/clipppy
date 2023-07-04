@@ -36,7 +36,6 @@ class _Gamma(dist.Gamma):
 
 
 class Gamma(ConUnDisMixin[_Gamma], _Gamma, register=dist.Gamma):
-    # TODO: constrained gamma uses SciPy
     constraint_lower = 0.
 
 
@@ -49,5 +48,4 @@ class _InverseGamma(dist.InverseGamma):
 
 
 class InverseGamma(ConUnDisMixin[_InverseGamma], _InverseGamma, register=dist.InverseGamma):
-    # TODO: constrained inverse gamma uses SciPy
     constraint_lower = 0.

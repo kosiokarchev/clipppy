@@ -10,6 +10,10 @@ from .typing import _Site
 class ClipppyTrace(Trace):
     nodes: Mapping[str, _Site]
 
+    def log_prob(self):
+        self.compute_log_prob()
+        return sum(site['log_prob'] for site in self.nodes.values())
+
     def compute_constrained_log_prob(self) -> Mapping[str, Tensor]:
         from ..distributions.constrained import constrained_log_prob
 

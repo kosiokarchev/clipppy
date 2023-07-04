@@ -72,7 +72,7 @@ class Emcee(EnsembleSampler):
         from xarray import Dataset
 
         return Dataset({
-            key: (('chain', 'draw'), val)
+            key: (('chain', 'draw'), val.cpu().numpy())
             for key, val in self.constrain(self.get_batched_params(self.chain)).items()
         }, coords={
             'lnp': (('chain', 'draw'), self.lnprobability)

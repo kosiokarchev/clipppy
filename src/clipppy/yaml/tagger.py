@@ -110,7 +110,7 @@ class TaggerMixin:
             )))
         elif origin is Union:
             if len(args := get_args(hint)) == 2 and args[1] is type(None):
-                origin = args[0]  # Optional[...]
+                return self.tag_from_hint(node, args[0])  # Optional[...]
             else:  # TODO: Maybe handle Union??
                 return node
         else:

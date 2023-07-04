@@ -29,7 +29,7 @@ dependencies = [
     "python-forge",
     "pyro-ppl",
     "torch>=1.11",
-    "pytorch_lightning"
+    "pytorch-lightning"
 ]
 
 dynamic = ["version"]
@@ -53,7 +53,7 @@ where = ["src"]
 src = ["**/*.pyi"]
 
 [tool.setuptools.dynamic]
-version = {attr = "clipppy.__version__"}
+version = {attr = "clipppy._version.__version__"}
 
 [tool.setuptools_scm]
 write_to = "src/clipppy/_version.py"

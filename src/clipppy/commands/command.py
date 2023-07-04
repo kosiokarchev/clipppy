@@ -80,14 +80,15 @@ class Command(ABC):
             return getattr(cls, name)
         return super().__getattribute__(name)
 
-    plate_stack: Union[Iterable[int], ContextManager] = nullcontext()
+    plate_stack: Union[Iterable[int], ContextManager, Any] = nullcontext()
     """A stack of plates or an iterable of ints.
 
        Either one or multiple plates (as returned by `pyro.plate
        <pyro.primitives.plate>` or `pyro.plate_stack
        <pyro.primitives.plate_stack>`) or an iterable of ints that
        will be converted to a stack of plates (named ``plate_0``, etc. and
-       aligned to ``rightmost_dim = -1``) for batch mock generation."""
+       aligned to ``rightmost_dim = -1``) for batch mock generation.
+       (Any false value value is also accepted to disable plating.)"""
 
     @property
     def plate(self) -> pyro.plate:

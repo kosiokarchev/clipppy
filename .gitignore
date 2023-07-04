@@ -1,2 +1,5 @@
 src/clipppy.egg-info/
 **/__pycache__/
+/.hypothesis/
+**/.pytest_cache/
+**/src/clipppy/_version.py

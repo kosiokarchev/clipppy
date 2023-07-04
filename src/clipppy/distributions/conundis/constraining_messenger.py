@@ -16,3 +16,6 @@ class ConstrainingMessenger(Messenger):
     def _pyro_sample(self, msg: _Site):
         if (name := msg['name']) in self.ranges:
             msg['fn'] = ConUnDisMixin.new_constrained(msg['fn'], *self.ranges[name])
+
+    def __repr__(self):
+        return f'{type(self).__name__}{tuple(self.ranges.keys())}'

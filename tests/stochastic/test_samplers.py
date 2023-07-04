@@ -7,7 +7,7 @@ from torch.distributions.constraints import positive
 
 from clipppy.stochastic.sampler import (
     Param, Sampler, Deterministic, Factor,
-    PseudoSampler, Context, UnbindEffect
+    PseudoSampler, Context, UnbindEffect, UnsqueezeEffect, MovedimEffect
 )
 from clipppy.utils import Sentinel
 
@@ -37,6 +37,14 @@ class TestEffects:
     def test_unbind_effect(self):
         assert all(a.shape == (5,) for a in UnbindEffect(torch.rand(5, 6))())
         assert all(a.shape == (6,) for a in UnbindEffect(torch.rand(5, 6), dim=0)())
+
+    def test_unsqueeze_effect(self):
+        assert UnsqueezeEffect(torch.rand(5, 6))().shape == (5, 6, 1)
+        assert UnsqueezeEffect(torch.rand(5, 6), dim=1)().shape == (5, 1, 6)
+
+    def test_movedim_effect(self):
+        assert MovedimEffect(torch.rand(5, 3, 6))().shape == (6, 5, 3)
+        assert MovedimEffect(torch.rand(5, 3, 6), source=1, destination=2)().shape == (5, 6, 3)
 
 
 def test_param():

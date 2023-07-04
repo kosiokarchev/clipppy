@@ -21,7 +21,7 @@ from ..distributions.extra_dimensions import LeftIndependent
 
 __all__ = (
     'AbstractSampler', 'NamedSampler', 'ConcreteSampler', 'PseudoSampler', 'NamedPseudoSampler',
-    'Context', 'Effect', 'UnbindEffect',
+    'Context', 'Effect', 'UnbindEffect', 'UnsqueezeEffect', 'MovedimEffect',
     'Sampler', 'Param', 'Deterministic', 'Factor')
 
 
@@ -91,6 +91,12 @@ class UnbindEffect(Effect[Tensor, Tensor]):
 class UnsqueezeEffect(Effect[Tensor, Tensor]):
     def __init__(self, func_or_val: _ps_func_t, call: _ps_call_t = PseudoSampler.call, dim=-1):
         super().__init__(partial(torch.unsqueeze, dim=dim), func_or_val, call)
+
+
+class MovedimEffect(Effect[Tensor, Tensor]):
+    def __init__(self, func_or_val: _ps_func_t, call: _ps_call_t = PseudoSampler.call, source=-1, destination=0):
+        super().__init__(partial(torch.movedim, source=source, destination=destination), func_or_val, call)
+
 
 # TODO: MultiEffect: a lightweight Stochastic alternative?
 # @dataclass

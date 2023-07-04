@@ -17,8 +17,8 @@ def _scheduled_optimizer(lr_scheduler_cls, optimizer_cls, scheduler_kwargs, clip
     )
 
 
-def scheduled_optimizer(lr_scheduler_cls: Type[pyro.optim.PyroLRScheduler],
-                        optimizer_cls: Type[torch.optim.lr_scheduler._LRScheduler],
+def scheduled_optimizer(lr_scheduler_cls: Type[torch.optim.lr_scheduler._LRScheduler],
+                        optimizer_cls: Type[torch.optim.Optimizer],
                         clip_args=None, **scheduler_kwargs):
     return partial(_scheduled_optimizer, lr_scheduler_cls, optimizer_cls, {**{'verbose': True, **scheduler_kwargs}}, clip_args)
 

@@ -30,8 +30,8 @@ class DistributionWrapper(TorchDistribution):
 
     def __init__(self, base_dist: _Distribution, batch_shape: _size = None, event_shape: _size = None, validate_args=None):
         super().__init__(
-            Size(batch_shape is not None and batch_shape or base_dist.batch_shape),
-            Size(event_shape is not None and event_shape or base_dist.event_shape),
+            Size(batch_shape if batch_shape is not None else base_dist.batch_shape),
+            Size(event_shape if event_shape is not None else base_dist.event_shape),
             validate_args=validate_args,
         )
         self.base_dist = base_dist

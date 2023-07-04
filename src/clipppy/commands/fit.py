@@ -15,7 +15,7 @@ class Fit(OptimizingCommand[PyroOptim, ELBO]):
     def _instantiate_optimizer(self, kwargs):
         return self.optimizer_cls(kwargs)
 
-    loss_cls = Trace_ELBO
+    loss_cls = Trace_ELBO()
 
     def step(self, *args, svi: SVI, **kwargs):
         return svi.step(*args, **kwargs)

@@ -140,12 +140,11 @@ class OptimizingCommand(Command, Generic[_OptimizerT, _LossT], ABC):
     callback: Union[_CallbackT, Iterable[_CallbackT]] = None
     """Callback to be executed after each step (or an iterable of such).
 
-       Signature should be ``callback(command, i, loss, kwargs)``, where
+       Signature should be ``callback(command, i, loss, args, kwargs)``, where
           - ``command`` is the `OptimizingCommand` instance
           - ``i`` is the current step index,
           - ``loss`` is the current loss,
-          - ``kwargs`` is a dictionary of the parameters passed to the fitting
-            function.
+          - ``args``, ``kwargs`` are the parameters passed to `forward`.
        Returning any ``True`` value interrupts the optimization. If multiple
        callbacks are supplied, all of them are still executed, even if some of
        them request interruption."""

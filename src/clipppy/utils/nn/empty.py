@@ -4,8 +4,9 @@ from torch.nn import Module
 
 
 class EmptyModule(Module):
+    # noinspection PyUnusedLocal
     @staticmethod
-    def forward(a): return a
+    def forward(a, *args, **kwargs): return a
 
 
 _empty_module = EmptyModule()

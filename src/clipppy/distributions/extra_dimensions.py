@@ -88,7 +88,7 @@ class ExtraDimensions(DistributionWrapper):
 
 class ExtraBatched(ExtraDimensions):
     def __init__(self, base_dist: _Distribution, extra_shape: _size, validate_args=None):
-        super().__init__(base_dist, extra_shape=extra_shape, batch_shape=base_dist.batch_shape + extra_shape, validate_args=validate_args)
+        super().__init__(base_dist, extra_shape=extra_shape, batch_shape=base_dist.batch_shape + _sizeify(extra_shape), validate_args=validate_args)
 
 
 class ExtraIndependent(ExtraDimensions):
