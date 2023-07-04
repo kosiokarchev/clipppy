@@ -46,6 +46,7 @@ jinja = ["jinja"]
 lightning = ["pytorch_lightning"]
 emcee = ["emcee"]
 zarr = ["zarr"]
+netcdf = ["netCDF4"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

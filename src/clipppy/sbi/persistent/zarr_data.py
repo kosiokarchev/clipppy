@@ -12,7 +12,7 @@ from more_itertools import all_equal, one, unique_everseen
 from torch import Tensor
 from torch.utils.data import Dataset
 
-from .data import _ValuesT
+from ..data import _ValuesT
 
 
 _T = TypeVar('_T')
