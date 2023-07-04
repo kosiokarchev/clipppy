@@ -23,8 +23,8 @@ from torch.distributions import Distribution
 from torch.nn import Module
 from typing_extensions import TypeAlias
 
-# TODO: dependence on phytorch, uplot
-from phytorch.utils import _mid_many, ravel_multi_index
+# TODO: dependence on uplot
+from phytorchx import mid_many, ravel_multi_index
 from uplot import imshow_with_cbar, midtraffic
 
 from ...sbi.nn import BaseSBIHead, MultiSBITail

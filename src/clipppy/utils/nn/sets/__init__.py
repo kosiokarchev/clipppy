@@ -10,6 +10,7 @@ from torch import Tensor
 from torch.nn import Module, ModuleList
 from typing_extensions import TypeAlias
 
+from phytorchx import broadcast_gather, broadcast_cat
 from ..attrs import AttrsModule
 
 

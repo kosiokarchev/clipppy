@@ -7,7 +7,7 @@ import attr
 from torch import nn, Tensor
 from torch.nn import Module
 
-from phytorch.utils.broadcast import broadcast_cat
+from phytorchx import broadcast_cat
 
 from ...sbi.nn import BaseSBITail
 from ...utils.nn import LazyWhitenOnline

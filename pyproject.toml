@@ -29,7 +29,8 @@ dependencies = [
     "python-forge",
     "pyro-ppl",
     "torch>=1.11",
-    "pytorch-lightning"
+    "pytorch-lightning",
+    "phytorchx"
 ]
 
 dynamic = ["version"]
