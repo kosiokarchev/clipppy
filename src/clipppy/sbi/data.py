@@ -216,3 +216,15 @@ class CPDataset(ClipppyDataset):
     @staticmethod
     def get_constrained_log_probs(trace: ClipppyTrace):
         return trace.compute_constrained_log_prob()
+
+
+@dataclass
+class CPWeightingPipe(IterableDataset[_WeightedT]):
+    dataset: CPDataset
+
+    def __iter__(self):
+        return self
+
+    def __next__(self) -> _WeightedT:
+        trace = self.dataset.get_trace()
+        return self.dataset.get_values(trace), self.dataset.get_constrained_log_probs(trace)

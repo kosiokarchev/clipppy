@@ -6,14 +6,14 @@ from frozendict import frozendict
 from torch.optim import Adam
 
 from .config import BaseSchedulerConfig, Config, DataLoaderConfig, DatasetConfig, OptimizerConfig, SchedulerConfig
-from .hyper import nested_iterables
+from .hyper import nested_iterables, Hyperparams
 from .loss import BaseSBILoss
 from .patches import LightningModule
 from .. import Command
 from ... import clipppy
-from ...sbi._typing import DEFAULT_LOSS_NAME, DEFAULT_VAL_NAME, SBIBatch
+from ...sbi._typing import DEFAULT_LOSS_NAME, DEFAULT_VAL_NAME, SBIBatch, _KT
 from ...sbi.data import ClipppyDataset, SBIDataset
-from ...sbi.nn import _HeadOoutT, _HeadPoutT, _KT, _TailOutT, BaseSBIHead, BaseSBITail
+from ...sbi.nn import _HeadOoutT, _HeadPoutT, _TailOutT, BaseSBIHead, BaseSBITail
 from ...utils import Sentinel
 
 
@@ -125,3 +125,20 @@ class LightningSBICommand(Command, LightningModule, Generic[_TailOutT, _LossT]):
 
     def on_load_checkpoint(self, checkpoint: dict[str, Any]):
         self.head, self.tail = checkpoint['clipppy_nets']
+
+    def set_training(self, hp: Hyperparams, max_batch: int):
+        # Learning rate
+        self.lr = hp.training.lr
+
+        # Scheduler
+        if hp.training.scheduler:
+            self.scheduler_config = hp.training.scheduler.make()
+
+        # Batch size
+        assert (hp.training.batch_size < max_batch
+                or not hp.training.batch_size % max_batch)
+        memory_batch_size = min(hp.training.batch_size, max_batch)
+        accumulate_grad_batches = hp.training.batch_size // memory_batch_size
+        self.dataset_config.kwargs['batch_size'] = memory_batch_size
+
+        return memory_batch_size, accumulate_grad_batches

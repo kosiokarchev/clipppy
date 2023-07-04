@@ -18,13 +18,17 @@ __all__ = (
 )
 
 
+class BaseNRETail(BaseSBITail[Tensor, Tensor, Tensor]):
+    pass
+
+
 @attr.s(auto_attribs=True, eq=False)
-class NRETail(BaseSBITail[Tensor, Tensor, Tensor]):
+class NRETail(BaseNRETail):
     net: Module = attr.ib(default=_empty_module)
     thead: Module = attr.ib(default=_empty_module)
     xhead: Module = attr.ib(default=_empty_module)
 
-    def forward(self, theta: Tensor, x: Tensor) -> Tensor:
+    def forward(self, theta: Tensor, x: Tensor, **kwargs) -> Tensor:
         ts = (self.thead(theta), self.xhead(x))
         shape = torch.broadcast_shapes(*(t.shape[:-1] for t in ts))
         return self.net(torch.cat(tuple(t.expand(*shape, t.shape[-1]) for t in ts), -1)).squeeze(-1)
@@ -49,17 +53,23 @@ class IUWhiteningTail(UWhiteningTail):
     ihead: Module = attr.ib(default=_empty_module)
     shead: Module = attr.ib(default=_empty_module)
 
-    additional: Union[Tensor, Literal[False]] = None
+    _additional: Union[Tensor, Literal[False]] = None
     subsample: int = None
     summarize: bool = False
 
+    def get_additional(self, hint):
+        if not hasattr(self, 'additional'):
+            self.register_buffer(
+                'additional',
+                self._additional if torch.is_tensor(self._additional)
+                else torch.linspace(-1, 1, hint.shape[-2], device=hint.device, dtype=hint.dtype).unsqueeze(-1)
+            )
+        return self.additional
+
     def forward(self, theta: Tensor, x: tuple[Tensor, Tensor]) -> Tensor:
         args = self.thead(theta), self.xhead(x[0])
-        if self.additional is not False:
-            args += self.ihead(
-                self.additional if torch.is_tensor(self.additional)
-                else torch.linspace(-1, 1, args[0].shape[-2]).unsqueeze(-1),
-            ),
+        if self._additional is not False:
+            args += self.ihead(self.get_additional(args[0])),
         if self.summarize:
             args += self.shead(x[1].unsqueeze(-2)),
 

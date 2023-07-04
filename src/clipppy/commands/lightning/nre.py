@@ -24,8 +24,14 @@ class NRE(LightningSBICommand[Tensor, NRELoss]):
         theta_1, x_1 = self.head(batches[0].params, batches[0].obs)
         theta_2, x_2 = self.head(batches[1].params, batches[1].obs)
 
-        ret_1 = self.lossfunc(self.tail(theta_1, x_1), self.tail(theta_2, x_1))
-        ret_2 = self.lossfunc(self.tail(theta_2, x_2), self.tail(theta_1, x_2))
+        ret_1 = self.lossfunc(
+            self.tail(theta_1, x_1), self.tail(theta_2, x_1),
+            # batches[0].weight, batches[0].weight
+        )
+        ret_2 = self.lossfunc(
+            self.tail(theta_2, x_2), self.tail(theta_1, x_2),
+            # batches[1].weight, batches[1].weight
+        )
 
         loss = (ret_1.loss + ret_2.loss) / 2
 

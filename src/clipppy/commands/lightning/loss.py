@@ -110,9 +110,11 @@ class GANPELoss(SBILoss):
 
 
 class NRELoss(SBILoss):
-    def _loss(self, log_ratio_joint: Tensor, log_ratio_marginal: Tensor):
-        return - (logsigmoid(log_ratio_joint) + logsigmoid(-log_ratio_marginal))
+    def _loss(self, log_ratio_joint: Tensor, log_ratio_marginal: Tensor,
+              weight_joint: Union[Tensor, Number] = 1., weight_marginal: Union[Tensor, Number] = 1.):
+        return - (weight_joint * logsigmoid(log_ratio_joint) +
+                  weight_marginal * logsigmoid(-log_ratio_marginal))
 
     if TYPE_CHECKING:
-        def __call__(self, log_ratio_joint: _Tree[Tensor], log_ratio_marginal: _Tree[Tensor],
-                     weight_joint: _Tree[Union[Tensor, Number]] = 1., weight_marginal: _Tree[Union[Tensor, Number]] = 1.) -> BaseSBILoss.ReturnT: ...
+        def __call__(self, log_ratio_joint: _Tree[Tensor], log_ratio_marginal: _Tree[Tensor]) -> BaseSBILoss.ReturnT: ...
+                     # weight_joint: _Tree[Union[Tensor, Number]] = 1., weight_marginal: _Tree[Union[Tensor, Number]] = 1.

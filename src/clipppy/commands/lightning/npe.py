@@ -6,9 +6,9 @@ from .command import LightningSBICommand
 from .config import Config
 from .loss import NPELoss
 from ..npe.nn import NPEResult
-from ...sbi._typing import SBIBatch
+from ...sbi._typing import SBIBatch, _KT
 from ...sbi.data import GASBIDataset
-from ...sbi.nn import _KT, BaseGASBITail
+from ...sbi.nn import BaseGASBITail
 from ...utils import Sentinel
 
 
