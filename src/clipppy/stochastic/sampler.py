@@ -209,7 +209,6 @@ class ConcreteSampler(NamedSampler, ABC):
 
 @dataclass
 class _Sampler(ConcreteSampler, ABC):
-    expand: torch.Size = torch.Size()
     expand_by: Union[torch.Size, Iterable[int]] = torch.Size()
     to_event: int = None
     indep: Union[torch.Size, Iterable[int]] = torch.Size()
@@ -236,7 +235,6 @@ class Sampler(_Sampler):
                  # ConcreteSampler
                  init: torch.Tensor = _Sampler.init, support: Constraint = _Sampler.support,
                  # _Sampler
-                 expand: Union[torch.Size, Iterable[int]] = _Sampler.expand,
                  expand_by: Union[torch.Size, Iterable[int]] = _Sampler.expand_by,
                  to_event: int = _Sampler.to_event,
                  indep: Union[torch.Size, Iterable[int]] = _Sampler.indep,
@@ -263,13 +261,11 @@ class Sampler(_Sampler):
         pops out.
         """
         d = first_true(iterate(caller, self.d), pred=_Distribution.__instancecheck__)
+        if self.expand_by:
+            d = d.expand_by(self.expand_by)
         if self.indep:
             d = LeftIndependent(d.expand_by(indep := torch.Size(self.indep)), len(indep))
-        d = d.expand_by(self.expand_by)
-        return d.expand(
-            d.batch_shape[:-len(self.expand)] + torch.broadcast_shapes(
-                d.batch_shape[-len(self.expand):], self.expand)
-        ).to_event(self.to_event)
+        return d.to_event(self.to_event)
 
     def __call__(self):
         # callables in self.d should not be wrapped in self.infer_msgr
