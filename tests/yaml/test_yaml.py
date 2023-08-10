@@ -1,8 +1,6 @@
 import io
-import operator
 import os
 import sys
-from operator import attrgetter, is_, itemgetter
 from pathlib import Path
 from warnings import catch_warnings, filterwarnings
 
@@ -11,6 +9,7 @@ import torch
 from pytest import fixture, mark, raises
 
 from clipppy import Clipppy, load, load_config, loads
+from clipppy.utils.importing import operator
 from clipppy.yaml import cwd
 from clipppy.yaml.tagger import NodeTypeMismatchError
 
@@ -23,6 +22,7 @@ def reveal_args(*args, **kwargs):
 
 
 def test_basic():
+    from operator import is_, itemgetter
     assert is_(*itemgetter('a', 'b')(loads('''
         a: &name {key1: value1, key2: value2}
         b: *name
@@ -69,6 +69,8 @@ def test_py():
 
     assert loads('!py:print ') is print
     assert loads('!py:str.join [" ", [Hooray, for, Python!]]') == str.join(' ', ['Hooray', 'for', 'Python!'])
+
+    from operator import itemgetter
     assert loads('''
         !py:sorted
             <: [[[a, 42], [c, 26], [b, 13]]]
@@ -83,7 +85,7 @@ def test_py():
 
 
 @mark.parametrize('name, modname', (
-    ('numpy', 'numpy'), ('np', 'numpy'), ('torch', 'torch'), ('op', 'operator')
+    ('numpy', 'numpy'), ('np', 'numpy'), ('torch', 'torch'), ('op', 'clipppy.utils.importing.operator')
 ))
 def test_preimported_modules(name, modname):
     assert loads(f'!eval {name}') is sys.modules[modname]
@@ -95,6 +97,8 @@ def test_starimport_operator(name):
 
 
 def test_import():
+    from operator import attrgetter, itemgetter
+
     scope = {}
     assert loads('''
         _: !import

@@ -10,7 +10,8 @@ from clipppy import loads
 
 @mark.parametrize('name, res', {
     '==': op.eq, 'ne': op.ne, 'lt': op.lt, 'le': op.le, 'gt': op.gt, 'ge': op.ge,
-    '+': op.add, '-': op.sub, '*': op.mul, '/': op.truediv, '@': op.matmul
+    '+': op.add, '-': op.sub, '*': op.mul, '/': op.truediv,
+    '@': op.matmul, '**': op.pow
 }.items())
 @given(*2*(arrays(float, (3, 3), elements=st.floats(
     min_value=1, allow_nan=False, allow_infinity=False)),))
@@ -32,6 +33,12 @@ def test_getitem():
 def test_getattr():
     o = namedtuple('example', ('a',))(object())
     assert loads('!. [!py:o , a]') is o.a
+
+
+def test_call():
+    f = lambda arg, *, kw: (arg, kw)
+    a, b = object(), object()
+    assert loads('!() {/: !py:f , /: !py:a , kw: !py:b }') == (a, b)
 
 
 @given(*3*(st.one_of(st.integers(min_value=0), st.none()),))

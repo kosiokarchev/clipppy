@@ -30,7 +30,6 @@ from ..stochastic.sampler import (
 from ..stochastic.stochastic import Stochastic
 from ..utils import torch_get_default_device
 
-from ..utils.importing import get_pure_python_module
 
 __all__ = 'ClipppyYAML',
 
@@ -120,7 +119,8 @@ for func in (ClipppyYAML.txt, ClipppyYAML.npy, ClipppyYAML.npz, ClipppyYAML.pt, 
     CC.add_constructor(f'!{func.__name__}', CC.apply_bound(func, _cls=ClipppyYAML))
 
 
-op = get_pure_python_module('operator')
+# To allow pickling....
+from ..utils.importing import operator as op
 
 
 def _getattr(o, name, *args, **kwargs):
@@ -164,11 +164,10 @@ for typ in value_chain(NamedSampler._subclasses, Stochastic):
 def _register_globals():
     from . import hooks
 
-    import operator
     from .. import clipppy, stochastic, guide, helpers
-    for mod in (operator, clipppy, stochastic, guide, helpers):
+    for mod in (op, clipppy, stochastic, guide, helpers):
         CC.builtins.update(**{a: getattr(mod, a) for a in mod.__all__})
-    CC.builtins.update({'torch': torch, 'np': np, 'numpy': np, 'op': operator})
+    CC.builtins.update({'torch': torch, 'np': np, 'numpy': np, 'op': op})
 
     from ..utils import Sentinel
     CC.builtins.update({'Sentinel': Sentinel})

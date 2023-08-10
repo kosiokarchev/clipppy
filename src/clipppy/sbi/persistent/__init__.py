@@ -1,5 +1,5 @@
-from _operator import itemgetter
-from _warnings import warn
+from operator import itemgetter
+from warnings import warn
 from abc import abstractmethod
 from typing import TypeVar, Union, Any, Mapping, Optional, Collection, Sequence, Iterator
 
