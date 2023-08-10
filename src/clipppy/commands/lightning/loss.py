@@ -109,12 +109,41 @@ class GANPELoss(SBILoss):
         def __call__(self, nperes: _Tree[NPEResult], sim_log_prob_grad: _Tree[Tensor]) -> BaseSBILoss.ReturnT: ...
 
 
-class NRELoss(SBILoss):
+@dataclass
+class BaseNRELoss(SBILoss, ABC):
+    if TYPE_CHECKING:
+        def __call__(
+            self, log_ratio_joint: _Tree[Tensor], log_ratio_marginal: _Tree[Tensor],
+            weight_joint: _Tree[Union[Tensor, Number]] = 1., weight_marginal: _Tree[Union[Tensor, Number]] = 1.
+        ) -> BaseSBILoss.ReturnT: ...
+
+
+class BCENRELoss(BaseNRELoss):
     def _loss(self, log_ratio_joint: Tensor, log_ratio_marginal: Tensor,
               weight_joint: Union[Tensor, Number] = 1., weight_marginal: Union[Tensor, Number] = 1.):
         return - (weight_joint * logsigmoid(log_ratio_joint) +
                   weight_marginal * logsigmoid(-log_ratio_marginal))
 
-    if TYPE_CHECKING:
-        def __call__(self, log_ratio_joint: _Tree[Tensor], log_ratio_marginal: _Tree[Tensor]) -> BaseSBILoss.ReturnT: ...
-                     # weight_joint: _Tree[Union[Tensor, Number]] = 1., weight_marginal: _Tree[Union[Tensor, Number]] = 1.
+
+class LogisticNRELoss(BaseNRELoss):
+    def _loss(self, log_ratio_joint: Tensor, log_ratio_marginal: Tensor,
+              weight_joint: Union[Tensor, Number] = 1., weight_marginal: Union[Tensor, Number] = 1.):
+        return (weight_joint * torch.logaddexp(-log_ratio_joint, log_ratio_joint.new_zeros(())) +
+                weight_marginal * torch.logaddexp(log_ratio_marginal, log_ratio_marginal.new_zeros(())))
+
+
+class SavageNRELoss(BaseNRELoss):
+    def _loss(self, log_ratio_joint: Tensor, log_ratio_marginal: Tensor,
+              weight_joint: Union[Tensor, Number] = 1., weight_marginal: Union[Tensor, Number] = 1.):
+        return (weight_joint / (1+log_ratio_joint.exp()).square() +
+                weight_marginal / (1+(-log_ratio_marginal).exp()).square())
+
+
+@dataclass
+class ExpNRELoss(BaseNRELoss):
+    alpha: float = 1.
+
+    def _loss(self, log_ratio_joint: Tensor, log_ratio_marginal: Tensor,
+              weight_joint: Union[Tensor, Number] = 1., weight_marginal: Union[Tensor, Number] = 1.):
+        return (weight_joint / (log_ratio_joint / 2).exp() +
+                weight_marginal * (log_ratio_marginal / 2).exp())

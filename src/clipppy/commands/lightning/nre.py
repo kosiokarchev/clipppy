@@ -8,17 +8,17 @@ from torch.utils._pytree import tree_unflatten
 
 from .command import LightningSBICommand
 from .config import Config
-from .loss import NRELoss
+from .loss import BCENRELoss, BaseNRELoss
 from ...sbi._typing import SBIBatch
 from ...sbi.data import DoublePipe
 from ...utils import Sentinel
 
 
-class NRE(LightningSBICommand[Tensor, NRELoss]):
+class NRE(LightningSBICommand[Tensor, BaseNRELoss]):
     def _training_loader(self, dataset):
         return super()._training_loader(DoublePipe(dataset))
 
-    loss_config: Config[NRELoss] = Config(NRELoss(), Sentinel.no_call)
+    loss_config: Config[BaseNRELoss] = Config(BCENRELoss(), Sentinel.no_call)
 
     def _loss_tree(self, batches: tuple[SBIBatch, SBIBatch]):
         theta_1, x_1 = self.head(batches[0].params, batches[0].obs)
