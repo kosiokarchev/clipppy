@@ -15,7 +15,7 @@ from tqdm.auto import tqdm, trange
 
 from ...sbi.data import SBIDataset
 from ...utils import _KT, _T, _VT
-from ...utils.plotting.nre import _HeadT, _TailT, BaseNREPlotter, MultiNREPlotter, NREPlotter
+from ...utils.plotting._nre import _HeadT, _TailT, BaseNREPlotter, MultiNREPlotter, NREPlotter
 
 
 def get_n_batches(dataset: Iterable[_T], n: int, *funcs: Callable[[_T], _VT]) -> Sequence[list[_VT]]:

@@ -8,12 +8,26 @@ from typing import Collection, Mapping, Union
 
 import numpy as np
 import pyro
+import torch
 from corner import corner
 from matplotlib import pyplot as plt
 from pyro.poutine import Trace
 from torch import Tensor
 
 from ...guide import Guide, HPMVN
+
+
+def to_percentiles(arr: Tensor, ndim=None):
+    start_dim = arr.ndim - (ndim or arr.ndim)
+    flatarr = arr.rename(None).flatten(start_dim)
+    argsort = flatarr.argsort(-1, descending=True)
+    return (
+        torch.empty_like(flatarr, memory_format=torch.contiguous_format)
+        .scatter_(
+            -1, argsort,
+            (flatarr.take_along_dim(argsort, -1).cumsum(-1) / flatarr.sum(-1, keepdim=True))
+        ).unflatten(-1, arr.shape[start_dim:]).rename_(*arr.names)
+    )
 
 
 @dataclass
@@ -64,6 +78,14 @@ class HPMVNPlotter:
     @cached_property
     def samples_global(self):
         return {key: self.ppd[key] for key in self.names_global}
+
+    def to_dataset(self):
+        from xarray import Dataset
+
+        return Dataset({
+            key: (('chain', 'draw'), val.unsqueeze(0)) for key, val in
+            self.samples_global.items()
+        })
 
     def plot_corner(self, levels=(0.68, 0.95), plot_density=False, no_fill_contours=True, **kwargs):
         return corner(self.samples_global, truths=self.truths, **locals())

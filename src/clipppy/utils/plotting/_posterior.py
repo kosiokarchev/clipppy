@@ -11,7 +11,7 @@ from matplotlib.colors import Colormap, LinearSegmentedColormap
 from torch import Tensor
 from typing_extensions import TypeAlias
 
-from .nre import to_percentiles
+from ._nre import to_percentiles
 
 
 _truthT: TypeAlias = float
