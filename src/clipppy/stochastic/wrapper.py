@@ -22,6 +22,9 @@ class FunctionWrapper:
         self.func = func
         update_wrapper(self, func)
 
+    def __reduce__(self):
+        return FunctionWrapper, (self.func,)
+
     def __call__(self, *args, **kwargs):
         return self.func(*args, **kwargs)
 
@@ -40,7 +43,7 @@ class Wrapper(Generic[_T]):
 
         if not final:
             cls._wrapped_registry = {}
-            cls.__new__ = update_wrapper(copy_function(cls.__new__), cls.__init__)
+            cls.__new__ = update_wrapper(copy_function(cls.__new__), cls.__init__, ('__annotations__',))
 
     def __class_getitem__(cls, item: Type):
         if isinstance(item, TypeVar):
@@ -58,10 +61,12 @@ class Wrapper(Generic[_T]):
         self._wrapped_obj = obj
         return self
 
+    _new__ = __new__
+
     # super().__init__'s should stop here
     def __init__(self, *args, **kwargs): pass
 
-    __slots__ = '_wrapped_obj'
+    __slots__ = '_wrapped_obj',
 
     def __getstate__(self):
         return {attr: getattr(self, attr) for t in type(self).__mro__
@@ -72,20 +77,12 @@ class Wrapper(Generic[_T]):
 
     def __reduce__(self):
         wrapper_class = type(self).__bases__[0]
-        return wrapper_class.__new__, (wrapper_class, self._wrapped_obj,), self.__getstate__()
+        return wrapper_class._new__, (wrapper_class, self._wrapped_obj,), self.__getstate__()
 
 
 class CallableWrapper(Wrapper[_T], ABC):
-    __slots__ = '_call__'
+    def __init_subclass__(cls, final=False, **kwargs):
+        super().__init_subclass__(final=final, **kwargs)
 
-    def __getattribute__(self, item):
-        if item == '__call__':
-            return self._call__
-        return super().__getattribute__(item)
-
-    def __init__(self, obj, /, *args, **kwargs):
-        self._call__ = update_wrapper(copy(type(self).__call__), type(obj).__call__)
-
-    @abstractmethod
-    def __call__(self, *args, **kwargs):
-        return super().__call__(*args, **kwargs)
+        if final:
+            cls.__call__ = update_wrapper(copy(cls.__call__), cls.__bases__[1].__call__)

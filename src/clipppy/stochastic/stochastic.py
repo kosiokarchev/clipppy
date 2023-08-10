@@ -27,7 +27,7 @@ __all__ = 'Stochastic', 'StochasticSpecs', 'StochasticScope'
 class StochasticScope(AllEncapsulator[_T]):
     """A wrapper that introduces a `pyro.contrib.autoname.scope`."""
 
-    __slots__ = 'stochastic_name'
+    __slots__ = 'stochastic_name',
 
     if TYPE_CHECKING:
         def __new__(cls: Type[_cls], obj: _T, *args, **kwargs) -> Union[_cls, _T]: ...
@@ -166,12 +166,12 @@ class Stochastic(StochasticScope[_T]):
     `~functools.partial`).
     """
 
-    __slots__ = 'stochastic_specs'
+    __slots__ = 'stochastic_specs',
 
     if TYPE_CHECKING:
         def __new__(cls: Type[_cls], obj: _T, *args, **kwargs) -> Union[_cls, _T]: ...
 
-    def _init__(self, obj, specs: StochasticSpecs = None,
+    def _init__(self, obj, specs: StochasticSpecs = (),
                 capsule: Capsule = None, capsule_args: Iterable[Capsule] = (),
                 capsule_kwargs: Mapping[str, Capsule] = frozendict(),
                 name: str = None):

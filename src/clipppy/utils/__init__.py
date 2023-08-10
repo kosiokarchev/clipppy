@@ -77,6 +77,10 @@ def noop(*args, **kwargs): pass
 class Sentinel(enum.Enum):
     sentinel, skip, empty, call, no_call, pos, mergepos, merge = (object() for _ in range(8))
 
+    # TODO: >=3.11: enum.pickle_by_enum_name
+    def __reduce_ex__(self, proto):
+        return getattr, (self.__class__, self._name_)
+
     def __repr__(self):
         return f'{type(self).__name__}.{self.name}'
 
