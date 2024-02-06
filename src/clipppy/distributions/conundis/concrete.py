@@ -19,11 +19,11 @@ except ImportError:
     gammainccinv = partial(call_nontensor, sp.gammainccinv)
 
 
-Uniform, Normal, HalfNormal, Exponential, Cauchy, HalfCauchy = (
+Uniform, Normal, HalfNormal, Exponential, Cauchy, HalfCauchy, Pareto = (
     new_class(cls.__name__, (ConUnDisMixin[cls], cls), dict(register=cls),
               lambda ns: ns.update({'__module__': __name__}))
     for cls in (dist.Uniform, dist.Normal, dist.HalfNormal, dist.Exponential,
-                dist.Cauchy, dist.HalfCauchy)
+                dist.Cauchy, dist.HalfCauchy, dist.Pareto)
 )
 
 

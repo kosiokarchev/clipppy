@@ -116,17 +116,16 @@ class ConUnDisMixin(ConstrainedDistribution, Generic[_DT], ABC, final_constraine
     @cached_property
     def lower_prob(self):
         return _maybe_item(
-            super().cdf(torch.as_tensor(self.constraint_lower))
-            if self.constraint_lower is not None else 0.,
+            super().cdf(torch.as_tensor(self.constraint_lower)),
             self.constraint_lower
-        )
+        ) if self.constraint_lower not in (None, -inf) else 0.
 
     @cached_property
     def upper_prob(self):
         return _maybe_item(
-            super().cdf(torch.as_tensor(self.constraint_upper)) if self.constraint_upper is not None else 1.,
+            super().cdf(torch.as_tensor(self.constraint_upper)),
             self.constraint_upper
-        )
+        ) if self.constraint_upper not in (None, inf) else 1.
 
     @cached_property
     def constrained_prob(self):
