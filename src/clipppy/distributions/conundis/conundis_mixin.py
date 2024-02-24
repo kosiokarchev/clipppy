@@ -19,7 +19,7 @@ _constraintT: TypeAlias = Optional[_t]
 
 
 def _maybe_item(val: Tensor, *maybe_tensors: _t):
-    return val.item() if val.numel() == 1 and not any(map(is_tensor, maybe_tensors)) else val
+    return val.item() if val.numel() == 1 and not val.requires_grad and not any(map(is_tensor, maybe_tensors)) else val
 
 
 def _tensor_func(
