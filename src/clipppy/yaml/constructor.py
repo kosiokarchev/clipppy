@@ -39,7 +39,7 @@ class ClipppyConstructor(ScopeMixin, TaggerMixin, Constructor):
             return sig.bind()
 
         return (None if (val := self.yaml_constructors[
-            self.resolver.resolve(ScalarNode, node.value, (True, False))
+            self.resolver.resolve(ScalarNode, node.value, (True, False)).suffix
         ](self, node)) is None else sig.bind(val))
 
     def bind_sequence(self, node: SequenceNode, sig: Signature):
@@ -138,10 +138,10 @@ class ClipppyConstructor(ScopeMixin, TaggerMixin, Constructor):
         else:
             sig = sig.signature.bind_partial(*sig.args, **{**sig.kwargs, **kwargs})
 
-            # try:
-            return obj(*sig.args, **sig.kwargs)
-            # except Exception as e:
-            #     raise TypeError(f'''Could not instantiate\nobj: {obj}\n*args: {sig.args}\n**kwargs: {sig.kwargs}.''')
+            try:
+                return obj(*sig.args, **sig.kwargs)
+            except Exception as e:
+                raise TypeError(f'''Could not instantiate\nobj: {obj}\n*args: {sig.args}\n**kwargs: {sig.kwargs}.''')
 
 
     @classmethod

@@ -3,6 +3,7 @@ from __future__ import annotations
 import inspect
 import io
 import os
+import pickle
 from collections import ChainMap
 from contextlib import contextmanager
 from functools import lru_cache, partial
@@ -17,6 +18,7 @@ import torch
 from more_itertools import value_chain
 from ruamel.yaml import Node, YAML
 
+import phytorchx
 # TODO: .resolver comes before .constructor!
 from .resolver import ClipppyResolver, ImplicitClipppyResolver
 from .constructor import ClipppyConstructor as CC
@@ -28,7 +30,7 @@ from ..stochastic.sampler import (
     Context, Deterministic, Effect, Factor, NamedSampler, Param, PseudoSampler,
     Sampler, UnbindEffect, UnsqueezeEffect, MovedimEffect)
 from ..stochastic.stochastic import Stochastic
-from ..utils import torch_get_default_device
+from ..utils import Sentinel
 
 
 __all__ = 'ClipppyYAML',
@@ -52,6 +54,10 @@ def determine_scope(scope: Union[Mapping[str, Any], FrameType] = None):
     return ChainMap(scope.f_locals, scope.f_globals, scope.f_builtins)
 
 
+def _pickle_load_str(fname: str):
+    return pickle.load(open(fname, 'rb'))
+
+
 class ClipppyYAML(YAML):
     @lru_cache(typed=True)
     def _load_file(self, loader: Callable, *args, **kwargs):
@@ -60,6 +66,10 @@ class ClipppyYAML(YAML):
     @staticmethod
     def eval(loader: CC, node: Node):
         return eval(node.value, {}, loader.scope)
+
+    def pickle(self, fname: str, key=Sentinel.skip):
+        data = self._load_file(_pickle_load_str, fname)
+        return data if key is Sentinel.skip else data[key]
 
     @forge.sign(forge.self, *forge.fsignature(np.loadtxt))
     def txt(self, *args, **kwargs):
@@ -74,7 +84,7 @@ class ClipppyYAML(YAML):
         return data if key is None else data[key]
 
     def pt(self, fname: str, key: str = None, **kwargs):
-        kwargs.setdefault('map_location', torch_get_default_device())
+        kwargs.setdefault('map_location', phytorchx.get_default_device())
         data = self._load_file(torch.load, fname, **kwargs)
         return data if key is None else data[key]
 
@@ -115,7 +125,7 @@ CC.add_multi_constructor('!py:', CC.apply_bound_prefixed(CC.resolve_name))
 
 CC.add_constructor('!eval', ClipppyYAML.eval)
 
-for func in (ClipppyYAML.txt, ClipppyYAML.npy, ClipppyYAML.npz, ClipppyYAML.pt, ClipppyYAML.trace):
+for func in (ClipppyYAML.pickle, ClipppyYAML.txt, ClipppyYAML.npy, ClipppyYAML.npz, ClipppyYAML.pt, ClipppyYAML.trace):
     CC.add_constructor(f'!{func.__name__}', CC.apply_bound(func, _cls=ClipppyYAML))
 
 

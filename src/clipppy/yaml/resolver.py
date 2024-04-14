@@ -4,7 +4,7 @@ import re
 from functools import partial
 from typing import Type, Union
 
-from ruamel.yaml import MappingNode, Node, ScalarNode, SequenceNode, VersionedResolver
+from ruamel.yaml import MappingNode, Node, ScalarNode, SequenceNode, VersionedResolver, Tag
 
 from .constructor import ClipppyConstructor
 from ..clipppy import Clipppy
@@ -26,7 +26,7 @@ class ClipppyResolver(VersionedResolver):
 
     # bugfix
     def resolve(self, kind: Type[Node], value, implicit: tuple[bool, bool]):
-        if issubclass(kind, ScalarNode) and implicit[0]:
+        if kind is ScalarNode and implicit[0]:
             if value == "":
                 resolvers = self.versioned_resolver.get("", [])
             else:
@@ -34,18 +34,19 @@ class ClipppyResolver(VersionedResolver):
             resolvers += self.versioned_resolver.get(None, [])
             for tag, regexp in resolvers:
                 if regexp.match(value):
-                    return tag
+                    return Tag(suffix=tag)
+        # bugfix: check self.resolver_exact_paths[-1] exists
         if self.yaml_path_resolvers and self.resolver_exact_paths:
             exact_paths = self.resolver_exact_paths[-1]
             if kind in exact_paths:
-                return exact_paths[kind]
+                return Tag(suffix=exact_paths[kind])
             if None in exact_paths:
-                return exact_paths[None]
-        if issubclass(kind, ScalarNode):
+                return Tag(suffix=exact_paths[None])
+        if kind is ScalarNode:
             return self.DEFAULT_SCALAR_TAG
-        elif issubclass(kind, SequenceNode):
+        elif kind is SequenceNode:
             return self.DEFAULT_SEQUENCE_TAG
-        elif issubclass(kind, MappingNode):
+        elif kind is MappingNode:
             return self.DEFAULT_MAPPING_TAG
 
 

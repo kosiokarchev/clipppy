@@ -12,5 +12,6 @@ def parse(fname: Union[str, PathLike[str]], **kwargs):
     fname = Path(fname)
     return io.StringIO(Environment(
         loader=FileSystemLoader(fname.parent),
-        undefined=StrictUndefined
+        undefined=StrictUndefined,
+        trim_blocks=True, lstrip_blocks=True
     ).from_string(open(fname).read()).render(**kwargs))

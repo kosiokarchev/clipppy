@@ -26,7 +26,7 @@ dependencies = [
     "frozendict",
     "more-itertools",
     "typing-extensions",
-    "ruamel.yaml",
+    "ruamel.yaml>=0.17.29",
     "python-forge",
     "pyro-ppl",
     "torch>=1.11",
