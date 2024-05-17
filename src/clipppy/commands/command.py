@@ -4,7 +4,7 @@ import inspect
 from abc import ABC, abstractmethod
 from contextlib import nullcontext
 from functools import lru_cache
-from typing import Any, ContextManager, get_type_hints, Iterable, Union
+from typing import Any, ContextManager, get_type_hints, Iterable, Union, TypedDict
 
 import pyro
 import pyro.optim
@@ -32,7 +32,10 @@ class Command(ABC):
     forward call has explicit parameters with the same names.
     """
 
-    commander: commandable.Commandable
+    class _KwargsT(TypedDict, total=False):
+        plate_stack: Union[Iterable[int], ContextManager, Any]
+
+    commander: commandable.Commandable = None
 
     boundkwargs: dict
     """A dictionary of values to be forwarded to each call of `forward`,
@@ -57,7 +60,7 @@ class Command(ABC):
     def forward(self, *args, **kwargs): ...
 
     def __call__(self, *args, **kwargs):
-        oldkwargs = {name: getattr(self, name) for name in self.attr_names}
+        oldkwargs = {name: getattr(self, name) for name in self.attr_names if hasattr(self, name)}
         try:
             kwargs = self.setattr(kwargs)
             allowed = inspect.signature(self.forward).parameters
@@ -67,6 +70,9 @@ class Command(ABC):
             })
         finally:
             self.setattr(oldkwargs)
+            for key in kwargs.keys() - oldkwargs.keys():
+                if hasattr(self, key):
+                    delattr(self, key)
 
     @classmethod
     def get_type_hints(cls):

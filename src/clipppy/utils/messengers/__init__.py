@@ -2,17 +2,32 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import partial
-from typing import Callable, Collection
+from typing import Callable, Collection, Mapping
 
+import pyro.distributions
 import torch
+from more_itertools import last
+from pyro.distributions import Uniform, ExpandedDistribution
 from pyro.infer.autoguide.initialization import InitMessenger
 from pyro.poutine import NonlocalExit
 from pyro.poutine.escape_messenger import EscapeMessenger
 from pyro.poutine.messenger import Messenger
 from torch import Tensor
+from torch.distributions import Independent
+from torch.distributions.transforms import CumulativeDistributionTransform
 
-from ..pyro import is_stochastic_site
+from ..pyro import is_stochastic_site, make_deterministic
 from ..typing import _Site
+from ...distributions.wrapper import unwrap_only
+
+
+class DeltaConditioningMessenger(Messenger):
+    def __init__(self, data: Mapping[str, Tensor]):
+        self.data = data
+
+    def _pyro_sample(self, msg: _Site):
+        if (name := msg['name']) in self.data:
+            msg['fn'] = pyro.distributions.Delta(self.data[name], event_dim=self.data[name].ndim).expand(msg['fn'].batch_shape)
 
 
 class PostEscapeMessenger(EscapeMessenger):
@@ -45,6 +60,39 @@ class CollectSitesMessenger(UpToMessenger, dict[str, _Site]):
             self[msg['name']] = msg
         return super().escape_fn(msg)
 
+    def as_valuedict(self) -> dict[str, Tensor]:
+        return {key: site['value'] for key, site in self.items() if 'value' in site}
+
+
+class UnitCubePrior(CollectSitesMessenger):
+    @staticmethod
+    def _ucp_name(name):
+        return f'_ucp_{name}'
+
+    def _pyro_sample(self, msg: _Site):
+        if msg['name'] in self.names:
+            fn = msg['fn']
+            make_deterministic(
+                msg,
+                CumulativeDistributionTransform(
+                    last(unwrap_only(fn, (Independent, ExpandedDistribution)))
+                ).inv(pyro.sample(
+                    self._ucp_name(msg['name']),
+                    Uniform(0, 1).expand(fn.shape()).to_event(fn.event_dim)
+                )),
+                fn.event_dim
+            )
+
+
+class SimpleReplayMessenger(Messenger):
+    def __init__(self, values: Mapping[str, Tensor]):
+        self.values = values
+
+    def _pyro_sample(self, msg: _Site):
+        if (name := msg['name']) in self.values:
+            msg['value'] = self.values[name]
+            msg['done'] = True
+
 
 @dataclass
 class ModifyValueMessenger(Messenger):
@@ -62,6 +110,7 @@ class ModifyValueMessenger(Messenger):
 
 RequiresGradMessenger = partial(ModifyValueMessenger, func=partial(Tensor.requires_grad_, requires_grad=True))
 DetachMessenger = partial(ModifyValueMessenger, func=Tensor.detach)
+DetachAllMessenger = partial(ModifyValueMessenger, site_names=(), func=lambda x: x, func_other=Tensor.detach)
 
 
 class NoGradMessenger(Messenger):
@@ -81,3 +130,12 @@ def init_fn(site: _Site) -> torch.Tensor:
 
 init_msgr = InitMessenger(init_fn)
 no_grad_msgr = NoGradMessenger()
+
+
+def apply_messenger(msgr):
+    def _(func):
+        def __(*args, **kwargs):
+            with msgr:
+                return func(*args, **kwargs)
+        return __
+    return _

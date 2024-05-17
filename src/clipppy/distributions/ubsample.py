@@ -1,5 +1,5 @@
 from functools import partial
-from typing import Mapping, Type, Callable, Iterable, TypeVar, Generic
+from typing import Type, Callable, Iterable, TypeVar, Generic, MutableMapping
 
 import torch
 from pyro.distributions import Independent
@@ -32,10 +32,14 @@ def ubexpand(t: Tensor, sizes: Tensor, dim=-1):
     )
 
 
+def ubexpand_dict(tensors, sizes: Tensor, dim=-1):
+    return {key: ubexpand(val, sizes, dim=dim) for key, val in tensors.items()}
+
+
 class UBSDistribution(DistributionWrapper):
     """Un(even|equal)-Batch Sampling Distribution"""
 
-    _param_map: Mapping[Type, Callable[[_Distribution], Iterable[tuple[Tensor, int]]]] = ClassKeyDict({
+    _param_map: MutableMapping[Type, Callable[[_Distribution], Iterable[tuple[Tensor, int]]]] = ClassKeyDict({
         Normal: lambda d: ((d.loc, 0), (d.scale, 0)),
         Uniform: lambda d: ((d.low, 0), (d.high, 0)),
     })

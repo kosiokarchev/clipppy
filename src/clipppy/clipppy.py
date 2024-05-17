@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from typing import Mapping
+from typing import Mapping, TypedDict
 
 from pyro import condition
 from torch import Tensor
+from typing_extensions import Unpack
 
 # noinspection PyCompatibility
 from . import commands
@@ -18,11 +19,18 @@ __all__ = 'Clipppy',
 
 
 class Clipppy(Commandable):
+    class _KwargsT(TypedDict, total=False):
+        fit: commands.Fit._KwargsT
+        mock: commands.Mock._KwargsT
+        ppd: commands.PPD._KwargsT
+        lightning_npe: commands.LightningNPE._KwargsT
+        lightning_nre: commands.LightningNRE._KwargsT
+
     def __init__(self,
                  model: _Model = noop,
                  guide: Guide = Guide(),
                  conditioning: Mapping[str, Tensor] = None,
-                 **kwargs):
+                 **kwargs: Unpack[Clipppy._KwargsT]):
         # Conditions the model and sets it on the guide, if it doesn't have a model already.
         self.conditioning = conditioning if conditioning is not None else {}
         self._model = model
@@ -50,5 +58,4 @@ class Clipppy(Commandable):
     mock: commands.Mock
     ppd: commands.PPD
     lightning_npe: commands.LightningNPE
-    lightning_ganpe: commands.LightningGANPE
     lightning_nre: commands.LightningNRE

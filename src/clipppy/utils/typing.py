@@ -7,19 +7,21 @@ import types
 from collections.abc import Callable
 from typing import (
     get_args, get_origin, Iterable, NewType, Optional, overload, Pattern,
-    Protocol, runtime_checkable, Type, TypedDict, TypeVar, Union)
+    Protocol, runtime_checkable, Type, TypedDict, TypeVar, Union, Any, Sequence, Callable)
 
 from more_itertools import collapse
 from pyro import distributions as dist
 from pyro.poutine.indep_messenger import CondIndepStackFrame
 from torch import Tensor
+from torch.nn import Module
 from typing_extensions import TypeAlias
 
 
 __all__ = (
     '_T', '_KT', '_VT', '_Tout', '_Tin',
     'AnyRegex',
-    '_Distribution', '_Site', '_Model', '_Guide'
+    '_Distribution', '_Site', '_Model', '_Guide',
+    '_Tensor_like', '_ff_module_like'
 )
 
 
@@ -32,18 +34,9 @@ _Tin = TypeVar('_Tin')
 _Tout = TypeVar('_Tout')
 
 
-if sys.version_info < (3, 9):
-    class GenericAlias(abc.ABC):
-        def __instancecheck__(self, instance):
-            return get_origin(instance) and get_args(instance)
-
-    types.GenericAlias = GenericAlias
-
-
 @runtime_checkable
 class SupportsItems(Protocol[_KT, _VT]):
     def items(self) -> Iterable[tuple[_KT, _VT]]: ...
-
 
 
 @runtime_checkable
@@ -88,9 +81,14 @@ _Site = TypedDict('_Site', {
     'name': str, 'fn': _Distribution, 'mask': Tensor,
     'value': Tensor, 'type': str, 'infer': dict, 'is_observed': bool,
     'cond_indep_stack': Iterable[CondIndepStackFrame],
-    'args': tuple, 'kwargs': dict,
+    'args': tuple, 'kwargs': dict, 'scale': Any,
     'log_prob': Tensor, 'log_prob_sum': Tensor,
+    'unscaled_log_prob': Tensor,
     'constrained_log_prob': Tensor,
 }, total=False)
 _Model = NewType('_Model', Callable)
 _Guide = NewType('_Guide', Callable)
+
+
+_Tensor_like: TypeAlias = Union[Tensor, Sequence[Tensor]]
+_ff_module_like: TypeAlias = Union[Module, Callable[[Tensor], Tensor]]

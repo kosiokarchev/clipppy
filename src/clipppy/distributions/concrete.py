@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 from abc import ABC
-from math import pi
 
 import scipy.stats
 import torch
-from pyro.distributions import TorchDistribution
+from math import pi
+from pyro.distributions import TorchDistribution, Uniform, ExpandedDistribution
 from torch import Size
+from torch.distributions import AffineTransform, PowerTransform
 from torch.distributions.constraints import positive, real
 
+from phytorchx import fancy_align
+from . import SupportedTransformedDistribution
 from ..utils import call_nontensor
 
 
@@ -57,3 +60,20 @@ class SkewNormal(TorchDistribution):
     def rsample(self, sample_shape=Size()):
         return call_nontensor(scipy.stats.skewnorm.rvs, size=self.shape(sample_shape),
                               loc=self.loc, scale=self.scale, a=self.alpha)
+
+
+class PowerlawDistribution(SupportedTransformedDistribution):
+    def __init__(self, power, low, high):
+        self.power, self.low, self.high = fancy_align(power, low, high)
+
+        g = self.power + 1
+        lowg = self.low**g
+        highg = self.high**g
+
+        super().__init__(Uniform(0, 1), [
+            AffineTransform(lowg, highg-lowg),
+            PowerTransform(1/g)
+        ])
+
+    def expand(self, batch_shape, _instance=None):
+        return ExpandedDistribution(self, batch_shape)

@@ -32,11 +32,8 @@ class SamplingGroup(PyroModule, metaclass=AbstractPyroModuleMeta):
             self.supports[name] = support = site['infer'].get('support', site['fn'].support)
             self.transforms[name] = transform = biject_to(support)
 
-            try:  # torch >= 1.8?
-                if isinstance(self.transforms[name], torch.distributions.IndependentTransform):
-                    self.transforms[name] = self.transforms[name].base_transform
-            except AttributeError:
-                pass
+            if isinstance(self.transforms[name], torch.distributions.IndependentTransform):
+                self.transforms[name] = self.transforms[name].base_transform
 
             self.shapes[name] = shape = torch.Size(site['fn'].batch_shape + site['fn'].event_shape)
 
@@ -94,13 +91,16 @@ class SamplingGroup(PyroModule, metaclass=AbstractPyroModuleMeta):
     def unpack_site(self, arr: Tensor, name: str):
         return arr[..., self.poss[name]:self.poss[name]+self.sizes[name]]
 
-    def jacobian(self, guide_z: Tensor, sites: Iterable[str] = None) -> Tensor:
+    def log_abs_det_jacobian(self, guide_z: Tensor, sites: Iterable[str] = None) -> Tensor:
         return self._cat_sites({
-            name: tr.log_abs_det_jacobian(z, tr(z)).exp()
+            name: tr.log_abs_det_jacobian(z, tr(z))
             for name in (sites or self.sites.keys())
             for z in [self.unpack_site(guide_z, name)]
             for tr in [self.transforms[name]]
         })
+
+    def jacobian(self, guide_z: Tensor, sites: Iterable[str] = None) -> Tensor:
+        return self.log_abs_det_jacobian(guide_z, sites).exp()
 
     def _sample_site(self, group_z: Tensor, name: str, fn: dist.TorchDistribution = None):
         zs = self.unpack_site(group_z, name)

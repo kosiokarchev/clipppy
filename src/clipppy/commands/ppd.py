@@ -12,6 +12,10 @@ from ..utils.typing import _Model
 
 
 class PPD(SamplingCommand):
+    class _KwargsT(SamplingCommand._KwargsT):
+        observations: bool
+        guidefile: str
+
     """Sample from the guide and optionally generate the corresponding data."""
 
     observations: bool = True

@@ -22,7 +22,10 @@ from ..batched import BatchedMultiheadAttention
 from ..empty import _empty_module
 
 
-@attr.s(auto_attribs=True, eq=False)
+__all__ = 'MAB', 'SAB', 'ISAB', 'PMA'
+
+
+@attr.s
 class MAB(AttrsModule):
     embed_dim: int
     """Input dimension (i.e. of the space that the set members belong to).
@@ -48,8 +51,6 @@ class MAB(AttrsModule):
     def forward(self, x, y) -> Tensor:
         """Multihead Attention Block, eqs. (6, 7) in [Lee2019]_.
 
-        .. note:: Currently, without the ~`torch.nn.LayerNorm`.
-
         Parameters
         ----------
         x: `~torch.Tensor` ``(batch..., N, embed_dim)``
@@ -68,7 +69,7 @@ class MAB(AttrsModule):
         __call__ = forward
 
 
-@attr.s(auto_attribs=True, eq=False)
+@attr.s
 class SAB(AttrsModule):
     mab: MAB
 
@@ -92,7 +93,7 @@ class SAB(AttrsModule):
         __call__ = forward
 
 
-@attr.s(auto_attribs=True, eq=False)
+@attr.s
 class ISAB(ParametrizedAttrsModel):
     m: int
     """Number of inducing points."""
@@ -142,7 +143,7 @@ class ISAB(ParametrizedAttrsModel):
         __call__ = forward
 
 
-@attr.s(auto_attribs=True, eq=False)
+@attr.s
 class PMA(ParametrizedAttrsModel):
     mab: MAB
 

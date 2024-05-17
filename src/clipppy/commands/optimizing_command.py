@@ -52,6 +52,17 @@ _CallbackT: TypeAlias = Callable[['OptimizingCommand', int, float, tuple[Any], M
 
 
 class OptimizingCommand(Command, Generic[_OptimizerT, _LossT], ABC):
+    class _KwargsT(Command._KwargsT):
+        n_steps: int
+        min_steps: int
+        avgwindow: int
+        conv_th: float
+        lr: Union[float, Literal[Sentinel.skip]]
+        optimizer_cls: Union[Type[_OptimizerT], Callable[..., _OptimizerT], _OptimizerT]
+        optimizer_args: Union[Mapping, Literal[Sentinel.skip]]
+        loss_cls: Union[Type[_LossT], Callable[..., _LossT], _LossT]
+        callback: Union[_CallbackT, Iterable[_CallbackT]]
+
     n_steps: int = 1000
     """Run at most ``n_steps`` steps."""
 

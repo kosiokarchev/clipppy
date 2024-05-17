@@ -22,13 +22,14 @@ classifiers = [
 requires-python = ">=3.9"
 
 dependencies = [
+    "apipkg",
     "deprecated",
     "frozendict",
     "more-itertools",
     "typing-extensions",
     "ruamel.yaml>=0.17.29",
     "python-forge",
-    "pyro-ppl",
+    "pyro-ppl<1.9.0",
     "torch>=1.11",
     "pytorch-lightning",
     "phytorchx"
@@ -43,8 +44,9 @@ dynamic = ["version"]
 [project.optional-dependencies]
 docs = ["sphinx-autoapi"]
 testing = ["pytest", "hypothesis", "scipy"]
-jinja = ["jinja"]
-lightning = ["pytorch_lightning"]
+all = ["jinja2", "pytorch_lightning", "tensorboard", "wandb", "emcee", "zarr", "netCDF4", "torchdata", "corner"]
+jinja = ["jinja2"]
+lightning = ["pytorch_lightning", "tensorboard", "wandb"]
 emcee = ["emcee"]
 zarr = ["zarr"]
 netcdf = ["netCDF4"]
@@ -55,11 +57,8 @@ where = ["src"]
 [tool.setuptools.package-data]
 src = ["**/*.pyi"]
 
-[tool.setuptools.dynamic]
-version = {attr = "clipppy._version.__version__"}
-
 [tool.setuptools_scm]
-write_to = "src/clipppy/_version.py"
+version_file = "src/clipppy/_version.py"
 version_scheme = "no-guess-dev"
 
 [tool.pytest]

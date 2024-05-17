@@ -13,14 +13,15 @@ from torch.nn.functional import logsigmoid
 from torch.utils._pytree import _broadcast_to_and_flatten, tree_flatten, tree_unflatten, TreeSpec
 from typing_extensions import ParamSpec, Self, TypeAlias
 
-from ..npe.nn import NPEResult
-from ...sbi._typing import _Tree
+from ...sbi._typing import _Tree, _KT
+from ...sbi.nn.npe import NPEResult
 from ...utils import Sentinel
-
 
 _Tin = TypeVar('_Tin')
 _DimT: TypeAlias = Union[int, tuple[int, ...], tuple[str, ...], Literal[Sentinel.skip]]
 _DimTreeT: TypeAlias = Union[_DimT, Iterable['_DimTreeT'], Mapping[Any, '_DimTreeT']]
+_ReduceFuncT: TypeAlias = Callable[[Tensor, ...], Tensor]
+_ReduceFuncTreeT: TypeAlias = Union[_ReduceFuncT, Iterable['_ReduceFuncT'], Mapping[Any, '_ReduceFuncT']]
 
 
 _LossParamsT = ParamSpec('_LossParamsT')
@@ -31,6 +32,13 @@ class BaseSBILoss(Generic[_LossParamsT]):
         loss: Tensor
         flat: list[Tensor] = None
         spec: TreeSpec = None
+
+        @classmethod
+        def from_mapping(cls, rts: Mapping[_KT, Self]) -> Self:
+            return cls(
+                sum(r.loss for r in rts.values()),
+                *tree_flatten({key: r.unflatten() for key, r in rts.items()})
+            )
 
         def tree_binary_op(self, op: Callable[[Tensor, _Tin], Tensor], other: _Tree) -> Self:
             newflat = list(starmap(op, zip(self.flat, _broadcast_to_and_flatten(other, self.spec))))
@@ -54,37 +62,34 @@ class MultiLoss(BaseSBILoss[_LossParamsT], Generic[_LossParamsT]):
     weights: Mapping[str, Union[Number, Tensor]] = field(default_factory=dict)
 
     def __call__(self, *args, **kwargs) -> BaseSBILoss.ReturnT:
-        losses: Mapping[str, BaseSBILoss.ReturnT] = {
+        return self.ReturnT.from_mapping({
             key: l if w is None else w*l
             for key, loss in self.losses.items()
             for w, l in [(self.weights.get(key, None), loss(*args, **kwargs))]
-        }
-        return self.ReturnT(
-            sum(r.loss for r in losses.values()),
-            *tree_flatten({key: r.unflatten() for key, r in losses.items()}),
-        )
+        })
 
 
 @dataclass
 class SBILoss(BaseSBILoss[_LossParamsT], Generic[_LossParamsT], ABC):
     dim: _DimTreeT = Sentinel.empty
+    reduce_func: _ReduceFuncTreeT = torch.mean
 
     @staticmethod
-    def _reduce(loss: Tensor, dim: _DimT):
-        return (loss if dim is Sentinel.skip else loss.mean(*(
+    def _reduce(loss: Tensor, dim: _DimT, reduce_func: _ReduceFuncT):
+        return (loss if dim is Sentinel.skip else reduce_func(loss, *(
             (dim,) if dim is not Sentinel.empty else ()
         )))
 
     @abstractmethod
     def _loss(self, *args: _LossParamsT.args, **kwargs: _LossParamsT.kwargs): ...
 
-    def _call_one(self, *args: _LossParamsT.args, dim: _DimT, **kwargs: _LossParamsT.kwargs) -> Tensor:
-        return self._reduce(self._loss(*args, **kwargs), dim)
+    def _call_one(self, *args: _LossParamsT.args, dim: _DimT, reduce_func: _ReduceFuncT, **kwargs: _LossParamsT.kwargs) -> Tensor:
+        return self._reduce(self._loss(*args, **kwargs), dim, reduce_func)
 
     def _call(self, flat: Iterable[_LossParamsT.args], spec: TreeSpec):
         return self.ReturnT(sum(res := [
-            self._call_one(*args, dim=dim)
-            for args, dim in zip(flat, _broadcast_to_and_flatten(self.dim, spec))
+            self._call_one(*args, dim=dim, reduce_func=reduce_func)
+            for args, dim, reduce_func in zip(flat, _broadcast_to_and_flatten(self.dim, spec), _broadcast_to_and_flatten(self.reduce_func, spec))
         ]) / len(res), res, spec)
 
     def __call__(self, *args: _Tree):
@@ -99,14 +104,6 @@ class NPELoss(SBILoss):
 
     if TYPE_CHECKING:
         def __call__(self, nperes: _Tree[NPEResult], *args: _Tree) -> BaseSBILoss.ReturnT: ...
-
-
-class GANPELoss(SBILoss):
-    def _loss(self, nperes: NPEResult, sim_log_prob_grad: Tensor):
-        return torch.linalg.vector_norm(nperes.log_prob_grad - sim_log_prob_grad, dim=-1)
-
-    if TYPE_CHECKING:
-        def __call__(self, nperes: _Tree[NPEResult], sim_log_prob_grad: _Tree[Tensor]) -> BaseSBILoss.ReturnT: ...
 
 
 @dataclass

@@ -9,13 +9,14 @@ from ...utils.typing import _Site
 
 
 class ConstrainingMessenger(Messenger):
-    def __init__(self, ranges: Mapping[str, tuple[_constraintT, _constraintT]]):
+    def __init__(self, ranges: Mapping[str, tuple[_constraintT, _constraintT]], create=False):
         super().__init__()
         self.ranges = ranges
+        self.create = create
 
     def _pyro_sample(self, msg: _Site):
         if (name := msg['name']) in self.ranges:
-            msg['fn'] = ConUnDisMixin.new_constrained(msg['fn'], *self.ranges[name])
+            msg['fn'] = ConUnDisMixin.new_constrained(msg['fn'], *self.ranges[name], create=self.create)
 
     def __repr__(self):
         return f'{type(self).__name__}{tuple(self.ranges.keys())}'

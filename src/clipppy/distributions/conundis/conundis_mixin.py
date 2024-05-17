@@ -46,12 +46,17 @@ def _check_and_choose(val1: _constraintT, val2: _constraintT, choose: Callable[[
     )
 
 
+class _float(float):
+    pass
+
+
 class ConUnDisMixin(ConstrainedDistribution, Generic[_DT], ABC, final_constrained=True):
     @classmethod
     def new_constrained(
         cls, d: _DT,
         constraint_lower: _constraintT = None,
-        constraint_upper: _constraintT = None
+        constraint_upper: _constraintT = None,
+        *, create=False
     ) -> Union[Self, _DT]:
         d = copy(d)
 
@@ -68,15 +73,16 @@ class ConUnDisMixin(ConstrainedDistribution, Generic[_DT], ABC, final_constraine
             t = ComposeTransform(d.transforms).inv
             d.base_dist = cls.new_constrained(d.base_dist, *(
                 _maybe_item(t(torch.as_tensor(c)), c) if c is not None else c
-                for c in (constraint_lower, constraint_upper)))
+                for c in (constraint_lower, constraint_upper)
+            ), create=create)
         else:
-            d = super().new_constrained(d, constraint_lower, constraint_upper)
+            d = super().new_constrained(d, constraint_lower, constraint_upper, create=create)
 
         return d
 
 
-    constraint_lower: _constraintT = -inf
-    constraint_upper: _constraintT = inf
+    constraint_lower: _constraintT = _float(-inf)
+    constraint_upper: _constraintT = _float(inf)
 
     @cached_property
     def constraint_shape(self) -> Size:
@@ -115,17 +121,17 @@ class ConUnDisMixin(ConstrainedDistribution, Generic[_DT], ABC, final_constraine
 
     @cached_property
     def lower_prob(self):
-        return _maybe_item(
+        return 0. if isinstance(self.constraint_lower, (type(None), _float)) else _maybe_item(
             super().cdf(torch.as_tensor(self.constraint_lower)),
             self.constraint_lower
-        ) if self.constraint_lower not in (None, -inf) else 0.
+        )
 
     @cached_property
     def upper_prob(self):
-        return _maybe_item(
+        return 1. if isinstance(self.constraint_lower, (type(None), _float)) else _maybe_item(
             super().cdf(torch.as_tensor(self.constraint_upper)),
             self.constraint_upper
-        ) if self.constraint_upper not in (None, inf) else 1.
+        )
 
     @cached_property
     def constrained_prob(self):

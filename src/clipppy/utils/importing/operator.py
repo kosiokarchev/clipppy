@@ -19,7 +19,7 @@ __all__ = ['abs', 'add', 'and_', 'attrgetter', 'call', 'concat', 'contains', 'co
            'mul', 'ne', 'neg', 'not_', 'or_', 'pos', 'pow', 'rshift',
            'setitem', 'sub', 'truediv', 'truth', 'xor']
 
-from builtins import abs as _abs
+from builtins import abs as _abs, pow
 
 
 # Comparison Operations *******************************************************#
@@ -120,10 +120,6 @@ def or_(a, b):
 def pos(a):
     "Same as +a."
     return +a
-
-def pow(a, b):
-    "Same as a ** b."
-    return a ** b
 
 def rshift(a, b):
     "Same as a >> b."

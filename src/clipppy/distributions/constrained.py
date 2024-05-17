@@ -3,8 +3,10 @@ from __future__ import annotations
 import math
 from abc import ABC, abstractmethod
 from functools import cached_property
+from types import new_class
 from typing import Generic, TypeVar, Union, Type, ClassVar, MutableMapping
 
+import torch
 from pyro.distributions.torch_distribution import TorchDistribution, TorchDistributionMixin
 from torch import is_tensor, Size, Tensor
 from typing_extensions import Self, TypeAlias, ParamSpec
@@ -31,18 +33,30 @@ class ConstrainedDistribution(TorchDistribution, Generic[_DT, _PS], ABC):
         if register:
             cls._concrete[register] = cls
 
+    # @property
+    # def batch_shape(self) -> Size:
+    #     return torch.broadcast_shapes(self._batch_shape, self.constraint_shape[:len(self.constraint_shape)-self.event_dim])
+    #
+    # @batch_shape.setter
+    # def batch_shape(self, value: torch.Size):
+    #     self._batch_shape = value
+
     @classmethod
-    def new_constrained(cls, d: _DT, *args: _PS.args, **kwargs: _PS.kwargs) -> Union[Self, _DT]:
+    def new_constrained(cls, d: _DT, *args: _PS.args, create=False, **kwargs: _PS.kwargs) -> Union[Self, _DT]:
         if type(d) in cls._concrete:
             d.__class__ = cls._concrete[type(d)]
             d: Union[Self, _DT]
             d.constrain(*args, **kwargs)
-            if len(d.constraint_shape) > len(d.batch_shape + d.event_shape):
-                raise ValueError(f'constraint shape {d.constraint_shape}'
-                                 ' has more dimensions than the sample shape'
-                                 f' {d.batch_shape + d.event_shape}')
+            # if len(d.constraint_shape) > len(d.batch_shape + d.event_shape):
+            #     raise ValueError(f'constraint shape {d.constraint_shape}'
+            #                      ' has more dimensions than the sample shape'
+            #                      f' {d.batch_shape + d.event_shape}')
         elif hasattr(d, 'base_dist'):
-            d.base_dist = cls.new_constrained(d.base_dist, *args, **kwargs)
+            d.base_dist = cls.new_constrained(d.base_dist, *args, create=create, **kwargs)
+        elif create:
+            td = type(d)
+            cls._concrete[td] = new_class(cls.__name__, (cls[td], td), dict(register=td))
+            d = cls.new_constrained(d, *args, create=False, **kwargs)
         else:
             raise ValueError(f'Cannot constrain instances of {type(d)} (yet?).')
 

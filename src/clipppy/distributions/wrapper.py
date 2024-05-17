@@ -1,19 +1,27 @@
 from __future__ import annotations
 
-from typing import Iterable, Union, Protocol, runtime_checkable, Any
+from typing import Iterable, Union, Protocol, runtime_checkable, Any, Optional
 
 from pyro.distributions import constraints
 from pyro.distributions.torch_distribution import TorchDistribution, TorchDistributionMixin
 from torch import Size
 
+from phytorchx import sizeify, _Size
 
-_size = Union[Size, Iterable[int]]
 _Distribution = Union[TorchDistribution, TorchDistributionMixin]
 
 
 @runtime_checkable
 class DistributionWrapperProtocol(Protocol):
     base_dist: _Distribution
+
+
+def unwrap_only(obj, wrapper_types):
+    while isinstance(obj, wrapper_types):
+        yield obj
+        obj = obj.base_dist
+    yield obj
+
 
 
 def unwrap(obj: Union[Any, DistributionWrapperProtocol], bound=type(None)):
@@ -28,12 +36,8 @@ class DistributionWrapper(TorchDistribution):
 
     arg_constraints = {}
 
-    def __init__(self, base_dist: _Distribution, batch_shape: _size = None, event_shape: _size = None, validate_args=None):
-        super().__init__(
-            Size(batch_shape if batch_shape is not None else base_dist.batch_shape),
-            Size(event_shape if event_shape is not None else base_dist.event_shape),
-            validate_args=validate_args,
-        )
+    def __init__(self, base_dist: _Distribution, batch_shape: _Size = None, event_shape: _Size = None, validate_args=None):
+        super().__init__(sizeify(batch_shape), sizeify(event_shape), validate_args=validate_args)
         self.base_dist = base_dist
 
     @property

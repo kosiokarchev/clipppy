@@ -10,6 +10,11 @@ from ..utils.messengers import init_msgr
 
 
 class SamplingCommand(Command, ABC):
+    class _KwargsT(Command._KwargsT):
+        savename: str
+        conditioning: bool
+        initting: bool
+
     savename: str = None
     """Filename to save the sample to (or `None` to skip saving)."""
 

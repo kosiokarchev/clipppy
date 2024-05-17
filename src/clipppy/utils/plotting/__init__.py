@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from functools import cached_property
+from functools import cached_property, singledispatch
 from itertools import chain
 from math import pi
 from typing import Collection, Mapping, Union
+from warnings import filterwarnings, catch_warnings
 
 import numpy as np
 import pyro
@@ -17,17 +18,26 @@ from torch import Tensor
 from ...guide import Guide, HPMVN
 
 
+@singledispatch
 def to_percentiles(arr: Tensor, ndim=None):
-    start_dim = arr.ndim - (ndim or arr.ndim)
-    flatarr = arr.rename(None).flatten(start_dim)
-    argsort = flatarr.argsort(-1, descending=True)
-    return (
-        torch.empty_like(flatarr, memory_format=torch.contiguous_format)
-        .scatter_(
-            -1, argsort,
-            (flatarr.take_along_dim(argsort, -1).cumsum(-1) / flatarr.sum(-1, keepdim=True))
-        ).unflatten(-1, arr.shape[start_dim:]).rename_(*arr.names)
-    )
+    with catch_warnings():
+        filterwarnings(action='ignore', message='Named tensors')
+
+        start_dim = arr.ndim - (ndim or arr.ndim)
+        flatarr = arr.rename(None).flatten(start_dim)
+        argsort = flatarr.argsort(-1, descending=True)
+        return (
+            torch.empty_like(flatarr, memory_format=torch.contiguous_format)
+            .scatter_(
+                -1, argsort,
+                (flatarr.take_along_dim(argsort, -1).cumsum(-1) / flatarr.sum(-1, keepdim=True))
+            ).unflatten(-1, arr.shape[start_dim:]).rename_(*arr.names)
+        )
+
+
+@to_percentiles.register
+def _(arr: np.ndarray, ndim=None):
+    return to_percentiles(torch.from_numpy(arr), ndim).numpy()
 
 
 @dataclass

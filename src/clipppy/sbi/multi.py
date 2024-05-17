@@ -2,9 +2,8 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from functools import cached_property, reduce
-from typing import Mapping, ClassVar
+from typing import Mapping, ClassVar, Iterable
 
-import attr
 import torch
 from more_itertools import always_iterable
 from torch import Size, Tensor
@@ -14,7 +13,7 @@ from torch.distributions.constraints import Constraint, _Dependent
 from phytorchx import broadcast_cat
 
 from ._typing import _MultiKT, _KT
-
+from ..utils.importing.attr import attr
 
 
 def dict_to_vect(d: Mapping[_KT, Tensor], ndims: Mapping[_KT, int]) -> Tensor:
@@ -28,27 +27,29 @@ def vect_to_dict(v: Tensor, shapes: Mapping[_KT, Size]) -> Mapping[_KT, Tensor]:
     return OrderedDict(
         (key, val) for i in [0] for key, shape in shapes.items()
         for j in [i+shape.numel()]
-        for val in [v[..., i:j].reshape(*v.shape[:-1], *shape)]
+        for val in [v[..., i:j].reshape((*v.shape[:-1], *shape))]
         for i in [j]
     )
 
 
-@attr.s(auto_attribs=True, eq=False)
-class ParamPackerMixin:
-    param_event_dims: Mapping[_KT, int] = attr.ib(factory=dict, kw_only=True)
+@attr.s
+class PackerMixin:
+    event_dims: Mapping[_KT, int] = attr.ib(factory=dict, kw_only=True)
+    param_names: Iterable[_KT] = attr.ib(default=None, kw_only=True)
+    obs_names: Iterable[_KT] = attr.ib(default=None, kw_only=True)
 
     def pack(self, d: Mapping[_KT, Tensor]) -> Tensor:
-        return dict_to_vect(d, self.param_event_dims)
+        return dict_to_vect(d, self.event_dims)
 
     def unpack_like(self, d: Mapping[_KT, Tensor], v: Tensor):
         return vect_to_dict(v, OrderedDict(
-            (key, val.shape[val.ndim-self.param_event_dims.get(key, 0):])
+            (key, val.shape[val.ndim-self.event_dims.get(key, 0):])
             for key, val in d.items()
         ))
 
 
-@attr.s(auto_attribs=True, eq=False)
-class AbstractMultiEvent(ParamPackerMixin):
+@attr.s
+class AbstractMultiEvent(PackerMixin):
     keys: _MultiKT
     event_shapes: Mapping[_KT, Size]
 
@@ -62,7 +63,7 @@ class AbstractMultiEvent(ParamPackerMixin):
 
     def __attrs_post_init__(self):
         self.event_shapes = OrderedDict((key, self.event_shapes[key]) for key in always_iterable(self.keys))
-        self.param_event_dims = {key: len(event_shape) for key, event_shape in self.event_shapes.items()} | self.param_event_dims
+        self.param_event_dims = {key: len(event_shape) for key, event_shape in self.event_shapes.items()} | self.event_dims
 
     def pack(self, d: Mapping[_KT, Tensor]) -> Tensor:
         return super().pack(OrderedDict((key, d[key]) for key in self.keys))
@@ -71,7 +72,7 @@ class AbstractMultiEvent(ParamPackerMixin):
         return vect_to_dict(value, self.event_shapes)
 
 
-@attr.s(auto_attribs=True, eq=False)
+@attr.s
 class MultiTransform(AbstractMultiEvent, Transform):
     event_shapes_in: Mapping[_KT, Size] = attr.ib(init=False)
     param_event_dims_in: Mapping[_KT, int] = attr.ib(init=False)
@@ -124,7 +125,7 @@ class MultiTransform(AbstractMultiEvent, Transform):
         return self.event_shape_in
 
 
-@attr.s(auto_attribs=True, eq=False)
+@attr.s
 class MultiConstraint(AbstractMultiEvent, Constraint):
     constraints: Mapping[_KT, Constraint]
     event_dim: ClassVar = 1
@@ -141,7 +142,7 @@ def _biject_to_multi_constraint(mc: MultiConstraint):
     )
 
 
-@attr.s(auto_attribs=True, eq=False)
+@attr.s
 class MultiDistribution(AbstractMultiEvent):
     event_shapes: Mapping[_KT, Size] = attr.ib(init=False)
     dists: Mapping[_KT, Distribution]

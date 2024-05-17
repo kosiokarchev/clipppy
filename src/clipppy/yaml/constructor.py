@@ -137,11 +137,11 @@ class ClipppyConstructor(ScopeMixin, TaggerMixin, Constructor):
             return obj
         else:
             sig = sig.signature.bind_partial(*sig.args, **{**sig.kwargs, **kwargs})
+            return obj(*sig.args, **sig.kwargs)
 
-            try:
-                return obj(*sig.args, **sig.kwargs)
-            except Exception as e:
-                raise TypeError(f'''Could not instantiate\nobj: {obj}\n*args: {sig.args}\n**kwargs: {sig.kwargs}.''')
+            # try:
+            # except Exception as e:
+            #     raise TypeError(f'''Could not instantiate\nobj: {obj}\n*args: {sig.args}\n**kwargs: {sig.kwargs}.''')
 
 
     @classmethod

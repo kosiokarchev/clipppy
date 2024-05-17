@@ -1,51 +1,54 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
 from functools import singledispatchmethod
-from typing import Any, Mapping, Iterable, Union
+from itertools import chain
+from typing import Any, Mapping, Iterable, Union, cast
 
-from deprecated import deprecated
+import attr
+from lightning_utilities.core.rank_zero import rank_zero_only
 from matplotlib import pyplot as plt
 from more_itertools import always_iterable
 from pytorch_lightning import Callback, LightningModule, Trainer
 from pytorch_lightning.loggers import TensorBoardLogger, Logger, WandbLogger
-from torch import Tensor
+from torch import Size
 
-from ..nre.validate import MultiNREValidator
-from ...sbi._typing import MultiSBIProtocol, _MultiKT
-from ...utils.plotting.nre.latent import MultiLatentPlotter
-from ...utils.plotting.nre.multi import multi_posterior, MultiNREPlotter
-from ...utils.plotting.sbi import MultiSBIPlotter
+from .utils import if_not_sanity_checking
+from ...sbi._typing import MultiSBIProtocol, _MultiKT, SBIBatch, MultiNREProtocol, MultiNPEProtocol, _SBIObsT
+from ...sbi.validate import MultiSBIValidator
+from ...utils.plotting.sbi import MultiSBIPosteriorPlotter, MultiSBIValidationPlotter
 
 
-@dataclass
-class EveryNStepsCallback(Callback, ABC):
-    every_n_steps: int
-    _steps_done: set[int] = field(default_factory=set, init=False)
+@attr.define(kw_only=True, slots=False)
+class PeriodicCallback(Callback, ABC):
+    """Simple checkpoint which happens at reasonable intervals. Modelled after
+    `~pytorch_lightning.ModelCheckpoint`."""
 
-    def should_run(self, pl_module: LightningModule):
-        return not (pl_module.global_step+1) % self.every_n_steps
+    _every_n_train_steps: int = False
+    _every_n_epochs: int = 1
+    _on_train_epoch: bool = False
+    _on_validation: bool = False
 
     @abstractmethod
-    def _run(self, *, trainer: Trainer, pl_module: LightningModule, global_step: int, **kwargs): ...
+    def __call__(self, *, global_step: int, **kwargs): ...
 
-    def run(self, trainer: Trainer, pl_module: LightningModule, **kwargs):
-        global_step = pl_module.global_step
-        if global_step not in self._steps_done:
-            self._steps_done.add(global_step)
-            return self._run(trainer=trainer, pl_module=pl_module, global_step=global_step, **kwargs)
+    def on_train_batch_end(self, trainer: Trainer, pl_module: LightningModule, outputs: Any, batch: Any, batch_idx: int):
+        if self._every_n_train_steps and trainer.global_step % self._every_n_train_steps == 0:
+            self.__call__(trainer=trainer, pl_module=pl_module, global_step=trainer.global_step)
 
-    # on_train_end = run
+    def on_train_epoch_end(self, trainer: Trainer, pl_module: LightningModule):
+        if self._on_train_epoch and self._every_n_epochs and (trainer.current_epoch + 1) % self._every_n_epochs == 0:
+            self.__call__(trainer=trainer, pl_module=pl_module, global_step=trainer.global_step)
 
-    def on_train_batch_end(self, trainer: Trainer, pl_module: LightningModule, outputs: Any, batch: Any, batch_idx: int, *args, **kwargs):
-        if self.should_run(pl_module):
-            self.run(trainer, pl_module, **kwargs)
+    @if_not_sanity_checking
+    def on_validation_end(self, trainer: Trainer, pl_module: LightningModule):
+        if self._on_validation:
+            self.__call__(trainer=trainer, pl_module=pl_module, global_step=trainer.global_step)
 
 
-@dataclass
+@attr.define(kw_only=True, slots=False)
 class DiagnosticFigureMixin:
-    logger: Union[Logger, Iterable[Logger]]
+    logger: Union[Logger, Iterable[Logger]] = None
 
     @singledispatchmethod
     def _log_figure(self, logger: Logger, name: str, fig, global_step: int):
@@ -57,91 +60,136 @@ class DiagnosticFigureMixin:
 
     @_log_figure.register
     def _(self, logger: WandbLogger, name: str, fig, global_step: int):
+        # import wandb
+        # logger.experiment.log({name: wandb.Image(fig), 'trainer/global_step': global_step}, step=global_step)
         logger.log_image(name, [fig], step=global_step)
 
-    def log_figure(self, name: str, fig, global_step: int):
+    @rank_zero_only
+    def log_figure(self, name: str, fig: plt.Figure, global_step: int):
         for logger in always_iterable(self.logger):
             self._log_figure(logger, name, fig, global_step)
 
 
-@dataclass
-class MultiSBIPosteriorCallback(DiagnosticFigureMixin, EveryNStepsCallback):
-    net: MultiSBIProtocol
-    plotter: MultiSBIPlotter
-    data: Mapping[str, Tensor]
+@attr.define(kw_only=True, slots=False)
+class MultiSBIDiagnosticFigureCallback(DiagnosticFigureMixin, Callback):
+    net: MultiSBIProtocol = None
+
+    def on_fit_start(self, trainer: Trainer, pl_module: LightningModule) -> None:
+        self.logger = trainer.loggers
+        self.net = cast(MultiSBIProtocol, pl_module)
+
+
+@attr.define(slots=False, kw_only=True)
+class MultiSBIPosteriorCallback(MultiSBIDiagnosticFigureCallback, PeriodicCallback):
+    data: _SBIObsT
     groups_global: Iterable[_MultiKT] = ()
-    groups_latent: Iterable[_MultiKT] = ()
+    groups_local: Iterable[_MultiKT] = ()
+
+    ref_plotters: Iterable[MultiSBIPosteriorPlotter] = ()
 
     posterior_name: str = 'posterior'
-    corner_kwargs: dict = field(default_factory=dict)
-    latent_v_truth_kwargs: dict = field(default_factory=dict)
+    corner_kwargs: Mapping[str, Any] = {}
+    local_v_truth_kwargs: Mapping[str, Any] = attr.field(default={}, converter=dict(cred=0.68).__or__)
 
     def _get_name(self, group: _MultiKT):
         return f'{self.posterior_name}/' + '_&_'.join(always_iterable(group))
 
-    def _run(self, *, global_step: int, **kwargs):
+    @abstractmethod
+    def get_wplotter(self, *args, **kwargs): ...
+
+    def forward(self) -> tuple[Mapping[_MultiKT, plt.Figure], Mapping[_MultiKT, plt.Figure]]:
         self.net.head.eval(), self.net.tail.eval()
-        wplotter = self.plotter.eval((*self.groups_global, *self.groups_latent), self.net, self.data)
 
+        wplotter = self.get_wplotter()
+
+        global_figs, local_figs = {}, {}
         for group in self.groups_global:
-            self.log_figure(self._get_name(group), wplotter.corner(group, **self.corner_kwargs)[0], global_step)
+            global_figs[group], axs = wplotter.corner(group, **self.corner_kwargs)
 
-        for group in self.groups_latent:
-            fig = plt.figure()
-            wplotter.latent_v_truth(group, **{'cred': 0.68, **self.latent_v_truth_kwargs})
+            for ref_plotter in self.ref_plotters:
+                ref_plotter.corner(
+                    group, axs=axs,
+                    levels=(0.68, 0.95),
+                    plot_prior=False, plot_hist1d=False, plot_hist2d=False, plot_truth=False, plot_bounds=False,
+                    # post_kwargs=dict(label='ref', color='k'),
+                    post1d_kwargs=dict(linestyle='--'),
+                    post2d_kwargs=dict(linestyles='--')
+                )
+
+        for group in self.groups_local:
+            local_figs[group] = plt.figure()
+            ax = wplotter.local_v_truth(group, **self.local_v_truth_kwargs)
+
+            for ref_plotter in self.ref_plotters:
+                ref_plotter.local_v_truth(group, cred=self.local_v_truth_kwargs['cred'], ax=ax)
+
+        return global_figs, local_figs
+
+    def __call__(self, *, global_step: int, **kwargs):
+        global_figs, local_figs = self.forward()
+        for group, fig in chain(global_figs.items(), local_figs.items()):
             self.log_figure(self._get_name(group), fig, global_step)
+            plt.close(fig)
+
+    @staticmethod
+    def subtype(protocol_type: type[MultiSBIProtocol]) -> type[MultiSBIPosteriorCallback]:
+        return {
+            MultiNREProtocol: MultiNREPosteriorCallback,
+            MultiNPEProtocol: MultiNPEPosteriorCallback,
+        }[protocol_type]
 
 
-@deprecated(f'Use {MultiSBIPosteriorCallback.__name__} instead.')
-@dataclass
-class MultiPosteriorCallback(DiagnosticFigureMixin, EveryNStepsCallback, ABC):
-    nre: MultiSBIProtocol
-    nrep: MultiNREPlotter
-    trace: Mapping[str, Tensor]
+@attr.define(slots=False, kw_only=True)
+class MultiNREPosteriorCallback(MultiSBIPosteriorCallback):
+    plotter: MultiSBIPosteriorPlotter
+    net: MultiNREProtocol = None
 
-    posterior_name: str = 'posterior'
-
-    def _run(self, *, global_step: int, **kwargs):
-        self.nre.head.eval(), self.nre.tail.eval()
-        for key, fig in multi_posterior(self.nre, self.nrep, self.trace).items():
-            self.log_figure(f'{self.posterior_name}/' + '_&_'.join(always_iterable(key)), fig, global_step)
+    def get_wplotter(self, *args, **kwargs):
+        return self.plotter.eval_nre((*self.groups_global, *self.groups_local), self.net, self.data)
 
 
-@deprecated(f'Use {MultiSBIPosteriorCallback.__name__} instead.')
-@dataclass
-class MultiLatentCallback(DiagnosticFigureMixin, EveryNStepsCallback, ABC):
-    nre: MultiSBIProtocol
-    plotter: MultiLatentPlotter
-    trace: Mapping[str, Tensor]
+@attr.define(slots=False, kw_only=True)
+class MultiNPEPosteriorCallback(MultiSBIPosteriorCallback):
+    nsamples: int = 1000
+    plotter_kwargs: Mapping[str, Any] = {}
+    net: MultiNPEProtocol = None
+
+    def get_wplotter(self, *args, **kwargs):
+        return MultiSBIPosteriorPlotter(samples=dict(
+            (key, val) for keys, dist in self.net.posterior(self.data).items()
+            for vals in [dist.sample(Size((self.nsamples,)))]
+            for key, val in zip(always_iterable(keys), (vals.unsqueeze(-1) if not dist.event_shape else vals).unbind(-1))
+        ), **self.plotter_kwargs)
+
+
+@attr.define(slots=False)
+class MultiSBIValidationCallback(MultiSBIDiagnosticFigureCallback, PeriodicCallback):
+    validator: MultiSBIValidator
+    plotter: MultiSBIValidationPlotter
+    dataset: Iterable[SBIBatch]
     groups: Iterable[_MultiKT]
 
-    cred: float = 0.68
-
-    posterior_name: str = 'posterior'
-
-    def _run(self, *, global_step: int, **kwargs):
-        self.nre.head.eval(), self.nre.tail.eval()
-        wlp = self.plotter.eval(self.groups, self.nre, self.trace)
-
-        for key in self.groups:
-            fig = plt.figure()
-            wlp.plot_1d(key, self.cred)
-            self.log_figure(f'{self.posterior_name}/' + '_&_'.join(always_iterable(key)), fig, global_step)
-
-
-@dataclass
-class MultiValidationCallback(DiagnosticFigureMixin, EveryNStepsCallback, ABC):
-    nre: MultiSBIProtocol
-    validator: MultiNREValidator
-
     validate_name: str = 'validate'
-    qq_name: str = 'qq'
-    norm_like_name: str = 'norm_like'
-    norm_post_name: str = 'norm_post'
 
-    def _run(self, *, global_step: int, **kwargs):
-        self.nre.head.eval(), self.nre.tail.eval()
-        qqfig, likefig, postfig = self.validator(self.nre.head, self.nre.tail)
-        self.log_figure(f'{self.validate_name}/{self.qq_name}', qqfig, global_step)
-        self.log_figure(f'{self.validate_name}/{self.norm_like_name}', likefig, global_step)
-        self.log_figure(f'{self.validate_name}/{self.norm_post_name}', postfig, global_step)
+    pp_name: str = 'pp'
+    pp_fig_kwargs: Mapping[str, Any] = attr.field(default={}, converter=dict(figsize=(4, 4)).__or__)
+    pp_kwargs: Mapping[str, Any] = {}
+
+    norm_like_name: str = 'norm_like'
+    norm_like_fig_kwargs: Mapping[str, Any] = {}
+    norm_like_kwargs: Mapping[str, Any] = {}
+
+    norm_post_name: str = 'norm_post'
+    norm_post_fig_kwargs: Mapping[str, Any] = {}
+    norm_post_kwargs: Mapping[str, Any] = {}
+
+    def forward(self):
+        self.net.head.eval(), self.net.tail.eval()
+        norm_post, norm_like, creds = self.validator.validate(self.groups, self.net, self.dataset)
+
+        plt.figure(**self.pp_fig_kwargs)
+        return self.plotter.pp(creds, **self.pp_kwargs).figure
+
+    def __call__(self, *, global_step: int, **kwargs):
+        pp_fig = self.forward()
+        self.log_figure(f'{self.validate_name}/{self.pp_name}', pp_fig, global_step)

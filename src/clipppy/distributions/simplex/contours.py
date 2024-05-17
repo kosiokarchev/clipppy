@@ -1,14 +1,14 @@
 from itertools import product, chain
-from typing import Iterable, Collection
+from typing import Iterable
 
 import numpy as np
 import torch
-from shapely import geometry as sh, ops as shops
 from matplotlib.path import Path
-from more_itertools import bucket, only, last
+from more_itertools import bucket, only
+from shapely import geometry as sh, ops as shops
 from torch import Tensor
 
-from ...utils import torch_get_default_device
+import phytorchx
 
 
 def mplpaths_to_polygons(paths: Iterable[Path]) -> Iterable[sh.Polygon]:
@@ -51,7 +51,7 @@ def contour_to_simplices(paths: Iterable[Path], device=None, dtype=None) -> tupl
         triangulate_polygon, mplpaths_to_polygons(paths))))
     return (
         torch.from_numpy(np.stack([np.transpose(t.exterior.xy)[:3] for t in triangulation], 0)).to(
-            device=device or torch_get_default_device(), dtype=dtype or torch.get_default_dtype()
+            device=device or phytorchx.get_default_device(), dtype=dtype or torch.get_default_dtype()
         ),
         torch.tensor([t.area for t in triangulation], device=device, dtype=dtype)
     )
