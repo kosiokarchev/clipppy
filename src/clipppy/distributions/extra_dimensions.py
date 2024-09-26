@@ -115,7 +115,7 @@ class ExtraIndependent(ExtraDimensions):
 
 
 
-def indep(d, indep_shape: Size):
+def indep(d, indep_shape: _Size):
     return LeftIndependent(d.expand_by(indep_shape), len(indep_shape))
 
 

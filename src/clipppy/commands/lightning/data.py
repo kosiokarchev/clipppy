@@ -1,16 +1,18 @@
 from abc import ABC
 from functools import cached_property
 from itertools import chain
-from typing import Iterable, Mapping
+from typing import Iterable, Mapping, Callable
 
 import attr
 from pytorch_lightning import LightningDataModule
+from torch import Tensor
+from torchdata.datapipes.iter import IterableWrapper
 
+from phytorchx.dataframe import AbstractTensorDataFrame, _KT
 from .callbacks import MultiSBIValidationCallback
 from .command import LightningSBICommand
 from ...sbi._typing import _MultiKT, MultiSBIProtocol
 from ...sbi.validate import MultiSBIValidator
-from ...utils.dataframe import AbstractTensorDataFrame
 from ...utils.plotting.sbi import MultiSBIValidationPlotter, MultiSBIPosteriorPlotter
 
 
@@ -40,6 +42,8 @@ class _MultiSBIDataModule(AbstractMultiSBIDataModule):
     train_dataset: AbstractTensorDataFrame
     val_dataset: AbstractTensorDataFrame
 
+    train_preprocessor: Callable[[Mapping[_KT, Tensor]], Mapping[_KT, Tensor]] = None
+
     @cached_property
     def val_params(self):
         return self.val_dataset[list(self.sbi.param_names)]
@@ -61,14 +65,17 @@ class _MultiSBIDataModule(AbstractMultiSBIDataModule):
             **kwargs
         )
 
-    def _dataloader(self, dataset: AbstractTensorDataFrame, shuffle: bool):
-        return self.sbi._training_loader(self.sbi._dataset(self._dataset(dataset, shuffle=shuffle)))
+    def _dataloader(self, dataset: AbstractTensorDataFrame, shuffle: bool, pre=None):
+        ds = self._dataset(dataset, shuffle=shuffle)
+        return self.sbi._training_loader(self.sbi._dataset(
+            ds if pre is None else IterableWrapper(ds).map(pre)
+        ))
 
     def _dataset(self, dataset: AbstractTensorDataFrame, shuffle: bool):
         return dataset.batched(self.batch_size, shuffle=shuffle)
 
     def train_dataloader(self):
-        return self._dataloader(self.train_dataset, shuffle=True)
+        return self._dataloader(self.train_dataset, shuffle=True, pre=self.train_preprocessor)
 
     def val_dataloader(self):
         return self._dataloader(self.val_dataset, shuffle=False)
@@ -78,3 +85,4 @@ class _MultiSBIDataModule(AbstractMultiSBIDataModule):
 class MultiSBIDataModule(_MultiSBIDataModule):
     train_dataset: AbstractTensorDataFrame
     val_dataset: AbstractTensorDataFrame
+    train_preprocessor: Callable[[Mapping[_KT, Tensor]], Mapping[_KT, Tensor]] = None

@@ -6,6 +6,7 @@ from typing import Callable, Generic, Iterable, Mapping, TYPE_CHECKING, TypeVar,
 
 import attr
 import torch
+from clipppy.utils.nn.sets import BatchedSetModule
 from more_itertools import always_iterable, consume, one, unique_everseen
 from torch import nn, Tensor, LongTensor
 from torch.nn import Module
@@ -62,19 +63,24 @@ class SBIHead(PassthroughSBIHead[_HeadOoutT, _KT], Generic[_HeadOoutT, _KT]):
         return self.prepare_params(params), self.head(self.prepare_obs(obs))
 
 
-@attr.s(auto_attribs=False)
-class SetSBIHead(SBIHead[_HeadOoutT, _KT], Generic[_HeadOoutT, _KT]):
-    set_dim: int = 0
+@attr.s
+class SetSBIMixin:
+    head: Union[BatchedSetModule, Callable[[Tensor, LongTensor], Tensor]]
 
+    set_dim: int = attr.ib(default=0, kw_only=True)
+
+    def _nested_cat(self, nt: Sequence[Tensor]):
+        return torch.cat(tuple(t.movedim(self.set_dim, 0) for t in nt), 0)
+        # return torch.Tensor(nt.storage()).reshape(-1, *map(nt.size, range(2, nt.ndim)))
+
+
+@attr.s
+class SetSBIHead(SetSBIMixin, SBIHead[_HeadOoutT, _KT], Generic[_HeadOoutT, _KT]):
     if TYPE_CHECKING:
         head: Union[Module, Callable[[Tensor, Iterable[LongTensor]], _HeadOoutT]] = _empty_module
 
     def __attrs_post_init__(self):
         self.whitener = LazyWhitenOnline() if self.whiten else _empty_module
-
-    def _nested_cat(self, nt: Sequence[Tensor]):
-        return torch.cat(tuple(t.movedim(self.set_dim, 0) for t in nt), 0)
-        # return torch.Tensor(nt.storage()).reshape(-1, *map(nt.size, range(2, nt.ndim)))
 
     def forward(self, params: _SBIParamsT, obs: Mapping[_KT, Sequence[Tensor]]):
         return self.params_pre(params), self.head(self.whitener(_obs := self.prepare_obs({

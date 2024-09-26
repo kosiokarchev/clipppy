@@ -11,8 +11,8 @@ import torch
 import xarray as xa
 from torch import Tensor
 
+from phytorchx.dataframe import _KT, AbstractTensorDataFrame
 from . import PersistentDataset
-from ...utils.dataframe import _KT, AbstractTensorDataFrame
 from ...utils.dataframe.vltensor import VLTensor
 from ...utils.typing import _Tensor_like
 
@@ -52,8 +52,8 @@ class NetCDFDataset(PersistentDataset):
                 val = val.numpy(force=True)
                 dtype = val.dtype
             else:
-                out = np.empty((len(val),), dtype=object)
-                out[:] =[
+                out = np.empty((len(val)*val[0].shape[1:].numel(),), dtype=object)
+                out[:] = [
                     _.numpy(force=True)
                     for v in val
                     for _ in (v.unsqueeze(-1) if v.ndim == 1 else v).flatten(1).movedim(0, -1)
@@ -82,7 +82,7 @@ class NetCDFDataFrame(AbstractTensorDataFrame, NetCDFDataset):
 
     def _to_tensor_like(self, val, vltype=False):
         return (
-            list(torch.tensor(v.item() if v.dtype.kind == 'O' else v, device=self.device) for v in res)
+            list(torch.tensor(v.tolist() if v.dtype.kind == 'O' else v, device=self.device).movedim(-1, 0) for v in res)
             if (res := np.array(val)).dtype.kind == 'O' else
             torch.tensor(res, device=self.device).as_subclass(
                 VLTensor if vltype else Tensor
@@ -90,7 +90,13 @@ class NetCDFDataFrame(AbstractTensorDataFrame, NetCDFDataset):
         )
 
     def _getitem(self, item) -> Mapping[_KT, Tensor]:
-        return {key: self._to_tensor_like(val[item], isinstance(val.datatype, nc.VLType)) for key, val in self.variables}
+        return {
+            key: res[0] if squeeze else res
+            for key, val in self.variables
+            for vltype in [isinstance(val.datatype, nc.VLType)]
+            for _val in [val[item]] for squeeze in [_val.ndim<val.ndim]
+            for res in [self._to_tensor_like([_val] if squeeze else _val, vltype)]
+        }
 
     def _getitem_column(self, item: str) -> _Tensor_like:
         return self._to_tensor_like(self.group[item])

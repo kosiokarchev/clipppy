@@ -81,7 +81,8 @@ Trainer: Type[pl.Trainer] = partial(pl.Trainer, log_every_n_steps=1, enable_mode
 ModelCheckpoint: Type[pl.callbacks.ModelCheckpoint] = partial(
     pl.callbacks.ModelCheckpoint,
     every_n_epochs=1, save_on_train_epoch_end=False,  # save on validation
-    save_top_k=-1, save_last=True, filename='{step}'
+    save_top_k=-1, save_last=True, filename='{step}',
+    monitor='val'
 )
 
 

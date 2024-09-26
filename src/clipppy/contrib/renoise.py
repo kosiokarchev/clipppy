@@ -1,8 +1,10 @@
 from dataclasses import dataclass
-from typing import Iterable, TypeVar, MutableMapping
+from numbers import Number
+from typing import Iterable, TypeVar, MutableMapping, Union
 
 import torch
 from torch import Tensor
+from torchdata.datapipes.iter import IterableWrapper
 
 
 _KT = TypeVar('_KT')
@@ -10,15 +12,18 @@ _VT = TypeVar('_VT')
 
 
 @dataclass
-class GaussianRenoise:
-    dataset: Iterable[MutableMapping[_KT, _VT]]
-    noise: Tensor
+class GaussianRenoiser:
+    noise: Union[Tensor, Number]
     noiseless_name: _KT
     noisy_name: _KT
 
-    def __iter__(self):
-        for item in self.dataset:
-            nsless = item[self.noiseless_name]
-            self.noise = torch.as_tensor(self.noise, dtype=nsless.dtype, device=nsless.device)
-            item[self.noisy_name] = nsless + self.noise * torch.randn_like(nsless)
-            yield item
+    def __call__(self, item):
+        nsless = item[self.noiseless_name]
+        if torch.is_tensor(self.noise):
+            self.noise = self.noise.to(dtype=nsless.dtype, device=nsless.device)
+        item[self.noisy_name] = nsless + self.noise * torch.randn_like(nsless)
+        return item
+
+
+def GaussianRenoise(dataset: Iterable[MutableMapping[_KT, _VT]], noise: Union[Tensor, Number], noiseless_name: _KT, noisy_name: _KT):
+    return IterableWrapper(dataset).map(GaussianRenoiser(noise, noiseless_name, noisy_name))

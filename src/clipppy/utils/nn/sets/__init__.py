@@ -11,7 +11,7 @@ from more_itertools import last, always_iterable
 from torch import Tensor, LongTensor
 from torch.nn import ModuleList, Module
 
-from phytorchx import broadcast_gather, broadcast_cat
+from phytorchx import broadcast_gather, broadcast_cat, fancy_align
 from ..attrs import AttrsModule
 
 
@@ -57,6 +57,10 @@ def _collapse(t: Tensor, indptr: Tensor, reduce: Literal['mean', 'sum']):
 
 collapse_sum = partial(_collapse, reduce='sum')
 collapse_mean = partial(_collapse, reduce='mean')
+
+
+def collapse_nmean(t: Tensor, indptr: Tensor) -> Tensor:
+    return torch.mul(*fancy_align(collapse_mean(t, indptr), indptr.diff(n=1, dim=-1).to(t).sqrt_()))
 
 
 @attr.s(kw_only=True)

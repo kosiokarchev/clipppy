@@ -34,8 +34,9 @@ class Contextful(property):
     def __get__(self, instance: Optional[PyroModule], owner: type[PyroModule] = None):
         if instance is None:
             return self
-        if (ret := instance._pyro_context.get(self.name)) is None:
-            instance._pyro_context.set(self.name, ret := self._fget(instance))
+        name = instance._pyro_get_fullname(self.name)
+        if (ret := instance._pyro_context.get(name)) is None:
+            instance._pyro_context.set(name, ret := self._fget(instance))
         return ret
 
 
@@ -45,7 +46,7 @@ class PyroDeterministic(Contextful):
         self.event_dim = event_dim
 
     def _fget(self, instance: PyroModule):
-        return pyro.deterministic(self.name, super()._fget(instance), self.event_dim)
+        return pyro.deterministic(instance._pyro_get_fullname(self.name), super()._fget(instance), self.event_dim)
 
 
 

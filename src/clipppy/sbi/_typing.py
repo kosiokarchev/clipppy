@@ -13,9 +13,9 @@ from torch.utils.data import default_collate
 from tqdm.auto import tqdm
 from typing_extensions import TypeAlias
 
-from ..utils.dataframe import TensorDataFrame
-from ..utils.typing import _KT
+from phytorchx.dataframe import TensorDataFrame
 
+from ..utils.typing import _KT
 
 _MultiKT = Union[_KT, Iterable[_KT]]
 _MultiMappingT: TypeAlias = Mapping[_MultiKT, Tensor]
