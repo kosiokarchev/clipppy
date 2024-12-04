@@ -12,7 +12,7 @@ _T = TypeVar('_T')
 def get_best_ckpt(folder: Union[str, Path]) -> Path:
     return (folder := Path(folder)) / '/'.join(
         Path(min(
-            yaml.safe_load((folder / 'ckpt_vals.yaml').open()).items(),
+            yaml.safe_load((folder / 'checkpoints/best_k_models.yaml').open()).items(),
             key=itemgetter(1)
         )[0]).parts[-2:]
     )

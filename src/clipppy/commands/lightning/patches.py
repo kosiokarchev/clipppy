@@ -12,6 +12,8 @@ from frozendict import frozendict
 from pytorch_lightning import Callback
 from pytorch_lightning.utilities import rank_zero_only
 
+from ...sbi._typing import DEFAULT_VAL_NAME
+
 for _mname in 'pytorch_lightning.utilities.logger', 'lightning_fabric.utilities.logger':
     try:
         _add_prefix = __import__(_mname, globals(), locals(), ['_add_prefix'], 0)._add_prefix
@@ -82,7 +84,7 @@ ModelCheckpoint: Type[pl.callbacks.ModelCheckpoint] = partial(
     pl.callbacks.ModelCheckpoint,
     every_n_epochs=1, save_on_train_epoch_end=False,  # save on validation
     save_top_k=-1, save_last=True, filename='{step}',
-    monitor='val'
+    monitor=DEFAULT_VAL_NAME
 )
 
 
@@ -91,7 +93,7 @@ def get_best_model_path(logdir: Union[str, Path], normalize=True):
 
     logdir = Path(logdir)
     ckpt_path = Path(min(
-        yaml.safe_load((logdir / 'ckpt_vals.yaml').open()).items(),
+        yaml.YAML(typ='safe', pure=True).load((logdir / 'checkpoints/best_k_models.yaml').open()).items(),
         key=lambda keyval: keyval[1]
     )[0])
     return logdir.joinpath(ckpt_path.relative_to(ckpt_path.parents[1])) if normalize else ckpt_path

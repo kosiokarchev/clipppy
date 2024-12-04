@@ -18,6 +18,9 @@ from ...utils.plotting.sbi import MultiSBIValidationPlotter, MultiSBIPosteriorPl
 
 @attr.s(auto_attribs=True)
 class AbstractMultiSBIDataModule(LightningDataModule, ABC):
+    def __attrs_pre_init__(self):
+        super().__init__()
+
     sbi: LightningSBICommand
     batch_size: int
 
