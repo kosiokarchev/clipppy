@@ -3,6 +3,7 @@ from os import cpu_count
 from typing import Iterable
 
 import torch
+from more_itertools import split_into
 from torch.utils.data import DataLoader, Subset
 
 import phytorchx
@@ -20,7 +21,10 @@ def multiprocess_batch(dataset, batch_size, num_workers=None,
     )
 
 
-def random_subsets(dataset, lengths, seed=None) -> Iterable[Subset]:
+def random_subindices(total: int, lengths: Iterable[int], seed: int = None):
     random.seed(seed)
-    indices = random.sample(range(len(dataset)), k=sum(lengths))
-    return (Subset(dataset, indices[i-length:i]) for i in [0] for length in lengths for i in [i+length])
+    return split_into(random.sample(range(total), k=sum(lengths)), lengths)
+
+
+def random_subsets(dataset, lengths, seed=None) -> Iterable[Subset]:
+    return (Subset(dataset, i) for i in random_subindices(len(dataset), lengths, seed))
