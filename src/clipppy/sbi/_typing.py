@@ -74,6 +74,10 @@ class MultiNPEProtocol(MultiSBIProtocol):
 class BaseMultiSBIResultRep:
     _samples: Mapping[_KT, Tensor]
 
+    def to(self, device: Union[str, torch.device] = None):
+        self._samples = {key: val.to(device) for key, val in self._samples.items()}
+        return self
+
     batch_size: int = attr.ib(default=None, kw_only=True)
     batched_progress: bool = attr.ib(default=True, kw_only=True)
 
@@ -82,19 +86,23 @@ class BaseMultiSBIResultRep:
         ret = params.batched(self.batch_size or len(params), shuffle=False)
         return tqdm(ret, leave=False) if self.batched_progress and self.batch_size else ret
 
-    def _eval_nre(self, groups: Iterable[_MultiKT], net: MultiNREProtocol, params: _SBIParamsT, obs: _SBIObsT) -> _MultiMappingT:
+    def _eval(self, groups, net, params, obs, post) -> _MultiMappingT:
         from clipppy.sbi.nn import MultiSBITail
 
-        with torch.no_grad():
+        with torch.inference_mode():
             res = [
-                {group: net.tail.forward_one(group, *headout) for group in groups}
+                {group: post(net.tail.forward_one(group, *headout)) for group in groups}
                 for batch in self._batched_iter(params)
                 for headout in [net.head(batch, obs)]
             ] if isinstance(net.tail, MultiSBITail) else [
-                net.tail(*net.head(batch, obs))
+                post(net.tail(*net.head(batch, obs)))
                 for batch in self._batched_iter(params)
             ]
+
         return {key: val.flatten(end_dim=1) for key, val in default_collate(res).items()}
+
+    def _eval_nre(self, groups: Iterable[_MultiKT], net: MultiNREProtocol, params: _SBIParamsT, obs: _SBIObsT) -> _MultiMappingT:
+        return self._eval(groups, net, params, obs, lambda x: x)
 
 
 _OptimizerT = TypeVar('_OptimizerT', bound=Optimizer)

@@ -14,8 +14,9 @@ import torch
 from frozendict import frozendict
 from matplotlib import pyplot as plt
 from matplotlib.ticker import PercentFormatter
+from matplotlib.transforms import blended_transform_factory
 from more_itertools import always_iterable, consume
-from scipy.stats import halfnorm
+from scipy.stats import halfnorm, norm
 from torch import Tensor
 from typing_extensions import TypeAlias, Self
 from xarray import DataArray, Dataset
@@ -210,7 +211,7 @@ class MultiSBIPosteriorPlotter(MultiSBIPlotter):
         if axs is None:
             fig, axs = self._corner(group, figsize)
         else:
-            fig = axs[0][0].figure
+            fig = axs[-1][0].figure
 
         for i, param in enumerate(group):
             ax: plt.Axes = axs[i, i]
@@ -341,6 +342,99 @@ class MultiSBIPosteriorPlotter(MultiSBIPlotter):
             ax.set_title(self.param_label(param_name))
 
         return self._local_v_truth(param_name, cred, ax, **kwargs)
+
+    lvt2_histkwargs: Mapping[str, Any] = attr.field(default={}, converter=dict(histtype='stepfilled', density=True).__or__)
+    lvt2_markerkwargs: Mapping[str, Any] = attr.field(default={}, converter=dict(ls='none', marker='.', ms=3, mew=0).__or__)
+    lvt2_errorkwargs: Mapping[str, Any] = attr.field(default={}, converter=dict(ls='none', marker='.', ms=3, mew=0, lw=0.5, elinewidth=0.5, capsize=0, alpha=0.8).__or__)
+    lvt2_truthkwargs: Mapping[str, Any] = attr.field(default={}, converter=dict(ls='--', color='k').__or__)
+
+    def _local_v_truth2(
+        self, axs: Union[np.ndarray, Sequence[Sequence[plt.Axes]]],
+        truths: np.ndarray, means: np.ndarray, stds: np.ndarray, prior: np.ndarray,
+        histkwargs=frozendict(), markerkwargs=frozendict(), errorkwargs=frozendict(), truthkwargs=frozendict()
+    ):
+        errs = means - truths
+        serrs = errs / stds
+        m = errs.mean().item()
+        s = errs.std().item()
+
+        histkwargs = ChainMap(histkwargs, self.lvt2_histkwargs)
+        markerkwargs = ChainMap(markerkwargs, self.lvt2_markerkwargs)
+        errorkwargs = ChainMap(errorkwargs, self.lvt2_errorkwargs)
+        truthkwargs = ChainMap(truthkwargs, self.lvt2_truthkwargs)
+
+        ax = axs[0, 0]
+        ax.hist(prior, color='C1', **histkwargs, label='prior')
+        ax.hist(truths, color='k', **histkwargs, label='truths', alpha=0.5)
+        ax.legend()
+
+
+        ax = axs[1, 0]
+        ax.plot(*2*((truths.min(), truths.max()),), **truthkwargs)
+        ax.errorbar(truths, means, stds, **errorkwargs)
+
+
+        ax = axs[2, 0]
+        ax.axhline(m, color='0.2')
+        ax.errorbar(truths, errs, stds, **errorkwargs)
+        ax.set_autoscalex_on(False)
+        for nsigma, clr in ((3, '0.8'), (2, '0.6'), (1, '0.4')):
+            ax.fill_between((0, 1), m-nsigma*s, m+nsigma*s, color=clr, transform=blended_transform_factory(ax.transAxes, ax.transData))
+
+
+        ax = axs[3, 0]
+        ax.plot(truths, serrs, **markerkwargs)
+        ax.axhline(0, **truthkwargs)
+
+
+        ax = axs[4, 0]
+        ax.plot(truths, stds, **markerkwargs)
+        ax.set(ylabel='st. dev.')
+
+
+        for ax, _errs in zip(axs[2:5, 1], (errs, serrs, stds)):
+            ax.hist(_errs, orientation='horizontal', density=True, bins=20)
+
+        axs[3, 1].plot(norm(0, 1).pdf(_ := np.linspace(-4, 4, 101)), _, color='k')
+
+    def local_v_truth2(self, param_name: _KT, *, axs: Union[np.ndarray, Sequence[Sequence[plt.Axes]]] = None, **kwargs):
+        label = self.param_label(param_name)
+
+        if axs is None:
+            from uplot.utils import unshare
+
+            fig, axs = plt.subplots(5, 2, height_ratios=(1, 2, 1, 1, 1), figsize=(6, 12), sharex='col', sharey='row', width_ratios=(4, 1))
+
+            for _axs in axs[[0, 1]]:
+                unshare(_axs[0], 'y', formatter=_axs[0].xaxis.get_major_formatter())
+                _axs[1].remove()
+
+            for ax in axs[2:5, 1]:
+                ax.xaxis.set_visible(False)
+                unshare(ax, 'x')
+
+            fig.suptitle(f'${label}$')
+            axs[-1, 0].set(xlabel=f'true ${label}$')
+
+            for ax, ylabel in zip(axs[:, 0], (
+                'PDF', 'posterior', r'$\rm mean - true$',
+                r'$\rm (mean-true) / std$', 'std'
+            )):
+                ax.set(ylabel=ylabel)
+            axs[0, 0].set(yticks=[])
+            axs[1, 0].set(aspect='equal', adjustable='datalim')
+
+        wds = self.samples[param_name].weighted(self.weights[param_name])
+        self._local_v_truth2(
+            axs=axs,
+            truths=self.truths[param_name].numpy(force=True),
+            means=wds.mean('sample').to_numpy(), stds=wds.std('sample').to_numpy(),
+            prior=self.samples[param_name].to_numpy(),
+            **kwargs
+        )
+
+        return axs
+
 
     # end LOCAL
 

@@ -3,8 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass, field, InitVar
 from functools import partial
-from pathlib import Path
-from typing import MutableMapping, Mapping, Union, Type, Any
+from typing import MutableMapping, Mapping, Any
 
 import pytorch_lightning as pl
 import pytorch_lightning.loggers
@@ -78,22 +77,18 @@ class WandbHooker(Callback):
         self._finish()
 
 
+class ModelCheckpoint(pl.callbacks.ModelCheckpoint):
+    def _save_checkpoint(self, *args, **kwargs):
+        ret = super()._save_checkpoint(*args, **kwargs)
+        self.to_yaml()
+        return ret
 
-Trainer: Type[pl.Trainer] = partial(pl.Trainer, log_every_n_steps=1, enable_model_summary=False, max_epochs=-1)
-ModelCheckpoint: Type[pl.callbacks.ModelCheckpoint] = partial(
-    pl.callbacks.ModelCheckpoint,
+
+
+Trainer = partial(pl.Trainer, log_every_n_steps=1, enable_model_summary=False, max_epochs=-1)
+ModelCheckpoint = partial(
+    ModelCheckpoint,
     every_n_epochs=1, save_on_train_epoch_end=False,  # save on validation
     save_top_k=-1, save_last=True, filename='{step}',
     monitor=DEFAULT_VAL_NAME
 )
-
-
-def get_best_model_path(logdir: Union[str, Path], normalize=True):
-    from ruamel import yaml
-
-    logdir = Path(logdir)
-    ckpt_path = Path(min(
-        yaml.YAML(typ='safe', pure=True).load((logdir / 'checkpoints/best_k_models.yaml').open()).items(),
-        key=lambda keyval: keyval[1]
-    )[0])
-    return logdir.joinpath(ckpt_path.relative_to(ckpt_path.parents[1])) if normalize else ckpt_path

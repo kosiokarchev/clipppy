@@ -2,25 +2,29 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections import OrderedDict
-from typing import Callable, Generic, Iterable, Mapping, TYPE_CHECKING, TypeVar, Union, Sequence
+from typing import Callable, Generic, Iterable, Mapping, TYPE_CHECKING, TypeVar, Union
 
 import attr
-import torch
-from clipppy.utils.nn.sets import BatchedSetModule
-from more_itertools import always_iterable, consume, one, unique_everseen
-from torch import nn, Tensor, LongTensor
+import torch.nn
+from more_itertools import always_iterable
+from torch import nn, Tensor
 from torch.nn import Module
 
 from phytorchx.attrs import AttrsModule
 from .._typing import _KT, _MultiKT, _SBIParamsT, _SBIObsT
-from ..multi import dict_to_vect, PackerMixin
+from ..multi import PackerMixin
 from ...utils.nn import LazyWhitenOnline
 from ...utils.nn.empty import _empty_module
-
 
 _HeadOoutT = TypeVar('_HeadOoutT')
 _HeadOoutT2 = TypeVar('_HeadOoutT2')
 _TailOutT = TypeVar('_TailOutT')
+
+
+@attr.s(eq=False)
+class ObsPacker(PackerMixin, AttrsModule):
+    def forward(self, obs: _SBIObsT):
+        return self.pack(OrderedDict((key, obs[key]) for key in self.obs_names))
 
 
 class BaseSBIHead(PackerMixin, AttrsModule, Generic[_HeadOoutT, _KT], ABC):
@@ -33,17 +37,13 @@ class BaseSBIHead(PackerMixin, AttrsModule, Generic[_HeadOoutT, _KT], ABC):
 
 @attr.s(eq=False, auto_attribs=True)
 class PassthroughSBIHead(BaseSBIHead[_HeadOoutT, _KT], Generic[_HeadOoutT, _KT]):
-    params_pre: Callable[[_SBIParamsT], _SBIParamsT] = attr.ib(default=_empty_module, kw_only=True)
     obs_pre: Callable[[_SBIObsT], _SBIObsT] = attr.ib(default=_empty_module, kw_only=True)
-
-    def prepare_params(self, params: _SBIParamsT):
-        return self.params_pre(params)
 
     def prepare_obs(self, obs: _SBIObsT):
         return self.obs_pre(obs)
 
     def forward(self, params, obs) -> tuple[_SBIParamsT, _SBIObsT]:
-        return self.prepare_params(params), self.prepare_obs(obs)
+        return params, self.prepare_obs(obs)
 
 
 @attr.s(eq=False, auto_attribs=True)
@@ -57,39 +57,11 @@ class SBIHead(PassthroughSBIHead[_HeadOoutT, _KT], ObsPacker, Generic[_HeadOoutT
             self.head = nn.Sequential(LazyWhitenOnline(), self.head)
 
     def prepare_obs(self, obs: _SBIObsT) -> Tensor:
-        return dict_to_vect(super().prepare_obs(obs), self.event_dims)
+        return ObsPacker.forward(self, super().prepare_obs(obs))
 
     def forward(self, params: _SBIParamsT, obs: _SBIObsT):
-        return self.prepare_params(params), self.head(self.prepare_obs(obs))
+        return params, self.head(self.prepare_obs(obs))
 
-
-@attr.s
-class SetSBIMixin:
-    head: Union[BatchedSetModule, Callable[[Tensor, LongTensor], Tensor]]
-
-    set_dim: int = attr.ib(default=0, kw_only=True)
-
-    def _nested_cat(self, nt: Sequence[Tensor]):
-        return torch.cat(tuple(t.movedim(self.set_dim, 0) for t in nt), 0)
-        # return torch.Tensor(nt.storage()).reshape(-1, *map(nt.size, range(2, nt.ndim)))
-
-
-@attr.s
-class SetSBIHead(SetSBIMixin, SBIHead[_HeadOoutT, _KT], Generic[_HeadOoutT, _KT]):
-    if TYPE_CHECKING:
-        head: Union[Module, Callable[[Tensor, Iterable[LongTensor]], _HeadOoutT]] = _empty_module
-
-    def __attrs_post_init__(self):
-        self.whitener = LazyWhitenOnline() if self.whiten else _empty_module
-
-    def forward(self, params: _SBIParamsT, obs: Mapping[_KT, Sequence[Tensor]]):
-        return self.params_pre(params), self.head(self.whitener(_obs := self.prepare_obs({
-            key: self._nested_cat(val)
-            for key, val in obs.items()
-        })), (_obs.new_tensor(
-            one(unique_everseen(tuple(_.shape[self.set_dim] for _ in v) for v in obs.values())),
-            dtype=int
-        ),))
 
 @attr.s(eq=False, auto_attribs=True)
 class MultiSBIHead(BaseSBIHead[Mapping[Iterable[_KT], _HeadOoutT], _KT], Generic[_HeadOoutT, _KT]):
@@ -120,28 +92,64 @@ class AbstractPackerSBITail(PackerMixin, BaseSBITail[_HeadOoutT, _TailOutT, _KT]
     pass
 
 
+@attr.s(eq=False, auto_attribs=True)
 class ParamPackerSBITail(AbstractPackerSBITail[_HeadOoutT, _TailOutT, _KT], Generic[_HeadOoutT, _TailOutT, _KT]):
+    params_pre: Callable[[_SBIParamsT], _SBIParamsT] = attr.ib(default=_empty_module, kw_only=True)
+
     @abstractmethod
     def _forward(self, theta: Tensor, x: _HeadOoutT, **kwargs) -> _TailOutT: ...
 
     def forward(self, params: _SBIParamsT, obs: _HeadOoutT, **kwargs) -> _TailOutT:
+        params = self.params_pre({k: params[k] for k in self.param_names})
         return self._forward(self.pack(OrderedDict((k, params[k]) for k in self.param_names)), obs, **kwargs)
 
     if TYPE_CHECKING:
         __call__ = forward
 
 
-@attr.s
+class ModuleDict2(torch.nn.ModuleDict):
+    sep = '_&_'
+
+    def key_to_str(self, key: _MultiKT):
+        return self.sep.join(always_iterable(key))
+
+    def str_to_key(self, key: str):
+        return tuple(key.split(self.sep)) if self.sep in key else key
+
+    def __getitem__(self, item):
+        return super().__getitem__(self.key_to_str(item))
+
+    def __setitem__(self, key, value):
+        return super().__setitem__(self.key_to_str(key), value)
+
+    def __delitem__(self, key):
+        return super().__delitem__(self.key_to_str(key))
+
+    def __iter__(self):
+        return self.keys()
+
+    def __contains__(self, item):
+        return super().__contains__(self.key_to_str(item))
+
+    def keys(self):
+        return (self.str_to_key(key) for key in super().keys())
+
+    def items(self):
+        return ((self.str_to_key(key), val) for key, val in super().items())
+
+
+@attr.s(eq=False, auto_attribs=True)
 class BaseMultiSBITail(BaseSBITail[_HeadOoutT, Mapping[_KT, _TailOutT], _KT], Generic[_HeadOoutT, _TailOutT, _KT]):
     tails: Mapping[_MultiKT, BaseSBITail[_HeadOoutT, _TailOutT, _KT]]
 
-    def _add_tails(self, tails: Mapping[_MultiKT, Module], prefix=''):
-        for key, mod in tails.items():
-            setattr(self, prefix+(key if isinstance(key, str) else '_&_'.join(key)), mod)
+    # def _add_tails(self, tails: Mapping[_MultiKT, Module], prefix=''):
+    #     for key, mod in tails.items():
+    #         setattr(self, prefix+(key if isinstance(key, str) else '_&_'.join(key)), mod)
 
     def __attrs_post_init__(self):
-        self.tails = OrderedDict(self.tails)
-        self._add_tails(self.tails)
+        self.tails = ModuleDict2(self.tails)
+        # self.tails = OrderedDict(self.tails)
+        # self._add_tails(self.tails)
 
         for key, tail in self.tails.items():
             if isinstance(tail, PackerMixin) and tail.param_names is None:

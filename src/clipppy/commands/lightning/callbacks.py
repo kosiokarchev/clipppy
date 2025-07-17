@@ -89,6 +89,8 @@ class MultiSBIPosteriorCallback(MultiSBIDiagnosticFigureCallback, PeriodicCallba
     groups_global: Iterable[_MultiKT] = ()
     groups_local: Iterable[_MultiKT] = ()
 
+    device: Union[str, torch.device] = None
+
     ref_plotters: Iterable[MultiSBIPosteriorPlotter] = ()
 
     posterior_name: str = 'posterior'
@@ -102,7 +104,7 @@ class MultiSBIPosteriorCallback(MultiSBIDiagnosticFigureCallback, PeriodicCallba
     def get_wplotter(self, *args, **kwargs): ...
 
     def forward(self) -> tuple[Mapping[_MultiKT, plt.Figure], Mapping[_MultiKT, plt.Figure]]:
-        self.net.head.eval(), self.net.tail.eval()
+        self.net.head.eval().to(device=self.device), self.net.tail.eval().to(device=self.device)
 
         wplotter = self.get_wplotter()
 
@@ -159,11 +161,14 @@ class MultiNPEPosteriorCallback(MultiSBIPosteriorCallback):
     net: MultiNPEProtocol = None
 
     def get_wplotter(self, *args, **kwargs):
+        res = self.net.posterior(self.data)
         return MultiSBIPosteriorPlotter(samples=dict(
-            (key, val) for keys, dist in self.net.posterior(self.data).items()
+            (key, val.squeeze(-1)) for keys, dist in res.items()
             for vals in [dist.sample(Size((self.nsamples,)))]
             for key, val in zip(always_iterable(keys), (vals.unsqueeze(-1) if not dist.event_shape else vals).unbind(-1))
-        ), **self.plotter_kwargs)
+        ), **self.plotter_kwargs).with_ratios({
+            key: torch.zeros(self.nsamples) for key in res.keys()
+        })
 
 
 @attr.define(slots=False)
