@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Generic, Iterable, Iterator, Mapping, cast
 
 from torch import Tensor
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, IterableDataset
 from typing_extensions import TypeAlias
 
 from .conditionable import PyroConditionPipe, BaseConditionableDataset
@@ -33,7 +33,7 @@ class SBIProcessor:
 
 
 @dataclass
-class AbstractSBIDataset(SBIProcessor, Generic[_Tin], ABC):
+class AbstractSBIDataset(SBIProcessor, IterableDataset, Generic[_Tin], ABC):
     iterable: Iterable[_Tin]
 
     @abstractmethod

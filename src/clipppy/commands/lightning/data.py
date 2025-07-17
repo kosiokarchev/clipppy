@@ -1,9 +1,11 @@
 from abc import ABC
 from functools import cached_property
 from itertools import chain
-from typing import Iterable, Mapping, Callable
+from random import randint
+from typing import Iterable, Mapping, Callable, Optional
 
 import attr
+import torch
 from pytorch_lightning import LightningDataModule
 from torch import Tensor
 from torch.utils.data import DataLoader
@@ -42,9 +44,9 @@ class AbstractMultiSBIDataModule(LightningDataModule, ABC):
         self._plotter_kwargs = dict(labels=self.labels, batch_size=self.batch_size)
 
 
-@attr.s(auto_attribs=True)
-class DataFrameSBIDataModule(AbstractMultiSBIDataModule):
-    train_dataset: AbstractTensorDataFrame
+@attr.s(auto_attribs=False)
+class AbstractDataFrameSBIDataModule(AbstractMultiSBIDataModule):
+    train_dataset: Optional[AbstractTensorDataFrame]
     val_dataset: AbstractTensorDataFrame
 
     train_preprocessor: Callable[[Mapping[_KT, Tensor]], Mapping[_KT, Tensor]] = attr.ib(default=None, kw_only=True)
@@ -53,25 +55,28 @@ class DataFrameSBIDataModule(AbstractMultiSBIDataModule):
         return dataset.batched(self.batch_size, shuffle=shuffle)
 
     @staticmethod
-    def _ds_to_dl(ds):
-        return DataLoader(ds)
+    def _ds_to_dl(ds, *, batch_size=None, **kwargs):
+        return DataLoader(ds, batch_size=batch_size, **kwargs)
 
-    def _dataloader(self, dataset: AbstractTensorDataFrame, shuffle: bool, pre=None):
+    def _dataloader(self, dataset: AbstractTensorDataFrame, shuffle: bool, pre=None, **kwargs):
         ds = self._dataset(dataset, shuffle=shuffle)
-        return self._ds_to_dl(ds if pre is None else IterableWrapper(ds).map(pre))
+        return self._ds_to_dl(ds if pre is None else IterableWrapper(ds).map(pre), **kwargs)
+
+    def train_dataloader(self, **kwargs):
+        return self._dataloader(self.train_dataset, shuffle=True, pre=self.train_preprocessor, **kwargs)
+
+    def val_dataloader(self, **kwargs):
+        return self._dataloader(self.val_dataset, shuffle=False, **kwargs)
 
 
-    def train_dataloader(self):
-        return self._dataloader(self.train_dataset, shuffle=True, pre=self.train_preprocessor)
-
-    def val_dataloader(self):
-        return self._dataloader(self.val_dataset, shuffle=False)
-
-
-class MultiSBIDataModule(DataFrameSBIDataModule):
+@attr.s(auto_attribs=False)
+class AbstractDataFrameParameterSBIDataModule(AbstractDataFrameSBIDataModule):
     sbi: LightningSBICommand
 
-    def _ds_to_dl(self, ds):
+    global_names: Iterable[str] = attr.ib(default=None, kw_only=True)
+    local_names: Iterable[str] = attr.ib(default=None, kw_only=True)
+
+    def _ds_to_dl(self, ds, **kwargs):
         return self.sbi._training_loader(self.sbi._dataset(ds))
 
     @property
@@ -79,22 +84,34 @@ class MultiSBIDataModule(DataFrameSBIDataModule):
         return chain(self.sbi.param_names, self.sbi.obs_names)
 
     @cached_property
-    def val_params(self):
-        return self.val_dataset[list(self.sbi.param_names)]
+    def global_val_params(self):
+        return self.val_dataset[list(self.global_names or self.sbi.param_names)]
+
+    @cached_property
+    def local_val_params(self):
+        ret = self.val_dataset[list(self.local_names or self.sbi.param_names)]
+        idx = [randint(0, len(v)-1) for v in next(iter(ret.values()))]
+        return {key: torch.stack([v[i] for v, i in zip(val, idx)]) for key, val in ret.items()}
 
     @cached_property
     def posterior_plotter(self):
-        return MultiSBIPosteriorPlotter(samples=self.val_params, **{**self._plotter_kwargs, **self.posterior_plotter_kwargs})
+        return MultiSBIPosteriorPlotter(samples=self.global_val_params, **{**self._plotter_kwargs, **self.posterior_plotter_kwargs})
 
     @cached_property
     def validation_plotter(self):
-        return MultiSBIValidationPlotter(self.val_params, **{**self._plotter_kwargs, **self.validation_plotter_kwargs})
+        return MultiSBIValidationPlotter(self.global_val_params, **{**self._plotter_kwargs, **self.validation_plotter_kwargs})
 
     def validation_callback(self, groups: Iterable[_MultiKT] = None, **kwargs):
         return MultiSBIValidationCallback(
-            MultiSBIValidator.subtype(self._protocol_type)(self.val_params, batch_size=self.batch_size),
+            MultiSBIValidator.subtype(self._protocol_type)(self.global_val_params, batch_size=self.batch_size),
             self.validation_plotter,
             self.sbi._dataset(self.val_dataset.batched(self.batch_size, shuffle=False)),
             self.sbi.tail.tails.keys() if groups is None else groups,
             **kwargs
         )
+
+
+@attr.s(auto_attribs=True)
+class DataFrameParameterSBIDataModule(AbstractDataFrameSBIDataModule):
+    train_dataset: Optional[AbstractTensorDataFrame]
+    val_dataset: AbstractTensorDataFrame

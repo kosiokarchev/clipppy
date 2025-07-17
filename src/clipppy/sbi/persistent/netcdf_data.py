@@ -82,19 +82,29 @@ class NetCDFDataFrame(AbstractTensorDataFrame, NetCDFDataset):
 
     def _to_tensor_like(self, val, vltype=False):
         return (
-            list(torch.tensor(v.tolist() if v.dtype.kind == 'O' else v, device=self.device).movedim(-1, 0) for v in res)
+            list(torch.tensor(np.array(v.tolist()) if v.dtype.kind == 'O' else v, device=self.device).movedim(-1, 0) for v in res)
             if (res := np.array(val)).dtype.kind == 'O' else
             torch.tensor(res, device=self.device).as_subclass(
                 VLTensor if vltype else Tensor
             )
         )
 
+    @staticmethod
+    def _vlen_index_patch(val, item):
+        try:
+            return val[item]
+        except IndexError as e:
+            if e.args == ('strides must all be 1 for vlen variables',):
+                return np.array([val[i] for i in item], dtype=object)
+            raise e
+
     def _getitem(self, item) -> Mapping[_KT, Tensor]:
         return {
             key: res[0] if squeeze else res
             for key, val in self.variables
             for vltype in [isinstance(val.datatype, nc.VLType)]
-            for _val in [val[item]] for squeeze in [_val.ndim<val.ndim]
+            for _val in [self._vlen_index_patch(val, item)]
+            for squeeze in [_val.ndim<val.ndim]
             for res in [self._to_tensor_like([_val] if squeeze else _val, vltype)]
         }
 

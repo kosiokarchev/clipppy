@@ -1,21 +1,21 @@
 from functools import wraps
-from operator import itemgetter
 from pathlib import Path
 from typing import Union, TypeVar
 
-import yaml
 from pytorch_lightning import Trainer
 
 _T = TypeVar('_T')
 
 
-def get_best_ckpt(folder: Union[str, Path]) -> Path:
-    return (folder := Path(folder)) / '/'.join(
-        Path(min(
-            yaml.safe_load((folder / 'checkpoints/best_k_models.yaml').open()).items(),
-            key=itemgetter(1)
-        )[0]).parts[-2:]
-    )
+def get_best_ckpt(logdir: Union[str, Path], normalize=True):
+    from ruamel import yaml
+
+    logdir = Path(logdir)
+    ckpt_path = Path(min(
+        yaml.YAML(typ='safe', pure=True).load((logdir / 'checkpoints/best_k_models.yaml').open()).items(),
+        key=lambda keyval: keyval[1]
+    )[0])
+    return logdir.joinpath(ckpt_path.relative_to(ckpt_path.parents[1])) if normalize else ckpt_path
 
 
 def if_not_sanity_checking(f: _T) -> _T:
