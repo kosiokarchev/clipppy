@@ -54,8 +54,11 @@ class Clipppy(Commandable):
     def model(self):
         return condition(self._model, data=self.conditioning)
 
-    fit: commands.Fit
     mock: commands.Mock
+
+    fit: commands.Fit
     ppd: commands.PPD
-    lightning_npe: commands.LightningNPE
-    lightning_nre: commands.LightningNRE
+
+    npe: commands.NPE
+
+    nre: commands.NRE

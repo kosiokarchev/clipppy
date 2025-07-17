@@ -1,17 +1,15 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-
-from typing import Union, Mapping, Iterable, Generic, TYPE_CHECKING, Iterator, Any, Type
+from typing import Union, Mapping, Iterable, Generic, Iterator, Any, Type
 
 import pyro
 from torch.utils.data import Dataset
 from typing_extensions import TypeAlias
 from torchdata.datapipes.iter import IterableWrapper
 
+from ...utils.typing import _KT, _VT, _T
 
-from ...utils.typing import _KT, _VT, _T, _Tin
 
 _ConditionsT: TypeAlias = Union[Mapping[_KT, Iterable[_VT]], Iterable[Mapping[_KT, _VT]]]
 
@@ -50,7 +48,4 @@ class PyroConditionPipe(BaseConditionPipe[_T], Generic[_T]):
 
 
 class BaseConditionableDataset(Dataset):
-    @classmethod
-    @property
-    @abstractmethod
-    def conditioner_cls(cls) -> Type[BaseConditionPipe]: ...
+    conditioner_cls: Type[BaseConditionPipe]

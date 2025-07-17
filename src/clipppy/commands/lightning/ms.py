@@ -6,6 +6,7 @@ from math import log
 from typing import Any, Sequence, TypedDict, Mapping, TypeVar, Generic, Callable, Union, TYPE_CHECKING, Iterable, cast
 from warnings import warn
 
+import attr
 # import attr
 import numpy as np
 import torch
@@ -20,7 +21,6 @@ from .command import AbstractLightningSBICommand
 from .config import Config
 from .utils import if_not_sanity_checking
 from ...utils import Sentinel
-from ...utils.importing.attr import attr
 from ...utils.metrics import ClassificationMetric
 
 _T = TypeVar('_T')
@@ -32,19 +32,12 @@ class _MMS_OutT(TypedDict):
     target: LongTensor
 
 
+@attr.s(eq=False, auto_attribs=True)
 class MultiModelSelection(AbstractLightningSBICommand[CrossEntropyLoss], Generic[_T]):
-    class _KwargsT(AbstractLightningSBICommand[CrossEntropyLoss]._KwargsT, total=False):
-        models: Sequence[Any]
-        net: Union[Module, Callable[[_T], Tensor]]
-
-    if TYPE_CHECKING:
-        # noinspection PyMissingConstructor
-        def __init__(self, **kwargs: Unpack[_KwargsT]): ...
-
-    loss_config: Config = Config(CrossEntropyLoss(), Sentinel.no_call)
-
-    net: Union[Module, Callable[[_T], Tensor]]
     models: Sequence[Any]
+    net: Union[Module, Callable[[_T], Tensor]] = None
+
+    loss_config: Config = attr.ib(factory=lambda: Config(CrossEntropyLoss(), Sentinel.no_call))
 
     @property
     def output_size(self):
@@ -104,7 +97,7 @@ class MSCallback(ABC):
     def __call__(self, trainer: Trainer, pl_module: MultiModelSelection, preds: Tensor, targets: LongTensor): ...
 
 
-@attr.s(kw_only=True)
+@attr.s(eq=False, auto_attribs=True, kw_only=True)
 class FuzzyConfusionCallback(DiagnosticFigureMixin, MSCallback):
     labels: Sequence[str] = None
     heatmap_kwargs: Mapping[str, Any] = attr.field(default={}, converter=dict(
@@ -139,7 +132,7 @@ class FuzzyConfusionCallback(DiagnosticFigureMixin, MSCallback):
         plt.close(fig)
 
 
-@attr.s(kw_only=True)
+@attr.s(eq=False, auto_attribs=True, kw_only=True)
 class ROCCallback(DiagnosticFigureMixin, MSCallback):
     roc_kwargs: Mapping[str, Any] = attr.field(default={}, converter=dict(score=True).__or__)
 

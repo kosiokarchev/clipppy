@@ -10,8 +10,7 @@ import forge
 from torch.utils.data import DataLoader, Dataset
 
 from ....sbi._typing import _OptimizerT, _SchedulerT, DEFAULT_LOSS_NAME
-from ....utils import _T, merge_if_not_skip, Sentinel
-
+from ....utils import _T, merge_if_not_skip, Sentinel, noop
 
 _C = TypeVar('_C')
 __T = TypeVar('__T')
@@ -31,7 +30,7 @@ class BaseConfig(Generic[_T]):
 
 @dataclass
 class Config(BaseConfig[_T], Generic[_T]):
-    cls: Union[Type[_T], Callable[..., _T], _T] = lambda *args, **kwargs: None
+    cls: Union[Type[_T], Callable[..., _T], _T] = noop
     kwargs: Union[Mapping[str, Any], Literal[Sentinel.no_call]] = field(default_factory=dict)
 
     def instantiate(self, *args, **kwargs):

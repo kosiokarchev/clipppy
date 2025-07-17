@@ -50,7 +50,8 @@ class TestEffects:
 def test_param():
     pyro.clear_param_store()
     p = Param('a', init=torch.rand(10), support=positive, event_dim=1)
-    assert ((v := p()) == pyro.param('a')).all()
+    v = p()
+    assert (v == pyro.param('a')).all()
     assert (biject_to(positive)(v.unconstrained()) == v).all()
 
 

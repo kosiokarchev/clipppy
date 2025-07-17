@@ -1,5 +1,5 @@
 from functools import partial
-from typing import Type, Callable, Iterable, TypeVar, Generic, MutableMapping
+from typing import Type, Callable, Iterable, TypeVar, Generic, MutableMapping, Mapping
 
 import torch
 from pyro.distributions import Independent
@@ -11,6 +11,7 @@ from .extra_dimensions import ExtraBatched
 from .wrapper import DistributionWrapper, _Distribution
 
 _CKT = TypeVar('_CKT')
+_KT = TypeVar('_KT')
 _VT = TypeVar('_VT')
 
 
@@ -24,7 +25,7 @@ class ClassKeyDict(dict[Type[_CKT], _VT], Generic[_CKT, _VT]):
         return super().__getitem__(item)
 
 
-def ubexpand(t: Tensor, sizes: Tensor, dim=-1):
+def ubexpand(t: Tensor, sizes: Tensor, dim=-1) -> Tensor:
     return torch.repeat_interleave(
         t.expand(sizes.shape + t.shape[(t.ndim and dim % t.ndim) + 1:]).flatten(end_dim=dim),
         sizes.flatten(), dim=0,
@@ -32,7 +33,7 @@ def ubexpand(t: Tensor, sizes: Tensor, dim=-1):
     )
 
 
-def ubexpand_dict(tensors, sizes: Tensor, dim=-1):
+def ubexpand_dict(tensors: Mapping[_KT, Tensor], sizes: Tensor, dim=-1) -> Mapping[_KT, Tensor]:
     return {key: ubexpand(val, sizes, dim=dim) for key, val in tensors.items()}
 
 

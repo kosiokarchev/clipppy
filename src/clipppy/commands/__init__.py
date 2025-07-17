@@ -5,8 +5,8 @@ if TYPE_CHECKING:
     from .command import Command
     from .commandable import Commandable
     from .fit import Fit
-    from .lightning.npe import NPE as LightningNPE
-    from .lightning.nre import NRE as LightningNRE
+    from .lightning.npe import NPE
+    from .lightning.nre import NRE
     from .mock import Mock
     from .ppd import PPD
     # END API

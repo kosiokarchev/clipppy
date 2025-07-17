@@ -40,7 +40,10 @@ class TestStochasticSpecs:
 
         assert res.keys() == {*'abcdefgho', 'pi'}
         assert res['a'].name == 'a' and res['b'].name == 'b'
-        assert dict(zip(keys := (*'cde', 'pi'), itemgetter(*keys)(res))) == dict(**m, **e)
+
+        keys = *'cde', 'pi'
+        assert dict(zip(keys, itemgetter(*keys)(res))) == dict(**m, **e)
+
         assert dict(zip(elk, itemgetter(*elk)(res))) == dict(zip(elk, ell))
         assert res['f'].func_or_val is f
         assert res['o'] is o

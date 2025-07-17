@@ -6,6 +6,7 @@ from itertools import chain
 from typing import Any, Mapping, Iterable, Union, cast
 
 import attr
+import torch
 from lightning_utilities.core.rank_zero import rank_zero_only
 from matplotlib import pyplot as plt
 from more_itertools import always_iterable
@@ -32,15 +33,18 @@ class PeriodicCallback(Callback, ABC):
     @abstractmethod
     def __call__(self, *, global_step: int, **kwargs): ...
 
+    @rank_zero_only
     def on_train_batch_end(self, trainer: Trainer, pl_module: LightningModule, outputs: Any, batch: Any, batch_idx: int):
         if self._every_n_train_steps and trainer.global_step % self._every_n_train_steps == 0:
             self.__call__(trainer=trainer, pl_module=pl_module, global_step=trainer.global_step)
 
+    @rank_zero_only
     def on_train_epoch_end(self, trainer: Trainer, pl_module: LightningModule):
         if self._on_train_epoch and self._every_n_epochs and (trainer.current_epoch + 1) % self._every_n_epochs == 0:
             self.__call__(trainer=trainer, pl_module=pl_module, global_step=trainer.global_step)
 
     @if_not_sanity_checking
+    @rank_zero_only
     def on_validation_end(self, trainer: Trainer, pl_module: LightningModule):
         if self._on_validation:
             self.__call__(trainer=trainer, pl_module=pl_module, global_step=trainer.global_step)
@@ -109,7 +113,7 @@ class MultiSBIPosteriorCallback(MultiSBIDiagnosticFigureCallback, PeriodicCallba
             for ref_plotter in self.ref_plotters:
                 ref_plotter.corner(
                     group, axs=axs,
-                    levels=(0.68, 0.95),
+                    levels=(0.39346934, 0.86466472),
                     plot_prior=False, plot_hist1d=False, plot_hist2d=False, plot_truth=False, plot_bounds=False,
                     # post_kwargs=dict(label='ref', color='k'),
                     post1d_kwargs=dict(linestyle='--'),

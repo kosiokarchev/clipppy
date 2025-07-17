@@ -112,7 +112,9 @@ def test_import():
 
     scope = {}
     loads('!import [{from: urllib, import: request}, {from: urllib, import: [error, parse]}]', scope=scope)
-    assert scope == dict(zip(keys := ('request', 'error', 'parse'), attrgetter(*keys)(sys.modules['urllib'])))
+
+    keys = 'request', 'error', 'parse'
+    assert scope == dict(zip(keys, attrgetter(*keys)(sys.modules['urllib'])))
 
     with raises(SyntaxError):
         loads('!import 3+4')

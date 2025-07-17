@@ -106,7 +106,6 @@ class NPELoss(SBILoss):
         def __call__(self, nperes: _Tree[NPEResult], *args: _Tree) -> BaseSBILoss.ReturnT: ...
 
 
-@dataclass
 class BaseNRELoss(SBILoss, ABC):
     if TYPE_CHECKING:
         def __call__(
@@ -132,15 +131,12 @@ class LogisticNRELoss(BaseNRELoss):
 class SavageNRELoss(BaseNRELoss):
     def _loss(self, log_ratio_joint: Tensor, log_ratio_marginal: Tensor,
               weight_joint: Union[Tensor, Number] = 1., weight_marginal: Union[Tensor, Number] = 1.):
-        return (weight_joint / (1+log_ratio_joint.exp()).square() +
-                weight_marginal / (1+(-log_ratio_marginal).exp()).square())
+        return (weight_joint / (1+log_ratio_joint.exp()).square_() +
+                weight_marginal / (1+(-log_ratio_marginal).exp()).square_())
 
 
-@dataclass
 class ExpNRELoss(BaseNRELoss):
-    alpha: float = 1.
-
     def _loss(self, log_ratio_joint: Tensor, log_ratio_marginal: Tensor,
               weight_joint: Union[Tensor, Number] = 1., weight_marginal: Union[Tensor, Number] = 1.):
-        return (weight_joint / (log_ratio_joint / 2).exp() +
-                weight_marginal * (log_ratio_marginal / 2).exp())
+        return (weight_joint / (log_ratio_joint / 2).exp_() +
+                weight_marginal * (log_ratio_marginal / 2).exp_())

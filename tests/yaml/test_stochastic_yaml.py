@@ -129,7 +129,8 @@ def test_param():
         support: !py:positive
         event_dim: 1
     ''')
-    assert ((v := p()) == pyro.param('a')).all()
+    v = p()
+    assert (v == pyro.param('a')).all()
     assert (biject_to(positive)(v.unconstrained()) == v).all()
 
 

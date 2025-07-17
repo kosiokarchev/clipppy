@@ -37,6 +37,8 @@ class SimplexDistribution(TorchDistribution):
         self.simplices = simplices.expand(self.batch_shape + simplices.shape[-3:])
         self.weights = (weights / weights.sum(-1, keepdim=True)).expand(self.batch_shape + weights.shape[-1:])
 
+        self._simplex_dist = torch.distributions.Categorical(probs=self.weights)
+
     @classmethod
     def from_samples(cls, pts: Tensor, pweights: Tensor = None, voronoi=False, constraint: Constraint = None, **kwargs) -> Self:
         if pweights is None:
@@ -58,8 +60,7 @@ class SimplexDistribution(TorchDistribution):
     def sample_simplices(self, sample_shape=torch.Size()):
         return (partial(Tensor.unflatten, sizes=sample_shape) if sample_shape else Tensor.squeeze)(
             self.simplices.take_along_dim(
-                torch.distributions.Categorical(probs=self.weights)
-                .sample(sample_shape)
+                self._simplex_dist.sample(sample_shape)
                 .flatten(end_dim=len(sample_shape)-1)
                 .movedim(0, -1)[..., None, None],
                 dim=-3

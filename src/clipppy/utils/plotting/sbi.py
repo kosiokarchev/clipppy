@@ -132,12 +132,12 @@ class MultiSBIPosteriorPlotter(MultiSBIPlotter):
 
     # CORNER
 
-    prior_color: _ColorT = 'C1'
+    prior_color: _ColorT = 'tab:orange'
     prior_kwargs: Mapping[str, Any] = attr.field(default={}, converter=dict(label='prior').__or__)
     prior1d_kwargs: Mapping[str, Any] = dict()
     prior2d_kwargs: Mapping[str, Any] = dict()
 
-    post_color: _ColorT = 'C0'
+    post_color: _ColorT = 'tab:blue'
     post_kwargs: Mapping[str, Any] = attr.field(default={}, converter=dict(label='posterior').__or__)
     post1d_kwargs: Mapping[str, Any] = dict()
     post2d_kwargs: Mapping[str, Any] = dict()
@@ -180,7 +180,7 @@ class MultiSBIPosteriorPlotter(MultiSBIPlotter):
         levels: Sequence[float] = (0.39346934, 0.86466472, 1-1e-4), cut=0,
         truth2d_type: Literal['lines', 'marker'] = 'lines',
         truth_marker: _MarkerT = '*',
-        truth_color: _ColorT = 'green',
+        truth_color: _ColorT = 'tab:green',
         bounds_method_kwargs=frozendict(),
         bounds_kwargs=frozendict(),
         figsize=None
@@ -221,7 +221,7 @@ class MultiSBIPosteriorPlotter(MultiSBIPlotter):
             kwargs = dict(x=self.samples[param], ax=ax)
 
             if plot_hist1d:
-                histkwargs = dict(**kwargs, stat='density', bins=self.bin_edges[param], kde=plot_kde1d)
+                histkwargs = dict(**kwargs, stat='density', bins=list(self.bin_edges[param]), kde=plot_kde1d)
 
                 if plot_prior:
                     sns.histplot(**histkwargs, **prior1d_kwargs)
@@ -275,7 +275,7 @@ class MultiSBIPosteriorPlotter(MultiSBIPlotter):
                     if truth_y is not None:
                         ax.axhline(truth_y, color=truth_color)
                 if truth2d_type == 'marker' and None not in (truth_x, truth_y):
-                    ax.plot(self.truths[param1], self.truths[param2], truth_marker, color=truth_color)
+                    ax.plot(self.truths[param1], self.truths[param2], truth_marker, color=truth_color, label='truth')
 
         return fig, axs
 
