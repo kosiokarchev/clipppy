@@ -1,16 +1,17 @@
 from __future__ import annotations
 
 from abc import ABC
+from typing import Iterable, Generic, TypeVar
 
 import scipy.stats
 import torch
 from math import pi
 from pyro.distributions import TorchDistribution, Uniform, ExpandedDistribution
-from torch import Size
-from torch.distributions import AffineTransform, PowerTransform
-from torch.distributions.constraints import positive, real
+from torch import Size, Tensor
+from torch.distributions import AffineTransform, PowerTransform, Transform
+from torch.distributions.constraints import positive, real, interval
 
-from phytorchx import fancy_align
+from phytorchx import fancy_align, to_tensor
 from . import SupportedTransformedDistribution
 from ..utils import call_nontensor
 
@@ -77,3 +78,65 @@ class PowerlawDistribution(SupportedTransformedDistribution):
 
     def expand(self, batch_shape, _instance=None):
         return ExpandedDistribution(self, batch_shape)
+
+
+class AbstractCDFTransform(Transform):
+    codomain = interval(0., 1.)
+    bijective = True
+
+    def __init__(self, params: Iterable[Tensor], **kwargs):
+        super().__init__(**kwargs)
+        self.batch_shape = torch.broadcast_shapes(*map(Tensor.size, params))
+
+    def forward_shape(self, shape):
+        return torch.broadcast_shapes(self.batch_shape, shape)
+
+    def inverse_shape(self, shape):
+        return torch.broadcast_shapes(self.batch_shape, shape)
+
+
+class GeneralizedGammaCDFTransform(AbstractCDFTransform):
+    domain = positive
+
+    def __init__(self, a: Tensor, p: Tensor, d: Tensor, **kwargs):
+        super().__init__((a, p, d), **kwargs)
+        self.a, self.p, self.d = a, p, d
+        self._lgdp = torch.lgamma(self.d / self.p)
+        self._log_norm = (self.p / self.a**self.d).log() - self._lgdp
+
+    def _call(self, x: Tensor) -> Tensor:
+        return torch.special.gammainc(self.d/self.p, (x/self.a)**self.p)
+
+    def _inv_call(self, y: Tensor) -> Tensor:
+        from phytorch.special.gammainc import gammaincinv
+        return self.a * gammaincinv(self.d/self.p, y)**(1/self.p)
+
+    def log_abs_det_jacobian(self, x, y):
+        return self._log_norm + (self.d-1) * x.log() - (x/self.a)**self.p
+
+
+_CDFT = TypeVar('_CDFT', bound=AbstractCDFTransform)
+
+
+class AbstractCDFTDistribution(SupportedTransformedDistribution, Generic[_CDFT]):
+    def __init__(self, cdft: _CDFT):
+        self._cdft = cdft
+        super().__init__(Uniform(0., 1.).expand(cdft.batch_shape), [cdft.inv])
+
+
+class GeneralizedGammaDistribution(AbstractCDFTDistribution[GeneralizedGammaCDFTransform]):
+    def __init__(self, a, p, d):
+        self.a, self.p, self.d = map(to_tensor, (a, p, d))
+        super().__init__(GeneralizedGammaCDFTransform(self.a, self.p, self.d))
+
+    @property
+    def mode(self) -> torch.Tensor:
+        return self.a * ((self.d-1)/self.p)**(1/self.p)
+
+    @property
+    def mean(self) -> torch.Tensor:
+        return self.a * (torch.lgamma((self.d+1)/self.p) - self._cdft._lgdp).exp()
+
+    @property
+    def variance(self) -> torch.Tensor:
+        return self.a**2 * (torch.lgamma((self.d+2)/self.p) - self._cdft._lgdp).exp() - self.mean**2

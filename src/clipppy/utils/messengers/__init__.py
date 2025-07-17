@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from contextlib import ExitStack
 from dataclasses import dataclass
 from functools import partial
-from typing import Callable, Collection, Mapping
+from typing import Callable, Collection, Mapping, ContextManager, Iterable
 
 import pyro.distributions
 import torch
@@ -21,13 +22,27 @@ from ..typing import _Site
 from ...distributions.wrapper import unwrap_only
 
 
+@dataclass
+class MultiContext(ExitStack):
+    ctxs: Iterable[ContextManager]
+
+    def __post_init__(self):
+        super().__init__()
+
+    def __enter__(self):
+        for c in self.ctxs:
+            self.enter_context(c)
+        return super().__enter__()
+
+
 class DeltaConditioningMessenger(Messenger):
     def __init__(self, data: Mapping[str, Tensor]):
         self.data = data
 
     def _pyro_sample(self, msg: _Site):
         if (name := msg['name']) in self.data:
-            msg['fn'] = pyro.distributions.Delta(self.data[name], event_dim=self.data[name].ndim).expand(msg['fn'].batch_shape)
+            dta = self.data[name].expand(msg['fn'].event_shape)
+            msg['fn'] = pyro.distributions.Delta(dta, event_dim=dta.ndim).expand(msg['fn'].batch_shape)
 
 
 class PostEscapeMessenger(EscapeMessenger):

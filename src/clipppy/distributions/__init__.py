@@ -2,7 +2,7 @@ from typing import Sequence
 
 import torch
 from more_itertools import one, unique_everseen
-from pyro.distributions import TransformedDistribution, Categorical
+from pyro.distributions import Categorical, Rejector, TransformedDistribution
 from pyro.distributions.torch_distribution import TorchDistribution
 from torch import Size
 from torch.distributions.constraints import interval
@@ -22,6 +22,12 @@ class SupportedTransformedDistribution(TransformedDistribution):
         support = self.base_dist.support
         assert isinstance(support, interval)
         return interval(*map(self.transform, broadcast_all(support.lower_bound, support.upper_bound)))
+
+
+class SupportedRejector(Rejector):
+    @property
+    def support(self):
+        return self.propose.support
 
 
 class MixtureDistribution(TorchDistribution):

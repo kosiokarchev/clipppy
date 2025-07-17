@@ -119,7 +119,7 @@ class UnitSphere(TranslatedBound):
 
     def uniform(self, shape: Size, **kwargs) -> Tensor:
         return self.denormalise(
-            torch.rand(shape, **kwargs).pow_(1/self.ndim) *
+            torch.rand(shape+(1,), **kwargs).pow_(1/self.ndim) *
             random_direction(shape, self.ndim, **kwargs)
         )
 
