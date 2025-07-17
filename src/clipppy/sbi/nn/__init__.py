@@ -11,10 +11,10 @@ from more_itertools import always_iterable, consume, one, unique_everseen
 from torch import nn, Tensor, LongTensor
 from torch.nn import Module
 
+from phytorchx.attrs import AttrsModule
 from .._typing import _KT, _MultiKT, _SBIParamsT, _SBIObsT
 from ..multi import dict_to_vect, PackerMixin
 from ...utils.nn import LazyWhitenOnline
-from ...utils.nn.attrs import AttrsModule
 from ...utils.nn.empty import _empty_module
 
 
@@ -31,7 +31,7 @@ class BaseSBIHead(PackerMixin, AttrsModule, Generic[_HeadOoutT, _KT], ABC):
         __call__ = forward
 
 
-@attr.s
+@attr.s(eq=False, auto_attribs=True)
 class PassthroughSBIHead(BaseSBIHead[_HeadOoutT, _KT], Generic[_HeadOoutT, _KT]):
     params_pre: Callable[[_SBIParamsT], _SBIParamsT] = attr.ib(default=_empty_module, kw_only=True)
     obs_pre: Callable[[_SBIObsT], _SBIObsT] = attr.ib(default=_empty_module, kw_only=True)
@@ -46,8 +46,8 @@ class PassthroughSBIHead(BaseSBIHead[_HeadOoutT, _KT], Generic[_HeadOoutT, _KT])
         return self.prepare_params(params), self.prepare_obs(obs)
 
 
-@attr.s
-class SBIHead(PassthroughSBIHead[_HeadOoutT, _KT], Generic[_HeadOoutT, _KT]):
+@attr.s(eq=False, auto_attribs=True)
+class SBIHead(PassthroughSBIHead[_HeadOoutT, _KT], ObsPacker, Generic[_HeadOoutT, _KT]):
     head: Union[Module, Callable[[Tensor], _HeadOoutT]] = _empty_module
 
     whiten: bool = True
@@ -91,8 +91,7 @@ class SetSBIHead(SetSBIMixin, SBIHead[_HeadOoutT, _KT], Generic[_HeadOoutT, _KT]
             dtype=int
         ),))
 
-
-@attr.s
+@attr.s(eq=False, auto_attribs=True)
 class MultiSBIHead(BaseSBIHead[Mapping[Iterable[_KT], _HeadOoutT], _KT], Generic[_HeadOoutT, _KT]):
     heads: Mapping[Iterable[_KT], SBIHead[_HeadOoutT2, _KT]]
     post: Callable[[Mapping[Iterable[_KT], _HeadOoutT2]], _HeadOoutT]

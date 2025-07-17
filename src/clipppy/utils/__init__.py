@@ -9,8 +9,8 @@ from warnings import filterwarnings, catch_warnings
 
 import torch
 from more_itertools import padded, spy
+from torch import Tensor
 
-import phytorchx
 from .typing import _KT, _T, _T1, _T2, _Tin, _Tout, _VT, SupportsItems
 
 
@@ -78,11 +78,6 @@ class PseudoString(str, Generic[_T]):
 
     def __hash__(self):
         return object.__hash__(self)
-
-
-# TODO: Decide on to_tensor strategy in general!
-def to_tensor(val):
-    return torch.tensor(val, dtype=torch.get_default_dtype(), device=phytorchx.get_default_device()) if not torch.is_tensor(val) else val
 
 
 _allmatch = re.compile('.*')

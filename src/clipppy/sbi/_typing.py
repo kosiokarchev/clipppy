@@ -51,8 +51,8 @@ class MultiSBIProtocol(Protocol):
 
     @staticmethod
     def resolve(sbi_type) -> type[MultiSBIProtocol]:
-        from ..commands.lightning.nre import NRE
-        if issubclass(sbi_type, NRE):
+        from ..commands.lightning.nre import AbstractNRE
+        if issubclass(sbi_type, AbstractNRE):
             return MultiNREProtocol
 
         from ..commands.lightning.npe import NPE

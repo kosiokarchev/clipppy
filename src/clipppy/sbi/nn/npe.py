@@ -64,7 +64,7 @@ class NPETail(ParamPackerSBITail[_HeadOoutT, _DistributionT, _KT], BaseNPETail[_
         return NPEResult(theta, self._get_dist(x), **kwargs)
 
 
-@attr.s
+@attr.s(eq=False, auto_attribs=True)
 class ConstrainedNPETail(NPETail[_HeadOoutT, TransformedDistribution, _KT], Generic[_HeadOoutT, _KT], ABC):
     constraint: Constraint = attr.ib(default=real, kw_only=True)
 
@@ -76,9 +76,10 @@ class ConstrainedNPETail(NPETail[_HeadOoutT, TransformedDistribution, _KT], Gene
         return TransformedDistribution(super()._get_dist(x), [self.biject_to_constraint])
 
 
-@attr.s
-class ParametrizedNPETail(NPETail[Tensor, _DistributionT, _KT], AttrsModule, Generic[_DistributionT, _KT]):
-    net: Callable[[Tensor], Tensor] = attr.ib(default=None, kw_only=True)
+@attr.s(eq=False, auto_attribs=True, kw_only=True)
+class ParametrizedNPETail(NPETail[_HeadOoutT, _DistributionT, _KT], AttrsModule, Generic[_HeadOoutT, _DistributionT, _KT]):
+    net: Union[Module, Callable[[_HeadOoutT], Tensor]] = _empty_module
+    add_last: bool = True
 
     def __attrs_post_init__(self):
         if self.net is None:
@@ -92,8 +93,8 @@ class ParametrizedNPETail(NPETail[Tensor, _DistributionT, _KT], AttrsModule, Gen
         return super()._get_dist(self.net(x))
 
 
-@attr.s
-class NormalTail(ParametrizedNPETail[TransformedDistribution, _KT], ConstrainedNPETail[Tensor, _KT], Generic[_KT]):
+@attr.s(eq=False, auto_attribs=True)
+class NormalTail(ParametrizedNPETail[_HeadOoutT, TransformedDistribution, _KT], ConstrainedNPETail[_HeadOoutT, _KT], Generic[_HeadOoutT, _KT]):
     ndim: int
     _biject_to_positive: ClassVar = biject_to(positive)
 

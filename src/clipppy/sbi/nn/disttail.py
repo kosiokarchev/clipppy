@@ -3,6 +3,7 @@ from functools import cached_property
 from math import inf
 from typing import Callable, ClassVar, Protocol, Union, Generic
 
+import attr
 from pyro.distributions import Normal, MultivariateNormal
 from torch import Tensor
 from torch.distributions import biject_to, TransformedDistribution, Distribution
@@ -12,7 +13,6 @@ from torch.nn import Module
 from .nre import ParamPackerNRETail
 from ...distributions.conundis.conundis_mixin import _constraintT, ConUnDisMixin
 from ...sbi._typing import _KT
-from ...utils.importing.attr import attr
 from ...utils.nn.empty import _empty_module
 
 
@@ -25,7 +25,7 @@ class DistributionR(ABC):
     def __call__(self, x: Tensor) -> Union[Distribution, DistributionProtocol]: ...
 
 
-@attr.s
+@attr.s(eq=False, auto_attribs=True)
 class NormalR(DistributionR):
     ndim: int
 
@@ -62,12 +62,12 @@ class MVNR(NormalR):
         return MultivariateNormal(loc=self.extract_loc(x), scale_tril=self.extract_scale_tril(x))
 
 
-@attr.s
+@attr.s(eq=False, auto_attribs=True)
 class DistributionRWrapper(DistributionR, ABC):
     base_distr: DistributionR
 
 
-@attr.s
+@attr.s(eq=False, auto_attribs=True)
 class TransformerR(DistributionRWrapper):
     constraint: Constraint
 
@@ -79,7 +79,7 @@ class TransformerR(DistributionRWrapper):
         return TransformedDistribution(self.base_distr(x), [self.biject_to_constraint], validate_args=False)
 
 
-@attr.s
+@attr.s(eq=False, auto_attribs=True)
 class ConundisR(DistributionRWrapper):
     constraint_lower: _constraintT = -inf
     constraint_upper: _constraintT = inf
@@ -88,7 +88,7 @@ class ConundisR(DistributionRWrapper):
         return ConUnDisMixin.new_constrained(self.base_distr(x), constraint_lower=self.constraint_lower, constraint_upper=self.constraint_upper)
 
 
-@attr.s
+@attr.s(eq=False, auto_attribs=True)
 class DistRatioTail(ParamPackerNRETail[Tensor, _KT], Generic[_KT]):
     distr: Callable[[Tensor], DistributionProtocol]
     prior: DistributionProtocol

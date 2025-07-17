@@ -6,12 +6,11 @@ from typing import TypeVar, Any, Generic, Mapping
 import numpy as np
 import pyro
 import torch
-
 from torch import Tensor
 from torch.distributions import Transform, biject_to
 
-from clipppy.utils import to_tensor
-from clipppy.utils.trace import ClipppyTraceMessenger
+from phytorchx import to_tensor
+from ..utils.trace import ClipppyTraceMessenger
 
 _ArrayT = TypeVar('_ArrayT', Tensor, Any)
 

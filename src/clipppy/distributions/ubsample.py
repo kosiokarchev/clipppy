@@ -9,10 +9,10 @@ from typing_extensions import Self
 
 from .extra_dimensions import ExtraBatched
 from .wrapper import DistributionWrapper, _Distribution
+from ..utils.typing import _KT, _VT
+
 
 _CKT = TypeVar('_CKT')
-_KT = TypeVar('_KT')
-_VT = TypeVar('_VT')
 
 
 class ClassKeyDict(dict[Type[_CKT], _VT], Generic[_CKT, _VT]):

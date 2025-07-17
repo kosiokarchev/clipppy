@@ -8,15 +8,15 @@ from more_itertools import always_iterable, collapse
 from torch import Tensor
 from typing_extensions import TypeAlias
 
-from ..commands.lightning.loss import BaseSBILoss
-from ..commands.lightning.nre import NRE
-from ..sbi._typing import _MultiKT, _SBIObsT, _SBIParamsT, _KT
-from ..sbi.multi import PackerMixin
-from ..sbi.nn import BaseMultiSBITail, MultiSBITail
-from ..sbi.nn.nre import BaseNRETail
+from ...commands.lightning.loss import BaseSBILoss
+from ...commands.lightning.nre import NRE
+from .._typing import _MultiKT, _SBIObsT, _SBIParamsT, _KT
+from ..multi import PackerMixin
+from ..nn import BaseMultiSBITail, MultiSBITail
+from ..nn.nre import BaseNRETail
 
 
-@attr.s
+@attr.s(eq=False, auto_attribs=True)
 class ARNRETailComponent(Generic[_KT]):
     cond_names: Iterable[_KT] = attr.ib(default=None, kw_only=True)
 
@@ -26,7 +26,7 @@ _PriorTailT: TypeAlias = BaseNRETail[_SBIParamsT, _KT]
 _CondTailT: TypeAlias = Callable[[_SBIParamsT], Tensor]
 
 
-@attr.s
+@attr.s(eq=False, auto_attribs=True)
 class ARNRETail(BaseMultiSBITail[_SBIObsT, Tensor, _KT], Generic[_KT]):
     tails: Mapping[_MultiKT, _PostTailT]
     prior_tails: Mapping[_MultiKT, _PriorTailT] = attr.ib(factory=dict)

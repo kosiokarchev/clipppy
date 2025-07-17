@@ -5,8 +5,7 @@ from typing import Mapping, TYPE_CHECKING, Union, Generic
 
 from torch import Tensor
 from torch.utils._pytree import tree_unflatten
-from torchdata.datapipes.iter import IterableWrapper
-from typing_extensions import Unpack
+from torch.utils.data.datapipes.iter import IterableWrapper
 
 from .command import LightningSBICommand
 from .config import Config

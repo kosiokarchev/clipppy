@@ -12,8 +12,8 @@ import xarray as xa
 from torch import Tensor
 
 from phytorchx.dataframe import _KT, AbstractTensorDataFrame
+from phytorchx.vltensor import VLTensor
 from . import PersistentDataset
-from ...utils.dataframe.vltensor import VLTensor
 from ...utils.typing import _Tensor_like
 
 

@@ -9,10 +9,9 @@ from frozendict import frozendict
 from torch import Tensor, Size
 from torch.nn import LazyLinear, Module, ReLU, Sequential, LayerNorm, ModuleDict
 
-from .attrs import AttrsModule
-from .whiten import LazyWhitenOnline, WhitenOnline
-from ..typing import _ff_module_like
+from phytorchx.attrs import AttrsModule
 from .empty import _empty_module
+from ..typing import _ff_module_like, _KT, _VT
 
 
 class PartialModule(Module):
@@ -41,7 +40,7 @@ Concat = partial(PostPartialModule, torch.concat)
 Stack = partial(PostPartialModule, torch.stack)
 
 
-@attr.s
+@attr.s(eq=False, auto_attribs=True)
 class Mapper(AttrsModule):
     mod: _ff_module_like
     seq_cls: Type[Sequence[Tensor]] = tuple
@@ -50,11 +49,7 @@ class Mapper(AttrsModule):
         return self.seq_cls(map(self.mod, ts))
 
 
-_KT = TypeVar('_KT')
-_VT = TypeVar('_VT')
-
-
-@attr.s
+@attr.s(eq=False, auto_attribs=True)
 class MultiModule(AttrsModule, Generic[_KT]):
     mods: Mapping[_KT, Module] = attr.ib(converter=ModuleDict)
 

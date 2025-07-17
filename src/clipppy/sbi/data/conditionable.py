@@ -5,8 +5,8 @@ from typing import Union, Mapping, Iterable, Generic, Iterator, Any, Type
 
 import pyro
 from torch.utils.data import Dataset
+from torch.utils.data.datapipes.iter import IterableWrapper
 from typing_extensions import TypeAlias
-from torchdata.datapipes.iter import IterableWrapper
 
 from ...utils.typing import _KT, _VT, _T
 

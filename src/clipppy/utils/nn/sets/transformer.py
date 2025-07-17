@@ -17,15 +17,14 @@ import torch
 from torch import Tensor
 from torch.nn import Module, Parameter, init, LayerNorm
 
-from ..attrs import AttrsModule, ParametrizedAttrsModel
+from phytorchx.attrs import AttrsModule, ParametrizedAttrsModule
 from ..batched import BatchedMultiheadAttention
 from ..empty import _empty_module
-
 
 __all__ = 'MAB', 'SAB', 'ISAB', 'PMA'
 
 
-@attr.s
+@attr.s(eq=False, auto_attribs=True)
 class MAB(AttrsModule):
     embed_dim: int
     """Input dimension (i.e. of the space that the set members belong to).
@@ -69,7 +68,7 @@ class MAB(AttrsModule):
         __call__ = forward
 
 
-@attr.s
+@attr.s(eq=False, auto_attribs=True)
 class SAB(AttrsModule):
     mab: MAB
 
@@ -93,8 +92,8 @@ class SAB(AttrsModule):
         __call__ = forward
 
 
-@attr.s
-class ISAB(ParametrizedAttrsModel):
+@attr.s(eq=False, auto_attribs=True)
+class ISAB(ParametrizedAttrsModule):
     m: int
     """Number of inducing points."""
 
@@ -143,8 +142,8 @@ class ISAB(ParametrizedAttrsModel):
         __call__ = forward
 
 
-@attr.s
-class PMA(ParametrizedAttrsModel):
+@attr.s(eq=False, auto_attribs=True)
+class PMA(ParametrizedAttrsModule):
     mab: MAB
 
     k: int = 1

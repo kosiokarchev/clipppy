@@ -1,9 +1,12 @@
 from typing import Iterator
 
-from torch.utils.data import Dataset, DistributedSampler
-from torchdata.datapipes.iter import IterableWrapper, IterDataPipe
+import torch
 
-from clipppy.utils.typing import _T
+import phytorchx
+from ..utils.typing import _T
+from torch.utils.data import Dataset, DistributedSampler
+from torch.utils.data.datapipes.datapipe import IterDataPipe
+from torch.utils.data.datapipes.iter import IterableWrapper
 
 
 class AutoEpochDistributedSampler(DistributedSampler):

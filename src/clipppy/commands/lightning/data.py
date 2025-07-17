@@ -7,7 +7,7 @@ import attr
 from pytorch_lightning import LightningDataModule
 from torch import Tensor
 from torch.utils.data import DataLoader
-from torchdata.datapipes.iter import IterableWrapper
+from torch.utils.data.datapipes.iter import IterableWrapper
 
 from phytorchx.dataframe import AbstractTensorDataFrame, _KT
 from .callbacks import MultiSBIValidationCallback

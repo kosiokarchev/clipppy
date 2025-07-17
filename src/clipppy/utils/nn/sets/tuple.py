@@ -11,7 +11,7 @@ from .. import AttrsModule
 from ..batched import BatchedConv1d
 
 
-@attr.s
+@attr.s(eq=False, auto_attribs=True)
 class TupleModule(AttrsModule):
     nets: Iterable[Module]
     lens: Sequence[int]

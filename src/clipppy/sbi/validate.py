@@ -22,7 +22,7 @@ class MultiSBIValidator(BaseMultiSBIResultRep, Generic[_SBIT], ABC):
     @staticmethod
     def _credibility(log_weights: _MultiMappingT, log_ratios: _MultiMappingT, ref_log_ratios: _MultiMappingT):
         with catch_warnings():
-            filterwarnings('ignore', module='torch.masked.maskedtensor.core', category=UserWarning)
+            filterwarnings('ignore', module='torch.masked', category=UserWarning)
             return {
                 key: torch.masked.masked_tensor(
                     log_weights[key].exp(),

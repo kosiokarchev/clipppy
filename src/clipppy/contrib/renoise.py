@@ -1,14 +1,12 @@
 from dataclasses import dataclass
 from numbers import Number
-from typing import Iterable, TypeVar, MutableMapping, Union
+from typing import Iterable, MutableMapping, Union
 
 import torch
 from torch import Tensor
-from torchdata.datapipes.iter import IterableWrapper
+from torch.utils.data.datapipes.iter import IterableWrapper
 
-
-_KT = TypeVar('_KT')
-_VT = TypeVar('_VT')
+from ..utils.typing import _KT, _VT
 
 
 @dataclass

@@ -19,7 +19,7 @@ from scipy.stats import halfnorm
 from torch import Tensor
 from typing_extensions import TypeAlias, Self
 from xarray import DataArray, Dataset
-from xarray.core.weighted import DatasetWeighted
+from xarray.computation.weighted import DatasetWeighted
 
 from . import to_percentiles
 from ...sbi._typing import _KT, _MultiKT, _SBIObsT, BaseMultiSBIResultRep, _MultiMappingT, MultiNREProtocol

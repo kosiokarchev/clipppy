@@ -28,7 +28,7 @@ class ParamPackerNRETail(ParamPackerSBITail[_HeadOoutT, Tensor, _KT], AbstractPa
     pass
 
 
-@attr.s
+@attr.s(eq=False, auto_attribs=True)
 class SimpleNRETail(AbstractPackerNRETail[_SBIObsT, _KT], Generic[_KT]):
     net: Module = attr.ib(default=_empty_module)
 
@@ -42,7 +42,7 @@ class SimpleNRETail(AbstractPackerNRETail[_SBIObsT, _KT], Generic[_KT]):
         __call__ = forward
 
 
-@attr.s
+@attr.s(eq=False, auto_attribs=True)
 class NRETail(ParamPackerNRETail[Tensor, _KT], SimpleNRETail[_KT], Generic[_KT]):
     thead: Module = attr.ib(default=_empty_module)
     xhead: Module = attr.ib(default=_empty_module)
@@ -56,7 +56,7 @@ class UNRETail(NRETail[_KT], Generic[_KT]):
         return super()._forward(theta, x[1], **kwargs)
 
 
-@attr.s
+@attr.s(eq=False, auto_attribs=True)
 class IUNRETail(UNRETail[_KT], Generic[_KT]):
     ihead: Module = attr.ib(default=_empty_module)
     shead: Module = attr.ib(default=_empty_module)

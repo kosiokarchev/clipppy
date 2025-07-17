@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from abc import ABC
-from typing import Any, Generic, get_type_hints, Iterable, Literal, Type, TYPE_CHECKING, TypeVar, Union, TypedDict
-from typing_extensions import Unpack
+from functools import cached_property
+from typing import Any, Generic, get_type_hints, Iterable, Literal, Type, TYPE_CHECKING, TypeVar, Union
 
+import attr
 from frozendict import frozendict
 from torch.optim import Adam
 
+from phytorchx.attrs import AttrsModule
 from .config import BaseSchedulerConfig, Config, DataLoaderConfig, DatasetConfig, OptimizerConfig, SchedulerConfig
 from .hyper import nested_iterables, Hyperparams
 from .loss import BaseSBILoss
@@ -19,25 +21,13 @@ from ...sbi.data.clipppy_data import ClipppyDataset
 from ...sbi.nn import _HeadOoutT, _TailOutT, BaseSBIHead, BaseSBITail
 from ...utils import Sentinel
 
-
 _AbstractLossT = TypeVar('_AbstractLossT')
 _LossT = TypeVar('_LossT', bound=BaseSBILoss)
 
 
-class AbstractLightningSBICommand(Command, LightningModule, Generic[_AbstractLossT], ABC):
-    class _KwargsT(TypedDict, total=False):
-        obs_names: Iterable[str]
-
-        lr: Union[float, Literal[Sentinel.skip]]
-        optimizer_config: OptimizerConfig
-        scheduler_config: BaseSchedulerConfig
-        loss_config: Config[_AbstractLossT]
-
-    if TYPE_CHECKING:
-        # noinspection PyMissingConstructor
-        def __init__(self, **kwargs: Unpack[_KwargsT]): ...
-
-    commander: clipppy.Clipppy
+@attr.s(eq=False, auto_attribs=True, kw_only=True)
+class AbstractLightningSBICommand(AttrsModule, LightningModule, Command, Generic[_AbstractLossT], ABC):
+    commander: clipppy.Clipppy = None
 
     @classmethod
     def get_type_hints(cls):
@@ -51,7 +41,7 @@ class AbstractLightningSBICommand(Command, LightningModule, Generic[_AbstractLos
     """Learning rate (passed to the optimizer)."""
     lr: Union[float, Literal[Sentinel.skip]] = 1e-3
 
-    optimizer_config: OptimizerConfig = OptimizerConfig(Adam)
+    optimizer_config: OptimizerConfig = attr.ib(factory=lambda: OptimizerConfig(Adam, kwargs=dict(fused=True)))
 
     @property
     def optimizer(self):
@@ -60,7 +50,7 @@ class AbstractLightningSBICommand(Command, LightningModule, Generic[_AbstractLos
     # SCHEDULER
     # ---------
 
-    scheduler_config: BaseSchedulerConfig = SchedulerConfig()
+    scheduler_config: BaseSchedulerConfig = attr.ib(factory=SchedulerConfig)
 
     @property
     def scheduler(self):
@@ -113,24 +103,15 @@ class AbstractLightningSBICommand(Command, LightningModule, Generic[_AbstractLos
         self.log_dict(losses, prog_bar=True, logger=True, sync_dist=True)
 
 
-
+@attr.s(eq=False, auto_attribs=True, kw_only=True)
 class LightningSBICommand(AbstractLightningSBICommand[_LossT], Generic[_LossT, _TailOutT, _HeadOoutT, _KT]):
-    class _KwargsT(AbstractLightningSBICommand._KwargsT, total=False):
-        param_names: Iterable[str]
-
-        dataset_cls: Type[SBIDataset]
-        dataset_config: DatasetConfig
-        loader_config: DataLoaderConfig
-
-    head: BaseSBIHead[_HeadOoutT, _KT]
-    tail: BaseSBITail[_HeadOoutT, _TailOutT, _KT]
+    head: BaseSBIHead[_HeadOoutT, _KT] = None
+    tail: BaseSBITail[_HeadOoutT, _TailOutT, _KT] = None
 
     def forward(self, batch: SBIBatch, *, head_kwargs=frozendict(), tail_kwargs=frozendict()) -> _TailOutT:
         return self.tail(*self.head(batch.params, batch.obs, **head_kwargs), **tail_kwargs)
 
     if TYPE_CHECKING:
-        # noinspection PyMissingConstructor
-        def __init__(self, **kwargs: Unpack[_KwargsT]): ...
         __call__ = forward
 
     # DATASET
@@ -139,23 +120,23 @@ class LightningSBICommand(AbstractLightningSBICommand[_LossT], Generic[_LossT, _
     param_names: Iterable[str] = ()
 
     dataset_cls: Type[AbstractSBIDataset] = SBIDataset
-    dataset_config: DatasetConfig = DatasetConfig(ClipppyDataset)
+    dataset_config: DatasetConfig = attr.ib(factory=lambda: DatasetConfig(ClipppyDataset))
 
-    @property
+    @cached_property
     def raw_dataset(self):
         return self.dataset_config(config=self.commander)
 
     def _dataset(self, raw_dataset):
         return self.dataset_cls(raw_dataset, param_names=self.param_names, obs_names=self.obs_names)
 
-    @property
+    @cached_property
     def dataset(self):
         return self._dataset(self.raw_dataset)
 
     # LOADER
     # ------
 
-    loader_config: DataLoaderConfig = DataLoaderConfig(kwargs=dict(batch_size=None))
+    loader_config: DataLoaderConfig = attr.ib(factory=lambda: DataLoaderConfig(kwargs=dict(batch_size=None)))
 
     @property
     def loader(self):
