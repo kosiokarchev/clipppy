@@ -1,36 +1,207 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from functools import partial
-from itertools import cycle
-from typing import Iterable, Literal, Protocol, Union, TYPE_CHECKING, Callable
+from itertools import chain, repeat
+from typing import Iterable, Union, TYPE_CHECKING, Callable, NamedTuple, cast
 
 import attr
 import torch
-from more_itertools import last, always_iterable
+from more_itertools import strictly_n, interleave_longest
 from torch import Tensor, LongTensor
-from torch.nn import ModuleList, Module
+from torch.nested import nested_tensor_from_jagged
+from torch.nested._internal.nested_tensor import NestedTensor
+from torch.nn import ModuleList, Module, Parameter, init, LazyLinear, Linear, Sequential, ReLU
+from torch.nn.functional import scaled_dot_product_attention
 
-from phytorchx import broadcast_gather, broadcast_cat, fancy_align
-from ..attrs import AttrsModule
+from phytorchx import broadcast_cat
+from phytorchx.attrs import AttrsModule, ParametrizedAttrsModule
+from ..empty import _empty_module
+from ..whiten import LazyWhitenOnline, WhitenOnline
+from ... import noop
+
+
+class SetBatch(NamedTuple):
+    val: Tensor
+    sizes: LongTensor
+
+    @property
+    def indptr(self):
+        return broadcast_cat((self.sizes.new_zeros((1,)), self.sizes.cumsum(-1)), -1).to(self.val.device)
+
+    def new(self, val):
+        return type(self)(val, self.sizes)
+
+    def to_nested(self):
+        return torch.nested.nested_tensor_from_jagged(self.val, lengths=self.sizes)
+
+    @classmethod
+    def from_nested(cls, val: NestedTensor):
+        sizes = val.lengths()
+        if sizes is None:
+            sizes = val.offsets().diff()
+        return cls(val.values(), sizes)
+
+    def jagged_expand(self, t: Tensor):
+        return t.repeat_interleave(self.sizes, -2)
+
+    def std_mean(self):
+        mean = self.mean()
+        std = self.new(self.val**2).mean().sub_(mean**2).sqrt_()
+        return std, mean
+
+    def set_norm(self, eps=1e-6, detach=False):
+        std, mean = (self.new(self.val.detach()) if detach else self).std_mean()
+
+        return type(self).from_nested(
+            (self.to_nested() - mean.unsqueeze(1)) / (std+eps).unsqueeze(1)
+        ), mean, std
+
+    def expand_like(self, other) -> SetBatch:
+        x, sizes = self
+
+        if len(self.sizes) == 1 and len(other.shape) > 1:
+            sizes = self.sizes.repeat(other.shape[-2])
+            x = self.val.expand(other.shape[-2], *self.val.shape).flatten(end_dim=1)
+        else:
+            assert len(self.sizes) == other.shape[0]
+
+        return type(self)(x, sizes)
+
+
+    def cat(self, other: Tensor):
+        x, sizes = self.expand_like(other)
+
+        return type(self)(broadcast_cat((
+            other.expand(*other.shape[:-2], len(sizes), other.shape[-1]).repeat_interleave(sizes, -2),
+            x
+        ), dim=-1), sizes)
+
+    @property
+    def vals(self):
+        return self.val.split(self.sizes.tolist(), dim=0)
+
+    def reduce(self, how) -> Tensor:
+        from torch_scatter import segment_csr
+        return segment_csr(self.val, self.indptr, reduce=how)
+
+    def sum(self):
+        return self.reduce('sum')
+        # return self.reduce('sum') if self.val.requires_grad else self.to_nested().sum(1)
+
+    def mean(self):
+        return self.reduce('mean')
+        # return self.reduce('mean') if self.val.requires_grad else self.to_nested().mean(1)
+
+
+@attr.s(eq=False, auto_attribs=True)
+class SetNorm(AttrsModule):
+    append: bool = True
+    whiten: bool = True
+    eps: float = 1e-6
+
+    def __attrs_post_init__(self):
+        self.whitener = LazyWhitenOnline() if self.whiten else _empty_module
+
+    def forward(self, batch: SetBatch, *extras: Tensor) -> SetBatch:
+        batch, mean, std = batch.set_norm(self.eps)
+        return batch.cat(self.whitener(broadcast_cat((mean, std) + extras, -1))) if self.append else batch
+
+
+@attr.s(eq=False, auto_attribs=True)
+class Elementwise(AttrsModule):
+    mod: Module
+
+    def forward(self, batch: SetBatch) -> SetBatch:
+        return SetBatch(self.mod(batch.val), batch.sizes)
+
+
+@attr.s(eq=False, auto_attribs=True)
+class CrossAttentionLayer(ParametrizedAttrsModule):
+    out_features: int
+    nheads: int = 1
+
+    key_embedder: Callable[[Tensor], Tensor] = _empty_module
+    dropout: float = 0.
+
+    def __attrs_post_init__(self):
+        self.value = Parameter(torch.empty(self.out_features, **self.factory_kwargs))
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        init.xavier_uniform_(self.value.unsqueeze(-2))
+
+    @staticmethod
+    def _nested_like(ex, other):
+        return nested_tensor_from_jagged(other, lengths=ex.new_ones(len(ex), dtype=int))
+
+    def forward(self, key: Tensor, query: NestedTensor) -> NestedTensor:
+        return cast(NestedTensor, scaled_dot_product_attention(*(v.unflatten(-1, (self.nheads, -1)).transpose(1, 2) for v in (
+            query,
+            self._nested_like(key, self.key_embedder(key)),
+            self._nested_like(key, self.value.expand(len(key), -1).contiguous())
+        )), dropout_p=self.dropout if self.training else 0.).transpose(1, 2).flatten(-2))
+
+    if TYPE_CHECKING:
+        __call__ = forward
+
+
+@attr.s(eq=False, auto_attribs=True)
+class CrossEncoder(AttrsModule):
+    nfeatures: Union[int, Iterable[int]]
+    nlayers: int = None
+    nheads: Union[int, Iterable[int]] = 1
+
+    nfeatures_in: int = attr.ib(init=False)
+
+    def __attrs_post_init__(self):
+        if isinstance(self.nfeatures, int):
+            self.nfeatures = repeat(self.nfeatures)
+        if isinstance(self.nheads, int):
+            self.nheads = repeat(self.nheads)
+
+        self.nfeatures_in = next(_nfeatures := iter(self.nfeatures))
+
+        if self.nlayers is None:
+            self.nfeatures, self.nheads = zip(*zip(_nfeatures, self.nheads))
+        else:
+            self.nfeatures = list(strictly_n(_nfeatures, self.nlayers, too_long=noop))
+            self.nheads = list(strictly_n(self.nheads, self.nlayers, too_long=noop))
+
+        self.cross_attentions = ModuleList(
+            CrossAttentionLayer(nfeatures, nheads, LazyLinear(nfeatures_in))
+            for nfeatures_in, nfeatures, nheads in zip(
+                chain((self.nfeatures_in,), self.nfeatures),
+                self.nfeatures, self.nheads
+            )
+        )
+        self.fcs = ModuleList(Sequential(Linear(n, n), ReLU()) for n in self.nfeatures)
+
+    def forward(self, key: Tensor, query: NestedTensor) -> NestedTensor:
+        for mod in interleave_longest(self.cross_attentions, self.fcs):
+            query = mod(key, query) if isinstance(mod, CrossAttentionLayer) else query
+        return query
+
+    if TYPE_CHECKING:
+        __call__ = forward
 
 
 class BatchedSetModule(Module, ABC):
     @abstractmethod
-    def forward(self, t: Tensor, lens: LongTensor, dim: int = -2) -> Tensor: ...
+    def forward(self, batch: SetBatch) -> Tensor: ...
+
+    if TYPE_CHECKING:
+        __call__ = forward
 
 
-@attr.s
-class ForSet(BatchedSetModule, AttrsModule):
+@attr.s(eq=False, auto_attribs=True)
+class MappedSetModule(BatchedSetModule, AttrsModule):
     net: Union[Module, Callable[[Tensor], Tensor]]
 
-    def forward(self, t: Tensor, lens: LongTensor, dim: int = -2) -> Tensor:
-        return torch.stack(tuple(
-            self.net(st) for st in t.split(lens.tolist())
-        ), dim=dim)
+    def forward(self, batch: SetBatch) -> Tensor:
+        return torch.stack(tuple(map(self.net, batch.vals)), dim=0)
 
 
-@attr.s
+@attr.s(eq=False, auto_attribs=True)
 class ForDataParallel(AttrsModule):
     mod: Module
     batch_size: int
@@ -42,149 +213,106 @@ class ForDataParallel(AttrsModule):
         ], self.batch_dim)
 
 
-def lens_to_indptr_like(t: Tensor, lens: LongTensor, dim: int) -> LongTensor:
-    return broadcast_cat((lens.new_zeros((1,)), lens.cumsum(-1)), -1).to(t.device).expand(*t.shape[:dim % t.ndim], -1)
+# _collapse_fn_t: TypeAlias = Callable[[Tensor, Iterable[int]], Tensor]
+#
+#
+# def _collapse(t: Tensor, indptr: Tensor, reduce: Literal['mean', 'sum']):
+#     from torch_scatter import segment_csr
+#     return segment_csr(t, indptr, reduce=reduce)
+#
+#
+# collapse_sum: _collapse_fn_t = partial(_collapse, reduce='sum')
+# collapse_mean: _collapse_fn_t = partial(_collapse, reduce='mean')
+#
+#
+# def collapse_nmean(t: Tensor, indptr: Tensor) -> Tensor:
+#     return torch.mul(*fancy_align(collapse_mean(t, indptr), indptr.diff(n=1, dim=-1).to(t).sqrt_()))
 
 
-class _collapse_fn_t(Protocol):
-    def __call__(self, t: Tensor, indptr: Iterable[int]) -> Tensor: ...
+def __getattr__(name):
+    from warnings import warn
+
+    if name == '_collapse':
+        warn('Collapsing has moved to SetBatch', DeprecationWarning)
+        return SetBatch.reduce
+
+    raise AttributeError(name)
 
 
-def _collapse(t: Tensor, indptr: Tensor, reduce: Literal['mean', 'sum']):
-    from torch_scatter import segment_csr
-    return segment_csr(t, indptr, reduce=reduce)
-
-
-collapse_sum = partial(_collapse, reduce='sum')
-collapse_mean = partial(_collapse, reduce='mean')
-
-
-def collapse_nmean(t: Tensor, indptr: Tensor) -> Tensor:
-    return torch.mul(*fancy_align(collapse_mean(t, indptr), indptr.diff(n=1, dim=-1).to(t).sqrt_()))
-
-
-@attr.s(kw_only=True)
+@attr.s(eq=False, auto_attribs=True, kw_only=True)
 class Collapser(AttrsModule):
     append_lens: bool = True
+    whiten_lens: bool = True
+    lens_scale: float = None
 
-    def _append_lens(self, t: Tensor, lens: LongTensor, dim: int) -> Tensor:
+    def __attrs_post_init__(self):
+        self.lens_whitener = WhitenOnline((1,)) if self.whiten_lens else _empty_module
+
+    def _append_lens(self, t: Tensor, lens: LongTensor) -> Tensor:
         if self.append_lens:
-            assert dim % t.ndim - t.ndim == -2
-            return broadcast_cat((t, lens.to(t).unsqueeze(-1)), -1)
+            lens = lens.to(t).unsqueeze(-1)
+
+            # TODO: un-hotfix
+            if hasattr(self, 'lens_scale') and self.lens_scale:
+                lens = lens / self.lens_scale
+
+            return broadcast_cat((t, self.lens_whitener(lens)), -1)
         else:
             return t
 
 
-@attr.s
+@attr.s(eq=False, auto_attribs=True)
 class SetCollapser(Collapser, BatchedSetModule):
-    net: Union[Module, Callable[[Tensor], Tensor]]
-    collapse_fn: _collapse_fn_t = collapse_mean
+    net: Union[Module, Callable[[SetBatch], SetBatch]] = _empty_module
+    # collapse_fn: _collapse_fn_t = collapse_mean
+    reduce_fn: Callable[[SetBatch], Tensor] = SetBatch.mean
 
-    def forward(self, t: Tensor, lens: LongTensor, dim=-2):
-        return self._append_lens(self.collapse_fn(self.net(t), lens_to_indptr_like(t, lens, dim)), lens, dim)
-
-
-@attr.s
-class SubsampledSetCollapser(SetCollapser):
-    subsample_frac: float = attr.ib(kw_only=True)
-
-    @staticmethod
-    def get_idx(t: Tensor, subc: int, dim: int) -> Tensor:
-        return torch.randint(t.shape[dim], (*t.shape[:dim], subc), device=t.device)
-
-    def subsample(self, t: Tensor, indptr: Iterable[int], subc: int, dim: int) -> tuple[Tensor, LongTensor]:
-        return (
-            broadcast_gather(t, dim, idx := self.get_idx(t, subc, dim)),
-            torch.logical_and(idx.unsqueeze(-1) >= indptr[..., None, :-1],
-                              idx.unsqueeze(-1) < indptr[..., None, 1:]).sum(-2)
-        )
-
-    def forward(self, t: Tensor, lens: LongTensor, dim=-2):
-        if self.training:
-            subt, sublens = self.subsample(t, lens_to_indptr_like(t, lens, dim), int((self.subsample_frac * lens.sum(-1)).ceil()), dim)
-            res = self.collapse_fn(self.net(subt), lens_to_indptr_like(subt, sublens, dim))
-            if self.collapse_fn is collapse_sum:
-                res = res * (lens / sublens).unsqueeze(-1).unflatten(-1, (t.ndim - dim % t.ndim)*(1,))
-            return self._append_lens(res, lens, dim)
-        else:
-            return super().forward(t, lens, dim=dim)
+    def forward(self, batch: SetBatch) -> Tensor:
+        return self._append_lens(self.reduce_fn(self.net(batch)), batch.sizes)
+        # return self._append_lens(self.collapse_fn(
+        #     self.net(batch).val, batch.indptr), batch.sizes)
 
 
-@attr.s
-class USet(Collapser, BatchedSetModule):
-    prenet: Union[Module, Callable[[Tensor], Tensor]]
-    postnet: Union[Module, Callable[[tuple[Tensor, Tensor]], Tensor]]
-    precollapse: _collapse_fn_t = collapse_mean
-    postcollapse: _collapse_fn_t = collapse_mean
-
-    def forward(self, t: Tensor, lens: LongTensor, dim=-2):
-        indptr = lens_to_indptr_like(t, lens, dim)
-        return self._append_lens(self.postcollapse(self.postnet((
-            torch.repeat_interleave(
-                self._append_lens(self.precollapse(self.prenet(t), indptr), lens, dim),
-                lens, dim=dim
-            ),
-            t
-        )), indptr), lens, dim)
-
-
-@attr.s
-class NestedSetsProcessor(Collapser):
-    nets: Iterable[Module]
-    collapse_fns: Iterable[_collapse_fn_t] = (collapse_mean,)
-
-    def __attrs_post_init__(self):
-        if not isinstance(self.nets, ModuleList):
-            self.nets = ModuleList(self.nets)
-
-    def iter_levels(self, lenss: Union[LongTensor, Iterable[LongTensor]]) -> tuple[Iterable[LongTensor], Module, _collapse_fn_t]:
-        yield from zip(always_iterable(lenss, Tensor), self.nets, cycle(self.collapse_fns))
-
-    @staticmethod
-    def forward_one(t: Tensor, lens: LongTensor, net: Module, collapse_fn: _collapse_fn_t, *args, dim: int) -> Tensor:
-        return collapse_fn(net(t), lens_to_indptr_like(t, lens, dim))
-
-    def forward(self, t: Tensor, lenss: Union[LongTensor, Iterable[LongTensor]], dim=-2) -> Tensor:
-        return last(
-            t for t in [t]
-            for lens, *args in self.iter_levels(lenss)
-            for t in [self._append_lens(self.forward_one(t, lens, *args, dim=dim), lens, dim)]
-        )
-
-    if TYPE_CHECKING:
-        __call__ = forward
-
-
-@attr.s
-class SubsampledNestedSetsProcessor(NestedSetsProcessor):
-    subsample_counts: Union[Union[int, None], Iterable[Union[int, None]]] = None
-    subsample_fracs: Union[float, Iterable[float]] = (1,)
-
-    def iter_levels(self, lenss: Union[LongTensor, Iterable[LongTensor]]) -> tuple[Iterable[LongTensor], Module, _collapse_fn_t, int]:
-        for (lens, net, collapse_fn), count, frac in zip(
-            super().iter_levels(lenss),
-            cycle(always_iterable(self.subsample_counts) if self.subsample_counts is not None else (None,)),
-            cycle(always_iterable(self.subsample_fracs))
-        ):
-            yield lens, net, collapse_fn, (count if count is not None else int((frac * lens.sum(-1)).ceil()))
-
-    @staticmethod
-    def get_idx(t: Tensor, subc: int, dim: int) -> Tensor:
-        return torch.randint(t.shape[dim], (*t.shape[:dim], subc), device=t.device)
-
-    def subsample(self, t: Tensor, indptr: Iterable[int], subc: int, dim: int) -> tuple[Tensor, LongTensor]:
-        return (
-            broadcast_gather(t, dim, idx := self.get_idx(t, subc, dim)),
-            torch.logical_and(idx.unsqueeze(-1) >= indptr[..., None, :-1],
-                              idx.unsqueeze(-1) < indptr[..., None, 1:]).sum(-2)
-        )
-
-    def forward_one(self, t: Tensor, lens: LongTensor, net: Module, collapse_fn: _collapse_fn_t, subc: int = None, *args, dim: int):
-        if self.training:
-            newt, newlens = self.subsample(t, lens_to_indptr_like(t, lens, dim), subc, dim)
-            res = super().forward_one(newt, newlens, net, collapse_fn, dim=dim)
-            if collapse_fn is collapse_sum:
-                res = res * (lens / newlens).unsqueeze(-1).unflatten(-1, (t.ndim - dim % t.ndim)*(1,))
-            return res
-        else:
-            return super().forward_one(t, lens, net, collapse_fn, dim=dim)
+# @attr.s(eq=False, auto_attribs=True)
+# class USet(Collapser, BatchedSetModule):
+#     prenet: Union[Module, Callable[[Tensor], Tensor]]
+#     postnet: Union[Module, Callable[[tuple[Tensor, Tensor]], Tensor]]
+#     precollapse: _collapse_fn_t = collapse_mean
+#     postcollapse: _collapse_fn_t = collapse_mean
+#
+#     def forward(self, t: Tensor, lens: LongTensor, dim=-2):
+#         indptr = lens_to_indptr_like(t, lens, dim)
+#         return self._append_lens(self.postcollapse(self.postnet((
+#             torch.repeat_interleave(
+#                 self._append_lens(self.precollapse(self.prenet(t), indptr), lens, dim),
+#                 lens, dim=dim
+#             ),
+#             t
+#         )), indptr), lens, dim)
+#
+#
+# @attr.s(eq=False, auto_attribs=True)
+# class NestedSetsProcessor(Collapser):
+#     nets: Iterable[Module]
+#     collapse_fns: Iterable[_collapse_fn_t] = (collapse_mean,)
+#
+#     def __attrs_post_init__(self):
+#         if not isinstance(self.nets, ModuleList):
+#             self.nets = ModuleList(self.nets)
+#
+#     def iter_levels(self, lenss: Union[LongTensor, Iterable[LongTensor]]) -> tuple[Iterable[LongTensor], Module, _collapse_fn_t]:
+#         yield from zip(always_iterable(lenss, Tensor), self.nets, cycle(self.collapse_fns))
+#
+#     @staticmethod
+#     def forward_one(t: Tensor, lens: LongTensor, net: Module, collapse_fn: _collapse_fn_t, *args, dim: int) -> Tensor:
+#         return collapse_fn(net(t), lens_to_indptr_like(t, lens, dim))
+#
+#     def forward(self, t: Tensor, lenss: Union[LongTensor, Iterable[LongTensor]], dim=-2) -> Tensor:
+#         return last(
+#             t for t in [t]
+#             for lens, *args in self.iter_levels(lenss)
+#             for t in [self._append_lens(self.forward_one(t, lens, *args, dim=dim), lens, dim)]
+#         )
+#
+#     if TYPE_CHECKING:
+#         __call__ = forward

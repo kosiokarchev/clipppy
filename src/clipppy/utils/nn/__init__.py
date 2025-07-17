@@ -1,17 +1,53 @@
 from __future__ import annotations
 
+import os
+import pickle
 from functools import partial
-from typing import Callable, Type, Union, Sequence, Iterable, Generic, Mapping, TypeVar
+from typing import Callable, Type, Union, Sequence, Iterable, Generic, Mapping, Optional
 
 import attr
 import torch
 from frozendict import frozendict
 from torch import Tensor, Size
 from torch.nn import LazyLinear, Module, ReLU, Sequential, LayerNorm, ModuleDict
+from torch.nn.modules.lazy import LazyModuleMixin
 
 from phytorchx.attrs import AttrsModule
 from .empty import _empty_module
+from .whiten import LazyWhitenOnline, WhitenOnline, BatchedSyncBatchNorm, LazyBatchedSyncBatchNorm
 from ..typing import _ff_module_like, _KT, _VT
+
+
+class BSPickler(pickle.Pickler):
+    def __init__(self):
+        super().__init__(open(os.devnull, 'wb'))
+        self.refs = set()
+
+    def reducer_override(self, obj):
+        if isinstance(obj, torch.Tensor):
+            self.refs.add(obj)
+            return object, ()
+        else:
+            return NotImplemented
+
+    def __call__(self, obj):
+        self.dump(obj)
+        return self.refs
+
+
+def extract_extra_buffers(o: Module):
+    return BSPickler()(o) - set(o.parameters()) - set(o.buffers())
+
+
+def extract_buffers(t, base: Type):
+    if isinstance(t, base):
+        t = t.__dict__.values()
+
+    if isinstance(t, torch.Tensor):
+        yield t
+    elif isinstance(t, Iterable):
+        for v in t:
+            yield from extract_buffers(v, base)
 
 
 class PartialModule(Module):
@@ -62,30 +98,34 @@ class USequential(Sequential):
         return arg, super().forward(arg)
 
 
-class NLazyLinear(LazyLinear):
-    def initialize_parameters(self, input) -> None:  # type: ignore[override]
-        if self.has_uninitialized_params():
-            with torch.no_grad():
-                self.in_features = input.size(-1)
-                self.weight.materialize((self.out_features, self.in_features))
-                if self.bias is not None:
-                    self.bias.materialize((self.out_features,))
-                self.reset_parameters()
+class SquareLazyLinear(LazyLinear):
+    def __init__(self, bias: bool = True, device=None, dtype=None):
+        super().__init__(0, bias, device, dtype)
+
+    def initialize_parameters(self, input):
+        self.out_features = input.size(-1)
+        return super().initialize_parameters(input)
+
+
+def Norm(size=None, whiten=False, batchnorm=False, layernorm=False):
+    for arg, cls, lazy_cls in (
+        (whiten, lambda s, **kwargs: WhitenOnline(Size((s,)), **kwargs), LazyWhitenOnline),
+        (batchnorm, BatchedSyncBatchNorm, LazyBatchedSyncBatchNorm),
+        (layernorm, LayerNorm, None)
+    ):
+        if arg:
+            return (lazy_cls if size is None else partial(cls, size))(**({} if arg is True else arg))
+    return _empty_module
 
 
 class Perceptron(Module):
     def __init__(
-        self, size: int, nonlinearity: Union[Type[Module], Callable[[], _ff_module_like]] = partial(ReLU, inplace=True),
-        whiten=False, layernorm=frozendict(elementwise_affine=False)
+        self, size: Optional[int], nonlinearity: Union[Type[Module], Callable[[], _ff_module_like]] = ReLU,
+        bias=True, whiten=False, batchnorm=False, layernorm=frozendict(elementwise_affine=False)
     ):
         super().__init__()
-        self.lin = NLazyLinear(size)
-        if whiten:
-            self.norm = WhitenOnline(Size((size,)))
-        elif layernorm:
-            self.norm = LayerNorm(size, **({} if layernorm is True else layernorm))
-        else:
-            self.norm = _empty_module
+        self.lin = LazyLinear(size, bias=bias)
+        self.norm = Norm(size, whiten, batchnorm, layernorm)
         self.nonlin = nonlinearity()
 
     def forward(self, a):
@@ -97,4 +137,23 @@ def mlp(*sizes: int, **kwargs):
 
 
 def omlp(*sizes: int, osize: int = 1, **kwargs):
-    return Sequential(mlp(*sizes, **kwargs), NLazyLinear(osize))
+    return Sequential(mlp(*sizes, **kwargs), LazyLinear(osize))
+
+
+class LazyResidBlock(LazyModuleMixin, Module):
+    def __init__(self, embed_features: int = None, **kwargs):
+        super().__init__()
+        self._is_initted = False
+
+        self.perc = Perceptron(embed_features, **kwargs)
+        self.lin2 = LazyLinear(0, bias=True)
+
+    def forward(self, val: Tensor):
+        return val + self.lin2(self.perc(val))
+
+    def initialize_parameters(self, val: Tensor):
+        if not self._is_initted:
+            if self.perc.lin.out_features is None:
+                self.perc.lin.out_features = val.size(-1)
+            self.lin2.out_features = val.size(-1)
+            self._is_initted = True
