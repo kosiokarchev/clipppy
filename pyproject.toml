@@ -31,7 +31,6 @@ dependencies = [
     "python-forge",
     "pyro-ppl<1.9.0",
     "torch>=1.11",
-    "pytorch-lightning",
     "phytorchx"
 ]
 

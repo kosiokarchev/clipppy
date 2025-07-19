@@ -8,19 +8,19 @@ from pytest import mark
 from clipppy import loads
 
 
-@mark.parametrize('name, res', {
+@mark.parametrize('name, oper', {
     '==': op.eq, 'ne': op.ne, 'lt': op.lt, 'le': op.le, 'gt': op.gt, 'ge': op.ge,
     '+': op.add, '-': op.sub, '*': op.mul, '/': op.truediv,
     '@': op.matmul, '**': op.pow
 }.items())
 @given(*2*(arrays(float, (3, 3), elements=st.floats(
     min_value=1, allow_nan=False, allow_infinity=False)),))
-def test_binop(name, res, arg1, arg2):
+def test_binop(name, oper, arg1, arg2):
     assert (loads(f'''
         a: &a !py:arg1
         b: &b !py:arg2
         res: !{name} [*a, *b]
-    ''')['res'] == res(arg1, arg2)).all()
+    ''')['res'] == oper(arg1, arg2)).all()
 
 
 # noinspection PyUnusedLocal

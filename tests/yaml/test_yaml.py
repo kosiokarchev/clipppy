@@ -8,6 +8,7 @@ import numpy as np
 import torch
 from pytest import fixture, mark, raises
 
+import phytorchx
 from clipppy import Clipppy, load, load_config, loads
 from clipppy.utils.importing import operator
 from clipppy.yaml import cwd
@@ -180,10 +181,10 @@ class TestWithFiles:
             - !pt [res/data.pt, somekey]
             - !pt {/: res/data.pt, /: somekey, map_location: cpu}
             - !py:operator.getitem [!pt res/data.pt, somekey]
-        ''') for __ in [torch.load('res/data.pt')['somekey']])
+        ''') for __ in [phytorchx.load('res/data.pt')['somekey']])
 
     def test_trace(self):
-        nodes = torch.load('res/trace.pt').nodes
+        nodes = phytorchx.load('res/trace.pt', weights_only=False).nodes
         for key in 'abc':
             assert loads(f'!trace [res/trace.pt, {key}]') == nodes[key]['value']
 

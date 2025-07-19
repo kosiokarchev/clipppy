@@ -84,8 +84,7 @@ class ClipppyYAML(YAML):
         return data if key is None else data[key]
 
     def pt(self, fname: str, key: str = None, **kwargs):
-        kwargs.setdefault('map_location', phytorchx.get_default_device())
-        data = self._load_file(torch.load, fname, **kwargs)
+        data = self._load_file(phytorchx.load, fname, **kwargs)
         return data if key is None else data[key]
 
     def trace(self, fname, key: Union[str, Iterable[str]], **kwargs):

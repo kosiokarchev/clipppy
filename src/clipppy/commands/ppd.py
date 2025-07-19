@@ -6,6 +6,7 @@ import pyro
 import pyro.poutine
 import torch
 
+import phytorchx
 from .sampling_command import SamplingCommand
 from ..guide import Guide
 from ..utils.typing import _Model
@@ -29,7 +30,7 @@ class PPD(SamplingCommand):
                                  'model_trace': pyro.poutine.Trace}, total=False):
         # TODO: better guide loading
         if self.guidefile is not None:
-            guide = torch.load(self.guidefile)
+            guide = phytorchx.load(self.guidefile)
 
         guide_is_trainable = hasattr(guide, 'training')
 
