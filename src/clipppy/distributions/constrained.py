@@ -22,6 +22,10 @@ _PS = ParamSpec('_PS')
 
 
 class ConstrainedDistribution(TorchDistribution, Generic[_DT, _PS], ABC):
+    # TODO: patch for https://github.com/pyro-ppl/pyro/issues/3442
+    def __class_getitem__(cls, *args):
+        return cls
+
     _concrete: ClassVar[MutableMapping[_tDT], Union[Type[Self], _tDT]]
 
     def __init_subclass__(cls, final_constrained=False, register: _tDT = None, **kwargs):

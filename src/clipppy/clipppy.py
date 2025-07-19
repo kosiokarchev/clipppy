@@ -23,8 +23,8 @@ class Clipppy(Commandable):
         fit: commands.Fit._KwargsT
         mock: commands.Mock._KwargsT
         ppd: commands.PPD._KwargsT
-        lightning_npe: commands.LightningNPE._KwargsT
-        lightning_nre: commands.LightningNRE._KwargsT
+        npe: commands.NPE._KwargsT
+        nre: commands.NRE._KwargsT
 
     def __init__(self,
                  model: _Model = noop,
@@ -60,5 +60,4 @@ class Clipppy(Commandable):
     ppd: commands.PPD
 
     npe: commands.NPE
-
     nre: commands.NRE

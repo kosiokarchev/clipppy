@@ -19,8 +19,7 @@ _KT = TypeVar('_KT')
 _VT = TypeVar('_VT')
 
 
-# TODO: python 3.9: Dict -> dict
-class PerKeyDefaultDict(Dict[_KT, _VT]):
+class PerKeyDefaultDict(dict[_KT, _VT]):
     default_factory: Optional[Callable[[_KT], _VT]] = None
 
     def __init__(self, default_factory: Callable[[_KT], _VT] = None, *args, **kwargs):

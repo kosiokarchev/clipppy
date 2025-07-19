@@ -1,13 +1,8 @@
 from __future__ import annotations
 
-import abc
 import re
-import sys
-import types
-from collections.abc import Callable
-from typing import (
-    get_args, get_origin, Iterable, NewType, Optional, overload, Pattern,
-    Protocol, runtime_checkable, Type, TypedDict, TypeVar, Union, Any, Sequence, Callable)
+from typing import Iterable, NewType, Optional, overload, Pattern, Protocol, runtime_checkable, Type, TypedDict, \
+    TypeVar, Union, Any, Sequence, Callable
 
 from more_itertools import collapse
 from pyro import distributions as dist
@@ -15,7 +10,6 @@ from pyro.poutine.indep_messenger import CondIndepStackFrame
 from torch import Tensor
 from torch.nn import Module
 from typing_extensions import TypeAlias
-
 
 __all__ = (
     '_T', '_KT', '_VT', '_Tout', '_Tin',

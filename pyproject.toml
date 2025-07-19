@@ -13,13 +13,15 @@ license = {text = "GPLv3"}
 classifiers = [
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Intended Audience :: Science/Research",
     "Typing :: Typed"
 ]
 
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 
 dependencies = [
     "apipkg",
@@ -29,7 +31,7 @@ dependencies = [
     "typing-extensions",
     "ruamel.yaml>=0.17.29",
     "python-forge",
-    "pyro-ppl<1.9.0",
+    "pyro-ppl",
     "torch>=1.11",
     "phytorchx"
 ]
@@ -43,10 +45,10 @@ dynamic = ["version"]
 [project.optional-dependencies]
 docs = ["sphinx-autoapi"]
 testing = ["pytest", "hypothesis", "scipy"]
-all = ["xarray>=2025.03", "jinja2", "pytorch_lightning", "tensorboard", "wandb", "emcee", "zarr", "netCDF4", "corner"]
-plotting = ["xarray>=2025.03"]
+all = ["xarray>=2025.03", "corner", "jinja2", "pytorch-lightning", "tensorboard", "wandb", "emcee", "zarr", "netCDF4"]
+plotting = ["xarray>=2025.03", "corner"]
 jinja = ["jinja2"]
-lightning = ["pytorch_lightning", "tensorboard", "wandb"]
+lightning = ["pytorch-lightning", "tensorboard", "wandb"]
 emcee = ["emcee"]
 zarr = ["zarr"]
 netcdf = ["netCDF4"]

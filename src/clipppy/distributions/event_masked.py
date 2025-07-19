@@ -4,8 +4,7 @@ from copy import copy
 from typing import Union
 
 import torch
-from pyro.distributions.torch_distribution import (ExpandedDistribution, MaskedDistribution, TorchDistribution,
-                                                   TorchDistributionMixin)
+from pyro.distributions.torch_distribution import ExpandedDistribution, MaskedDistribution, TorchDistribution, TorchDistributionMixin
 from pyro.distributions.util import broadcast_shape
 from torch.distributions import Independent
 
