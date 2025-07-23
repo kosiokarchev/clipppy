@@ -1,5 +1,5 @@
 from numbers import Real
-from typing import Union, Any, NamedTuple
+from typing import Any, NamedTuple
 
 import torch
 from torch import Tensor
@@ -23,7 +23,7 @@ class WeightsMetric(Metric):
         self.wsum2 = SumSquaredMetric()
         self.w2sum = SquareSumMetric()
 
-    def update(self, w: Union[float, Tensor]):
+    def update(self, w: float | Tensor):
         for m in (self.w, self.wsum2, self.w2sum):
             m.update(w)
 
@@ -66,7 +66,7 @@ class SamplesMetric(Metric):
     def ess(self) -> Real:
         return self._w.ess().item()
 
-    def sample(self, n: int, return_y=False, replacement=True, **kwargs) -> Union[Tensor, tuple[Tensor, Tensor]]:
+    def sample(self, n: int, return_y=False, replacement=True, **kwargs) -> Tensor | tuple[Tensor, Tensor]:
         p = self.p[idx := self._w.sample(n, replacement, **kwargs)]
         return (p, self.y[idx]) if return_y else p
 

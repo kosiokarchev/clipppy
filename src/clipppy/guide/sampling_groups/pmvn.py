@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from functools import cached_property
 from itertools import chain
-from typing import Mapping, Union
+from typing import Mapping
 
 import torch
 from more_itertools import partition
@@ -23,8 +23,8 @@ class PartialMultivariateNormalSamplingGroup(LocatedAndScaledSamplingGroupWithPr
     zaux_diag: Tensor
 
     def __init__(self, sites, name='', diag=AnyRegex(),  # no match
-                 init_scale_full: Union[torch.Tensor, float] = 1.,
-                 init_scale_diag: Union[torch.Tensor, float] = 1.,
+                 init_scale_full: torch.Tensor | float = 1.,
+                 init_scale_diag: torch.Tensor | float = 1.,
                  *args, **kwargs):
         self.init_scale_full = init_scale_full
         self.init_scale_diag = init_scale_diag

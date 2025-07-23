@@ -1,17 +1,18 @@
 from dataclasses import dataclass, field
-from typing import Callable, Iterable, Mapping, Generic, TypeVar, Union
+from typing import Callable, Iterable, Mapping, Generic, TypeVar
 
 import numpy as np
 import pyro
 import torch
-from clipppy.sbi._typing import _MultiKT, _SBIParamsT
-from clipppy.sbi.multi import PackerMixin
-from clipppy.stochastic import InfiniteUniform
 from frozendict import frozendict
 from more_itertools import always_iterable
 from pyro.nn import PyroModule
 from scipy.stats import gaussian_kde
 from torch import Tensor, BoolTensor
+
+from ..distributions.infinite import InfiniteUniform
+from ..sbi._typing import _MultiKT, _SBIParamsT
+from ..sbi.multi import PackerMixin
 
 _ParamsT = TypeVar('_ParamsT')
 _OutT = TypeVar('_OutT')
@@ -22,11 +23,11 @@ class Bound(Generic[_ParamsT, _OutT]):
 
 
 @dataclass
-class DynestyBound(Bound[_SBIParamsT, Union[Tensor, BoolTensor]]):
+class DynestyBound(Bound[_SBIParamsT, Tensor | BoolTensor]):
     bound: Bound[np.ndarray, bool]
     param_names: Iterable[str]
 
-    def contains(self, params: _SBIParamsT) -> Union[Tensor, BoolTensor]:
+    def contains(self, params: _SBIParamsT) -> Tensor | BoolTensor:
         return torch.tensor([
             self.bound.contains(x)
             for x in np.atleast_2d(np.stack([

@@ -19,7 +19,7 @@ class Passcua:
     samples: SamplesMetric = field(init=False, default_factory=SamplesMetric)
 
 
-    def random_direction(self, shape: Union[Size, tuple[int, ...]]) -> Tensor:
+    def random_direction(self, shape: Size | tuple[int, ...]) -> Tensor:
         d = torch.randn(shape+(self.ndim,))
         return d / norm(d, dim=-1, keepdim=True)
 
@@ -49,9 +49,9 @@ class Passcua:
     def run(
         self, nbatch: int, ndirs: int = 100,
         p_init: Tensor = None, nseed: int = None,
-        progress: Union[bool, Mapping[str, Any]] = True,
+        progress: bool | Mapping[str, Any] = True,
         target_ess: Real = float('inf'),
-        max_iter: Union[Real, float, int] = float('inf')
+        max_iter: Real | float | int = float('inf')
     ):
         if p_init is None:
             p_init = self.bound.get_point().unsqueeze(0)

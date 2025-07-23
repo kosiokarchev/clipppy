@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import get_type_hints, Sequence, Any, ClassVar, Union
+from typing import get_type_hints, Sequence, Any, ClassVar
 
 import attr
 import torch
@@ -15,7 +15,7 @@ from ..typing import _Tensor_like
 
 @attr.s(eq=False, auto_attribs=True)
 class Whiten(ParametrizedAttrsModule):
-    shape: Union[Size, tuple[int, ...], list[int]]
+    shape: Size | tuple[int, ...] | list[int]
 
     affine: bool = attr.ib(default=False, kw_only=True)
     momentum: float = attr.ib(default=0, kw_only=True)

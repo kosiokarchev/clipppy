@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from itertools import chain
-from typing import Callable, Iterable, Mapping, Union, Any, Generic, TypeVar
+from typing import Callable, Iterable, Mapping, Any, Generic, TypeVar
 
 import numpy as np
 import torch
@@ -63,7 +63,7 @@ class Hyperparams(BaseHParams):
 @dataclass(repr=False)
 class Structure(BaseHParams):
     head: BaseHParams = field(default_factory=BaseHParams)
-    tail: Union[Tail, BaseHParams] = field(default_factory=BaseHParams)
+    tail: Tail | BaseHParams = field(default_factory=BaseHParams)
 
 
 class ModuleHP(BaseHParams):
@@ -73,9 +73,9 @@ class ModuleHP(BaseHParams):
 
 @dataclass(repr=False)
 class Tail(BaseHParams):
-    thead: Union[MLP, BaseHParams] = field(default_factory=ModuleHP)
+    thead: MLP | BaseHParams = field(default_factory=ModuleHP)
     xhead: BaseHParams = field(default_factory=ModuleHP)
-    net: Union[OMLP, BaseHParams] = field(default_factory=ModuleHP)
+    net: OMLP | BaseHParams = field(default_factory=ModuleHP)
 
 
 @dataclass(repr=False)
@@ -154,7 +154,7 @@ class ObjectParams(BaseHParams, Generic[_T]):
     cls: Callable[..., _T]
     _namespace: Any
 
-    def __init__(self, cls: Union[Callable[..., _T], str], **kwargs):
+    def __init__(self, cls: Callable[..., _T] | str, **kwargs):
         super()._setattr__('cls', getattr(self._namespace, cls) if isinstance(cls, str) else cls)
         super().__init__(cls_=self.cls.__name__, **kwargs)
 

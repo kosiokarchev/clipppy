@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from collections import OrderedDict
 from dataclasses import dataclass, field, fields
 from functools import update_wrapper, WRAPPER_ASSIGNMENTS
-from typing import Any, Callable, ClassVar, Container, Generic, Literal, Mapping, Type, TypeVar, Union
+from typing import Any, Callable, ClassVar, Container, Generic, Literal, Mapping, Type, TypeVar
 
 import forge
 from torch.utils.data import DataLoader, Dataset
@@ -30,8 +30,8 @@ class BaseConfig(Generic[_T]):
 
 @dataclass
 class Config(BaseConfig[_T], Generic[_T]):
-    cls: Union[Type[_T], Callable[..., _T], _T] = noop
-    kwargs: Union[Mapping[str, Any], Literal[Sentinel.no_call]] = field(default_factory=dict)
+    cls: Type[_T] | Callable[..., _T] | _T = noop
+    kwargs: Mapping[str, Any] | Literal[Sentinel.no_call] = field(default_factory=dict)
 
     def instantiate(self, *args, **kwargs):
         return self.cls(*args, **kwargs)
@@ -60,7 +60,7 @@ class DatasetConfig(Config[Dataset]):
 
 @dataclass
 class DataLoaderConfig(Config[DataLoader]):
-    cls: Union[Type[DataLoader], Callable[[...], DataLoader], DataLoader] = DataLoader
+    cls: Type[DataLoader] | Callable[[...], DataLoader] | DataLoader = DataLoader
 
 
 class OptimizerConfig(Config[_OptimizerT]):

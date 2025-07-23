@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from typing import Mapping, Iterable, Union, MutableMapping
+from typing import Mapping, Iterable, MutableMapping
 
 import pyro
 from more_itertools import always_iterable
-from pyro.distributions import Delta
 from pyro.poutine.messenger import Messenger
 from torch import Tensor
 from typing_extensions import TypeAlias
@@ -12,8 +11,7 @@ from typing_extensions import TypeAlias
 from ...utils.pyro import make_deterministic
 from ...utils.typing import _Distribution, _Site
 
-
-_KT: TypeAlias = Union[str, Iterable[str]]
+_KT: TypeAlias = str | Iterable[str]
 
 
 class SimplifyingMessenger(Messenger):

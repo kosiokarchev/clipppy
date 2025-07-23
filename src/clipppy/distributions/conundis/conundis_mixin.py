@@ -4,7 +4,7 @@ from abc import ABC
 from copy import copy
 from functools import cached_property, partial
 from math import inf
-from typing import Generic, Optional, TypeVar, Union, Callable
+from typing import Generic, Optional, TypeVar, Callable
 
 import torch
 from torch import is_tensor, Size, Tensor
@@ -57,7 +57,7 @@ class ConUnDisMixin(ConstrainedDistribution, Generic[_DT], ABC, final_constraine
         constraint_lower: _constraintT = None,
         constraint_upper: _constraintT = None,
         *, create=False
-    ) -> Union[Self, _DT]:
+    ) -> Self | _DT:
         d = copy(d)
 
         # TODO: that's a hack for LeftIndependent
@@ -158,4 +158,4 @@ class ConUnDisMixin(ConstrainedDistribution, Generic[_DT], ABC, final_constraine
 
 
 _CDT = TypeVar('_CDT', bound=ConUnDisMixin)
-_ConUnDisT = Union[ConUnDisMixin[_DT], _DT]
+_ConUnDisT = ConUnDisMixin[_DT] | _DT

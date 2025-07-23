@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from itertools import starmap
 from numbers import Number
-from typing import Any, Generic, Iterable, Literal, Mapping, NamedTuple, TYPE_CHECKING, Union, TypeVar, Callable
+from typing import Any, Generic, Iterable, Literal, Mapping, NamedTuple, TYPE_CHECKING, TypeVar, Callable
 
 import torch
 from more_itertools import all_equal
@@ -18,10 +18,12 @@ from ...sbi.nn.npe import NPEResult
 from ...utils import Sentinel
 
 _Tin = TypeVar('_Tin')
-_DimT: TypeAlias = Union[int, tuple[int, ...], tuple[str, ...], Literal[Sentinel.skip]]
-_DimTreeT: TypeAlias = Union[_DimT, Iterable['_DimTreeT'], Mapping[Any, '_DimTreeT']]
+_DimT: TypeAlias = int | tuple[int, ...] | tuple[str, ...] | Literal[Sentinel.skip]
+_DimTreeT: TypeAlias = _DimT | Iterable['_DimTreeT'] | Mapping[Any, '_DimTreeT']
 _ReduceFuncT: TypeAlias = Callable[[Tensor, ...], Tensor]
-_ReduceFuncTreeT: TypeAlias = Union[_ReduceFuncT, Iterable['_ReduceFuncT'], Mapping[Any, '_ReduceFuncT']]
+_ReduceFuncTreeT: TypeAlias = _ReduceFuncT | Iterable['_ReduceFuncT'] | Mapping[Any, '_ReduceFuncT']
+
+_t: TypeAlias = Tensor | Number
 
 
 _LossParamsT = ParamSpec('_LossParamsT')
@@ -59,7 +61,7 @@ class BaseSBILoss(Generic[_LossParamsT]):
 @dataclass
 class MultiLoss(BaseSBILoss[_LossParamsT], Generic[_LossParamsT]):
     losses: Mapping[str, BaseSBILoss]
-    weights: Mapping[str, Union[Number, Tensor]] = field(default_factory=dict)
+    weights: Mapping[str, Number | Tensor] = field(default_factory=dict)
 
     def __call__(self, *args, **kwargs) -> BaseSBILoss.ReturnT:
         return self.ReturnT.from_mapping({
@@ -110,33 +112,33 @@ class BaseNRELoss(SBILoss, ABC):
     if TYPE_CHECKING:
         def __call__(
             self, log_ratio_joint: _Tree[Tensor], log_ratio_marginal: _Tree[Tensor],
-            weight_joint: _Tree[Union[Tensor, Number]] = 1., weight_marginal: _Tree[Union[Tensor, Number]] = 1.
+            weight_joint: _Tree[_t] = 1., weight_marginal: _Tree[_t] = 1.
         ) -> BaseSBILoss.ReturnT: ...
 
 
 class BCENRELoss(BaseNRELoss):
     def _loss(self, log_ratio_joint: Tensor, log_ratio_marginal: Tensor,
-              weight_joint: Union[Tensor, Number] = 1., weight_marginal: Union[Tensor, Number] = 1.):
+              weight_joint: _t = 1., weight_marginal: _t = 1.):
         return - (weight_joint * logsigmoid(log_ratio_joint) +
                   weight_marginal * logsigmoid(-log_ratio_marginal))
 
 
 class LogisticNRELoss(BaseNRELoss):
     def _loss(self, log_ratio_joint: Tensor, log_ratio_marginal: Tensor,
-              weight_joint: Union[Tensor, Number] = 1., weight_marginal: Union[Tensor, Number] = 1.):
+              weight_joint: _t = 1., weight_marginal: _t = 1.):
         return (weight_joint * torch.logaddexp(-log_ratio_joint, log_ratio_joint.new_zeros(())) +
                 weight_marginal * torch.logaddexp(log_ratio_marginal, log_ratio_marginal.new_zeros(())))
 
 
 class SavageNRELoss(BaseNRELoss):
     def _loss(self, log_ratio_joint: Tensor, log_ratio_marginal: Tensor,
-              weight_joint: Union[Tensor, Number] = 1., weight_marginal: Union[Tensor, Number] = 1.):
+              weight_joint: _t = 1., weight_marginal: _t = 1.):
         return (weight_joint / (1+log_ratio_joint.exp()).square_() +
                 weight_marginal / (1+(-log_ratio_marginal).exp()).square_())
 
 
 class ExpNRELoss(BaseNRELoss):
     def _loss(self, log_ratio_joint: Tensor, log_ratio_marginal: Tensor,
-              weight_joint: Union[Tensor, Number] = 1., weight_marginal: Union[Tensor, Number] = 1.):
+              weight_joint: _t = 1., weight_marginal: _t = 1.):
         return (weight_joint / (log_ratio_joint / 2).exp_() +
                 weight_marginal * (log_ratio_marginal / 2).exp_())

@@ -3,18 +3,15 @@ from __future__ import annotations
 from abc import abstractmethod, ABC
 from functools import partialmethod
 from math import log
-from typing import Any, Sequence, TypedDict, Mapping, TypeVar, Generic, Callable, Union, TYPE_CHECKING, Iterable, cast
+from typing import Any, Sequence, TypedDict, Mapping, TypeVar, Generic, Callable, cast
 from warnings import warn
 
 import attr
-# import attr
 import numpy as np
-import torch
 from pytorch_lightning import Callback, Trainer
 from torch import Tensor, Size, LongTensor
 from torch.nn import CrossEntropyLoss, Module
 from torchmetrics.classification import MulticlassROC
-from typing_extensions import Unpack
 
 from .callbacks import DiagnosticFigureMixin
 from .command import AbstractLightningSBICommand
@@ -35,7 +32,7 @@ class _MMS_OutT(TypedDict):
 @attr.s(eq=False, auto_attribs=True)
 class MultiModelSelection(AbstractLightningSBICommand[CrossEntropyLoss], Generic[_T]):
     models: Sequence[Any]
-    net: Union[Module, Callable[[_T], Tensor]] = None
+    net: Module | Callable[[_T], Tensor] = None
 
     loss_config: Config = attr.ib(factory=lambda: Config(CrossEntropyLoss(), Sentinel.no_call))
 

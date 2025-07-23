@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from functools import partialmethod
-from typing import Mapping, Union, Generic, TypeVar, Callable
+from typing import Mapping, Generic, TypeVar, Callable
 
 import attr
 from torch import Tensor
@@ -19,7 +19,7 @@ _BatchT = TypeVar('_BatchT')
 
 
 @attr.s(eq=False, auto_attribs=True, kw_only=True)
-class AbstractNRE(LightningSBICommand[BaseNRELoss, Union[Tensor, _MultiMappingT], _HeadOoutT, _KT], Generic[_BatchT, _HeadOoutT, _KT]):
+class AbstractNRE(LightningSBICommand[BaseNRELoss, Tensor | _MultiMappingT, _HeadOoutT, _KT], Generic[_BatchT, _HeadOoutT, _KT]):
     loss_config: Config[BaseNRELoss] = attr.ib(factory=lambda: Config(BCENRELoss(), Sentinel.no_call))
 
     def _loss_one(self, obs: _HeadOoutT, params: _SBIParamsT, decoy: _SBIParamsT, **kwargs):

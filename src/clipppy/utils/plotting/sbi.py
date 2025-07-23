@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from functools import cached_property
 from itertools import combinations, starmap
 from numbers import Number
-from typing import Mapping, Any, Sequence, Literal, Union, cast, Iterable, MutableMapping
+from typing import Mapping, Any, Sequence, Literal, cast, Iterable, MutableMapping
 
 import attr
 import numpy as np
@@ -113,7 +113,7 @@ class MultiSBIPosteriorPlotter(MultiSBIPlotter):
     def mask_from_like_ratio(self, group: _MultiKT, thresh=1e-4):
         return self.weights[group] / self.weights[group].max(self.sample_dims) > thresh
 
-    def _bounds(self, group: _MultiKT, thresh=1e-4, method: Literal['postmass', 'like_ratio'] = 'postmass') -> Mapping[str, tuple[Union[np.ndarray, Number], [np.ndarray, Number]]]:
+    def _bounds(self, group: _MultiKT, thresh=1e-4, method: Literal['postmass', 'like_ratio'] = 'postmass') -> Mapping[str, tuple[np.ndarray | Number, [np.ndarray, Number]]]:
         masked_samples = self.samples[list(always_iterable(group))].where((self.mask_from_postmass if method == 'postmass' else self.mask_from_like_ratio)(group, thresh))
         return {
             key: tuple(val.to_numpy())
@@ -145,7 +145,7 @@ class MultiSBIPosteriorPlotter(MultiSBIPlotter):
 
     bounds_kwargs: Mapping[str, Any] = attr.field(default={}, converter=dict(color='0.8', zorder=-1).__or__)
 
-    def _corner(self, group: Sequence[_KT], figsize=None) -> tuple[plt.Figure, Union[np.ndarray, Sequence[Sequence[plt.Axes]]]]:
+    def _corner(self, group: Sequence[_KT], figsize=None) -> tuple[plt.Figure, np.ndarray | Sequence[Sequence[plt.Axes]]]:
         if figsize is None:
             figsize = 3 * np.array(2 * (len(group),)) + 1
 
@@ -174,7 +174,7 @@ class MultiSBIPosteriorPlotter(MultiSBIPlotter):
 
     def corner(
         self, group: _MultiKT, *,
-        axs: Union[np.ndarray, Sequence[Sequence[plt.Axes]]] = None,
+        axs: np.ndarray | Sequence[Sequence[plt.Axes]] = None,
         plot_prior=True, plot_hist1d=True, plot_hist2d=True, plot_kde1d=True, plot_kde2d=True, plot_truth=True, plot_bounds=True,
         prior_color: _ColorT = None, prior_kwargs=frozendict(), prior1d_kwargs=frozendict(), prior2d_kwargs=frozendict(),
         post_color: _ColorT = None, post_kwargs=frozendict(), post1d_kwargs=frozendict(), post2d_kwargs=frozendict(),
@@ -185,7 +185,7 @@ class MultiSBIPosteriorPlotter(MultiSBIPlotter):
         bounds_method_kwargs=frozendict(),
         bounds_kwargs=frozendict(),
         figsize=None
-    ) -> tuple[plt.Figure, Union[np.ndarray, Sequence[Sequence[plt.Axes]]]]:
+    ) -> tuple[plt.Figure, np.ndarray | Sequence[Sequence[plt.Axes]]]:
         if plot_bounds:
             bounds = self._bounds(group, **bounds_method_kwargs)
 
@@ -349,7 +349,7 @@ class MultiSBIPosteriorPlotter(MultiSBIPlotter):
     lvt2_truthkwargs: Mapping[str, Any] = attr.field(default={}, converter=dict(ls='--', color='k').__or__)
 
     def _local_v_truth2(
-        self, axs: Union[np.ndarray, Sequence[Sequence[plt.Axes]]],
+        self, axs: np.ndarray | Sequence[Sequence[plt.Axes]],
         truths: np.ndarray, means: np.ndarray, stds: np.ndarray, prior: np.ndarray,
         histkwargs=frozendict(), markerkwargs=frozendict(), errorkwargs=frozendict(), truthkwargs=frozendict()
     ):
@@ -397,7 +397,7 @@ class MultiSBIPosteriorPlotter(MultiSBIPlotter):
 
         axs[3, 1].plot(norm(0, 1).pdf(_ := np.linspace(-4, 4, 101)), _, color='k')
 
-    def local_v_truth2(self, param_name: _KT, *, axs: Union[np.ndarray, Sequence[Sequence[plt.Axes]]] = None, **kwargs):
+    def local_v_truth2(self, param_name: _KT, *, axs: np.ndarray | Sequence[Sequence[plt.Axes]] = None, **kwargs):
         label = self.param_label(param_name)
 
         if axs is None:

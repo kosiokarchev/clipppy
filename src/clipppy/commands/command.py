@@ -4,7 +4,7 @@ import inspect
 from abc import ABC, abstractmethod
 from contextlib import nullcontext
 from functools import lru_cache
-from typing import Any, ContextManager, get_type_hints, Iterable, Union, TypedDict
+from typing import Any, ContextManager, get_type_hints, Iterable, TypedDict
 
 import pyro
 import pyro.optim
@@ -33,7 +33,7 @@ class Command(ABC):
     """
 
     class _KwargsT(TypedDict, total=False):
-        plate_stack: Union[Iterable[int], ContextManager, Any]
+        plate_stack: Iterable[int] | ContextManager | Any
 
     commander: commandable.Commandable = None
 
@@ -86,7 +86,7 @@ class Command(ABC):
             return getattr(cls, name)
         return super().__getattribute__(name)
 
-    plate_stack: Union[Iterable[int], ContextManager, Any] = nullcontext()
+    plate_stack: Iterable[int] | ContextManager | Any = nullcontext()
     """A stack of plates or an iterable of ints.
 
        Either one or multiple plates (as returned by `pyro.plate

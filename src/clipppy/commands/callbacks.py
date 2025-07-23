@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from itertools import chain
 from pathlib import Path
-from typing import Any, Mapping, Type, Union
+from typing import Any, Mapping, Type
 
 import torch.optim
 from frozendict import frozendict
@@ -20,7 +20,7 @@ class TensorboardCallback(Callback, SummaryWriter):
     _loss_tag = 'loss'
     _optim_tag = 'optim'
 
-    def __init__(self, log_dir: Union[str, Path], max_queue=1000, flush_secs=10,
+    def __init__(self, log_dir: str | Path, max_queue=1000, flush_secs=10,
                  i0: int = 0, suffix='',
                  constant_scalars: Mapping[str, Any] = frozendict()):
         super().__init__(str(log_dir), max_queue=max_queue, flush_secs=flush_secs)

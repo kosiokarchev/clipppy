@@ -4,7 +4,7 @@ import enum
 import re
 from itertools import chain
 from types import FunctionType
-from typing import Callable, Collection, Generic, Iterable, Literal, Mapping, Type, Union
+from typing import Callable, Collection, Generic, Iterable, Literal, Mapping, Type
 from warnings import filterwarnings, catch_warnings
 
 import torch
@@ -18,7 +18,7 @@ def caller(obj):
     return obj()
 
 
-def expandkeys(m: Union[SupportsItems[_KT, _VT], Iterable[tuple[_KT, _VT]], Iterable[_VT]], keys: Collection[_KT]):
+def expandkeys(m: SupportsItems[_KT, _VT] | Iterable[tuple[_KT, _VT]] | Iterable[_VT], keys: Collection[_KT]):
     """Return specific keys from a mapping or iterable of key-value pairs, or zip them with a value iterator."""
     if isinstance(m, Mapping):
         m = m.items()
@@ -60,7 +60,7 @@ class Sentinel(enum.Enum):
         return f'{type(self).__name__}.{self.name}'
 
 
-def merge_if_not_skip(a: Mapping[_KT, _VT], b: Mapping[_KT, Union[_VT, Literal[Sentinel.skip]]]) -> Mapping[_KT, _VT]:
+def merge_if_not_skip(a: Mapping[_KT, _VT], b: Mapping[_KT, _VT | Literal[Sentinel.skip]]) -> Mapping[_KT, _VT]:
     return {**a, **dict(filter(lambda keyval: keyval[1] is not Sentinel.skip, b.items()))}
 
 

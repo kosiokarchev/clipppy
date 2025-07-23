@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABCMeta
 from functools import partial, wraps
-from typing import Any, Type, Union, Optional
+from typing import Any, Type, Optional
 
 import pyro
 from pyro.distributions import Delta
@@ -50,7 +50,7 @@ class PyroDeterministic(Contextful):
 
 
 
-def depoutine(obj: Union[_bound_partial, Any], msgr_type: Type[Messenger] = ConditionMessenger):
+def depoutine(obj: _bound_partial | Any, msgr_type: Type[Messenger] = ConditionMessenger):
     # noinspection PyTypeHints
     obj.func: partial
     return obj.func.args[1] if (

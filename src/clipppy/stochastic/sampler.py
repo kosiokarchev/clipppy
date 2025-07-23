@@ -4,9 +4,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import partial
 from itertools import filterfalse
-from typing import (
-    Any, Callable, ClassVar, ContextManager, Generic, Iterable, Literal,
-    Mapping, Optional, Type, TypeVar, Union)
+from typing import Any, Callable, ClassVar, ContextManager, Generic, Iterable, Literal, Mapping, Optional, Type, TypeVar
 
 import pyro
 import torch
@@ -16,8 +14,8 @@ from torch import Tensor
 from torch.distributions.constraints import Constraint
 from typing_extensions import TypeAlias
 
-from ..utils import _T, _Tin, _Tout, caller, Sentinel
 from ..distributions.extra_dimensions import LeftIndependent
+from ..utils import _T, _Tin, _Tout, caller, Sentinel
 
 __all__ = (
     'AbstractSampler', 'NamedSampler', 'ConcreteSampler', 'PseudoSampler', 'NamedPseudoSampler',
@@ -40,9 +38,9 @@ class AbstractSampler(ABC):
         """
 
 
-_ps_func_t: TypeAlias = Union[Callable[[], _Tout], _T]
+_ps_func_t: TypeAlias = Callable[[], _Tout] | _T
 _ps_call_t: TypeAlias = Literal[Sentinel.call, Sentinel.no_call, True, False]
-_ps_return_t: TypeAlias = Union[_Tout, _T]
+_ps_return_t: TypeAlias = _Tout | _T
 
 
 @dataclass
@@ -209,13 +207,13 @@ class ConcreteSampler(NamedSampler, ABC):
 
 @dataclass
 class _Sampler(ConcreteSampler, ABC):
-    expand_by: Union[torch.Size, Iterable[int]] = torch.Size()
+    expand_by: torch.Size | Iterable[int] = torch.Size()
     to_event: int = None
-    indep: Union[torch.Size, Iterable[int]] = torch.Size()
+    indep: torch.Size | Iterable[int] = torch.Size()
     mask: torch.Tensor = Sentinel.skip
 
 
-_Sampler_dT: TypeAlias = Union[_Distribution, Callable[[], '_Sampler_dT']]
+_Sampler_dT: TypeAlias = _Distribution | Callable[[], '_Sampler_dT']
 
 
 class Sampler(_Sampler):
@@ -235,9 +233,9 @@ class Sampler(_Sampler):
                  # ConcreteSampler
                  init: torch.Tensor = _Sampler.init, support: Constraint = _Sampler.support,
                  # _Sampler
-                 expand_by: Union[torch.Size, Iterable[int]] = _Sampler.expand_by,
+                 expand_by: torch.Size | Iterable[int] = _Sampler.expand_by,
                  to_event: int = _Sampler.to_event,
-                 indep: Union[torch.Size, Iterable[int]] = _Sampler.indep,
+                 indep: torch.Size | Iterable[int] = _Sampler.indep,
                  mask: torch.Tensor = _Sampler.mask, **kwargs):
         super().__init__(**dict(filterfalse((lambda keyval: keyval[0] in ('self', 'd', 'kwargs', '__class__')), locals().items())))
         self.d = d

@@ -1,20 +1,18 @@
 from __future__ import annotations
 
-import builtins as __builtins__
 import ast
-import threading
+import builtins as __builtins__
 from collections import ChainMap
 from importlib import import_module
 from operator import attrgetter
-from typing import Any, ClassVar, Iterable, Mapping, MutableMapping, Protocol, TypedDict, Union
+from typing import Any, ClassVar, Iterable, Mapping, MutableMapping, TypedDict
 
 from more_itertools import rlocate
-
 
 __all__ = 'ScopeMixin',
 
 
-_import_DictT = TypedDict('_import_DictT', {'from': str, 'import': Union[str, Iterable[str]]}, total=False)
+_import_DictT = TypedDict('_import_DictT', {'from': str, 'import': str | Iterable[str]}, total=False)
 
 
 class ScopeMixin:
@@ -32,7 +30,7 @@ class ScopeMixin:
     def scope(self, value: Mapping[str, Any]):
         self._scope = ChainMap(value, self.builtins)
 
-    def import_(self, *specs: Union[str, _import_DictT]):
+    def import_(self, *specs: str | _import_DictT):
         res = {}
         for spec in specs:
             if not isinstance(spec, str):

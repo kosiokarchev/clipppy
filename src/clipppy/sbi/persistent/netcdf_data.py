@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass, InitVar, field
 from pathlib import Path
-from typing import Collection, Union, Mapping, Iterator, Sequence, Optional, Container
+from typing import Collection, Mapping, Iterator, Sequence, Optional, Container
 
 import netCDF4 as nc
 import numpy as np
@@ -19,14 +19,14 @@ from ...utils.typing import _Tensor_like
 
 @dataclass
 class NetCDFDataset(PersistentDataset):
-    store: InitVar[Union[str, Path, nc.Dataset]]
+    store: InitVar[str | Path | nc.Dataset]
     mode: InitVar[str] = 'r'
     keys: Optional[Collection[str]] = None
 
     index_name: str = 'index'
-    var_dimensions: Mapping[str, tuple[str]] = field(default_factory=lambda: defaultdict(tuple))
+    var_dimensions: str | tuple[str] = field(default_factory=lambda: defaultdict(tuple))
 
-    def __post_init__(self, store: Union[str, nc.Dataset], mode: str):
+    def __post_init__(self, store: str | nc.Dataset, mode: str):
         self.group = store if isinstance(store, nc.Dataset) else nc.Dataset(store, mode)
         self.group.set_auto_mask(False)
 

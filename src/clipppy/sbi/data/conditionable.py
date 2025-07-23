@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Union, Mapping, Iterable, Generic, Iterator, Any, Type
+from typing import Mapping, Iterable, Generic, Iterator, Any, Type
 
 import pyro
 from torch.utils.data import Dataset
@@ -10,8 +10,7 @@ from typing_extensions import TypeAlias
 
 from ...utils.typing import _KT, _VT, _T
 
-
-_ConditionsT: TypeAlias = Union[Mapping[_KT, Iterable[_VT]], Iterable[Mapping[_KT, _VT]]]
+_ConditionsT: TypeAlias = Mapping[_KT, Iterable[_VT]] | Iterable[Mapping[_KT, _VT]]
 
 
 class BaseConditionPipe(IterableWrapper, ABC, Generic[_T]):
@@ -40,7 +39,7 @@ class BaseConditionPipe(IterableWrapper, ABC, Generic[_T]):
 
 
 class PyroConditionPipe(BaseConditionPipe[_T], Generic[_T]):
-    conditions: Union[Mapping[Any, Iterable], Iterable[Mapping]]
+    conditions: Mapping[Any, Iterable] | Iterable[Mapping]
 
     def _conditioned_sample(self, condition, _dataset):
         with pyro.condition(data=condition):

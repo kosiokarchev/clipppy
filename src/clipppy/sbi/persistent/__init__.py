@@ -1,7 +1,7 @@
 from operator import itemgetter
 from warnings import warn
 from abc import abstractmethod
-from typing import TypeVar, Union, Any, Mapping, Optional, Collection, Sequence, Iterator
+from typing import TypeVar, Any, Mapping, Optional, Collection, Sequence, Iterator
 
 from more_itertools import all_equal, one, unique_everseen
 from torch import Tensor
@@ -10,7 +10,7 @@ from typing_extensions import TypeAlias
 
 
 _T = TypeVar('_T')
-_CTensorT: TypeAlias = Union[Tensor, Any]
+_CTensorT: TypeAlias = Tensor | Any
 _CValuesT: TypeAlias = Mapping[str, _CTensorT]
 
 

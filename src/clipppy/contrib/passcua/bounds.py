@@ -2,7 +2,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import cached_property
 from numbers import Real
-from typing import Union
 
 import torch
 from torch import Tensor, BoolTensor, Size
@@ -28,7 +27,7 @@ class Bound(ABC):
     def intersect(self, p: Tensor, d: Tensor) -> Tensor:
         return p + self.intersection_dist(p, d).unsqueeze(-1) * d
 
-    def contains(self, p: Tensor) -> Union[BoolTensor, Tensor]:
+    def contains(self, p: Tensor) -> BoolTensor | Tensor:
         raise NotImplementedError
 
     def get_point(self) -> Tensor:
@@ -73,7 +72,7 @@ class UnitCube(TranslatedBound):
 
         return ((p.new_ones(p.shape[-1]) - p * torch.where(d>=0, 1, -1)) / d.abs()).amin(-1)
 
-    def contains(self, p: Tensor) -> Union[BoolTensor, Tensor]:
+    def contains(self, p: Tensor) -> BoolTensor | Tensor:
         return (self.normalise(p, True).abs() < 1).all(dim=-1)
 
     def uniform(self, shape: Size, **kwargs) -> Tensor:
@@ -114,7 +113,7 @@ class UnitSphere(TranslatedBound):
 
         return (-pd + (pd*pd - d2*(p2-1))**0.5) / d2
 
-    def contains(self, p: Tensor) -> Union[BoolTensor, Tensor]:
+    def contains(self, p: Tensor) -> BoolTensor | Tensor:
         return norm(self.normalise(p, True), dim=-1) < 1
 
     def uniform(self, shape: Size, **kwargs) -> Tensor:
@@ -126,7 +125,7 @@ class UnitSphere(TranslatedBound):
 
 @dataclass
 class Sphere(UnitSphere):
-    r: Union[Tensor, Real] = 1.
+    r: Tensor | Real = 1.
 
     def normalise(self, x: Tensor, shift: bool):
         return super().normalise(x, shift) / self.r

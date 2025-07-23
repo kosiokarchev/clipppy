@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from functools import cached_property, singledispatch
 from itertools import chain
 from math import pi
-from typing import Collection, Mapping, Union
+from typing import Collection, Mapping
 from warnings import filterwarnings, catch_warnings
 
 import numpy as np
@@ -42,7 +42,7 @@ def _(arr: np.ndarray, ndim=None):
 
 @dataclass
 class HPMVNPlotter:
-    ppd: Union[Trace, Mapping[str, Tensor]]
+    ppd: Trace | Mapping[str, Tensor]
     names_global: Collection[str] = None
     names_hier: Collection[str] = None
     truths: Mapping[str, Tensor] = None

@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import re
-from typing import Iterable, NewType, Optional, overload, Pattern, Protocol, runtime_checkable, Type, TypedDict, \
-    TypeVar, Union, Any, Sequence, Callable
+from typing import Iterable, NewType, Optional, overload, Pattern, Protocol, runtime_checkable, Type, TypedDict, TypeVar, Any, Sequence, Callable
 
 from more_itertools import collapse
 from pyro import distributions as dist
@@ -44,9 +43,9 @@ class GetSetDescriptor(Protocol[_T, _VT]):
     def __set__(self, instance: Optional[_T], value: _VT): ...
 
 
-_Pattern: TypeAlias = Union[str, Pattern]
-_Iterable_etc_of_Pattern: TypeAlias = Iterable[Union[_Pattern, '_Iterable_etc_of_Pattern']]
-_AnyRegexable: TypeAlias = Union['AnyRegex', _Iterable_etc_of_Pattern]
+_Pattern: TypeAlias = str | Pattern
+_Iterable_etc_of_Pattern: TypeAlias = Iterable[_Pattern | '_Iterable_etc_of_Pattern']
+_AnyRegexable: TypeAlias = 'AnyRegex' | _Iterable_etc_of_Pattern
 
 
 class AnyRegex:
@@ -59,7 +58,7 @@ class AnyRegex:
 
     @classmethod
     @overload
-    def get(cls, *args: Union[_Pattern, _Iterable_etc_of_Pattern]) -> AnyRegex: ...
+    def get(cls, *args: _Pattern | _Iterable_etc_of_Pattern) -> AnyRegex: ...
 
     @classmethod
     def get(cls, *args) -> AnyRegex:
@@ -69,7 +68,7 @@ class AnyRegex:
         return any(p.match(value, *args, **kwargs) for p in self.patterns)
 
 
-_Distribution: TypeAlias = Union[dist.torch_distribution.TorchDistributionMixin, dist.TorchDistribution]
+_Distribution: TypeAlias = dist.torch_distribution.TorchDistributionMixin | dist.TorchDistribution
 _Site = TypedDict('_Site', {
     'done': bool,
     'name': str, 'fn': _Distribution, 'mask': Tensor,
@@ -84,5 +83,5 @@ _Model = NewType('_Model', Callable)
 _Guide = NewType('_Guide', Callable)
 
 
-_Tensor_like: TypeAlias = Union[Tensor, Sequence[Tensor]]
-_ff_module_like: TypeAlias = Union[Module, Callable[[Tensor], Tensor]]
+_Tensor_like: TypeAlias = Tensor | Sequence[Tensor]
+_ff_module_like: TypeAlias = Module | Callable[[Tensor], Tensor]

@@ -1,7 +1,7 @@
 from functools import reduce, partial
 from itertools import chain
 from operator import add
-from typing import Iterable, Mapping, Generic, Iterator, Optional, Callable, Union
+from typing import Iterable, Mapping, Generic, Iterator, Optional, Callable
 
 import attr
 from more_itertools import always_iterable, collapse
@@ -81,7 +81,7 @@ class ARNRETail(BaseMultiSBITail[_SBIObsT, Tensor, _KT], Generic[_KT]):
 
 
 class ARNRE(NRE[_SBIObsT, _KT], Generic[_KT]):
-    tail: Union[ARNRETail[_KT], MultiSBITail[_SBIObsT, Tensor, _KT]]
+    tail: ARNRETail[_KT] | MultiSBITail[_SBIObsT, Tensor, _KT]
 
     @staticmethod
     def _iter_cond_artails(artail: ARNRETail, obs, params, **kwargs) -> Iterator[tuple[_MultiKT, _CondTailT]]:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC
 from functools import cached_property
-from typing import Any, Generic, get_type_hints, Iterable, Literal, Type, TYPE_CHECKING, TypeVar, Union
+from typing import Any, Generic, get_type_hints, Iterable, Literal, Type, TYPE_CHECKING, TypeVar
 
 import attr
 from frozendict import frozendict
@@ -39,7 +39,7 @@ class AbstractLightningSBICommand(AttrsModule, LightningModule, Command, Generic
     # ---------
 
     """Learning rate (passed to the optimizer)."""
-    lr: Union[float, Literal[Sentinel.skip]] = 1e-3
+    lr: float | Literal[Sentinel.skip] = 1e-3
 
     optimizer_config: OptimizerConfig = attr.ib(factory=lambda: OptimizerConfig(Adam, kwargs=dict(fused=True)))
 

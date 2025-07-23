@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from collections import OrderedDict
 from contextlib import ExitStack
 from functools import cached_property
-from typing import Iterable, Mapping, MutableMapping, TypeVar, Union
+from typing import Iterable, Mapping, MutableMapping, TypeVar
 
 import pyro
 import torch
@@ -16,10 +16,9 @@ from torch import BoolTensor, Size, Tensor
 from torch.distributions import biject_to
 
 from phytorchx import to_tensor
-from ..utils.pyro import AbstractPyroModuleMeta
 from ..utils.messengers import no_grad_msgr
+from ..utils.pyro import AbstractPyroModuleMeta
 from ..utils.typing import _Site
-
 
 _Tensor_Type = TypeVar('_Tensor_Type', bound=Tensor)
 
@@ -148,11 +147,11 @@ class SamplingGroup(PyroModule, metaclass=AbstractPyroModuleMeta):
         return f'{len(self.sites)} sites, {self.event_shape}'
 
     @staticmethod
-    def _scale_diagonal(scale: Union[Tensor, float], jac: Tensor):
+    def _scale_diagonal(scale: Tensor | float, jac: Tensor):
         return to_tensor(scale).to(jac).expand_as(jac) / jac
 
     @staticmethod
-    def _scale_matrix(scale: Union[Tensor, float], jac: Tensor):
+    def _scale_matrix(scale: Tensor | float, jac: Tensor):
         scale = to_tensor(scale).to(jac)
         if not scale.shape[-2:] == 2*(jac.shape[-1],):
             scale = dist.util.eye_like(jac, jac.shape[-1]) * scale.expand_as(jac).unsqueeze(-2)
@@ -183,7 +182,7 @@ class LocatedSamplingGroup(SamplingGroup, ABC):
 
 
 class ScaledSamplingGroup(SamplingGroup, ABC):
-    def __init__(self, sites, name='', init_scale: Union[Tensor, float] = 1., *args, **kwargs):
+    def __init__(self, sites, name='', init_scale: Tensor | float = 1., *args, **kwargs):
         super().__init__(sites, name, *args, **kwargs)
         self.init_scale = init_scale
 

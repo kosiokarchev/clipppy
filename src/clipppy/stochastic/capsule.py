@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-from weakref import ReferenceType, ref
 from numbers import Real
-from typing import final, Generic, Optional, Type, TYPE_CHECKING, Union
+from typing import final, Generic, Optional, Type, TYPE_CHECKING
+from weakref import ReferenceType, ref
 
 from .wrapper import _cls, _T, CallableWrapper
 
 
 @final
 class Capsule(Generic[_T]):
-    _value: Union[ReferenceType[_T], _T]
+    _value: ReferenceType[_T] | _T
     __slots__ = '_value', 'lifetime', 'remaining'
 
     def __init__(self, lifetime: Real = 1):
@@ -47,7 +47,7 @@ class Capsule(Generic[_T]):
 
 class AllEncapsulator(CallableWrapper[_T]):
     if TYPE_CHECKING:
-        def __new__(cls: Type[_cls], obj: _T, *args, **kwargs) -> Union[_cls, _T]: ...
+        def __new__(cls: Type[_cls], obj: _T, *args, **kwargs) -> _cls | _T: ...
 
     __slots__ = 'capsule', 'capsule_args', 'capsule_kwargs'
 
@@ -73,7 +73,7 @@ class AllEncapsulator(CallableWrapper[_T]):
 
 class Encapsulator(AllEncapsulator[_T]):
     if TYPE_CHECKING:
-        def __new__(cls: Type[_cls], obj: _T, *args, **kwargs) -> Union[_cls, _T]: ...
+        def __new__(cls: Type[_cls], obj: _T, *args, **kwargs) -> _cls | _T: ...
 
     def _init__(self, obj, /, *capsule_args: Capsule, **capsule_kwargs: Capsule):
         super()._init__(obj, None, *capsule_args, **capsule_kwargs)

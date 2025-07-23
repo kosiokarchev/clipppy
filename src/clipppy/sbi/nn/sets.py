@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Union, Callable, Sequence, Generic, Mapping, cast, Optional
+from typing import Callable, Sequence, Generic, Mapping, Optional, cast
 
 import attr
 import torch
@@ -54,7 +54,7 @@ class SubsetSBIMixin(SetSBIMixin):
 
 @attr.s(eq=False, auto_attribs=True)
 class SetSBIHead(SetSBIMixin, SBIHead[_HeadOoutT, _KT], Generic[_HeadOoutT, _KT]):
-    head: Union[Module, Callable[[SetBatch], _HeadOoutT]] = _empty_module
+    head: Module | Callable[[SetBatch], _HeadOoutT] = _empty_module
 
     def __attrs_post_init__(self):
         self.whitener = LazyWhitenOnline() if self.whiten else _empty_module
@@ -71,7 +71,7 @@ class SetSBIHead(SetSBIMixin, SBIHead[_HeadOoutT, _KT], Generic[_HeadOoutT, _KT]
 
 @attr.s(eq=False, auto_attribs=True)
 class SetNRETail(ParamPackerNRETail[SetBatch, _KT], Generic[_KT], ABC):
-    head: Union[BatchedSetModule, Callable[[SetBatch], Tensor]]
+    head: BatchedSetModule | Callable[[SetBatch], Tensor]
     tail: NRETail
 
     @abstractmethod
@@ -83,7 +83,7 @@ class SetNRETail(ParamPackerNRETail[SetBatch, _KT], Generic[_KT], ABC):
 
 @attr.s(eq=False, auto_attribs=True)
 class ConditionedSetNRETail(SetNRETail[_KT], Generic[_KT]):
-    set_norm: Union[bool, SetNorm, Callable[[SetBatch, Tensor], SetBatch]] = True
+    set_norm: bool | SetNorm | Callable[[SetBatch, Tensor], SetBatch] = True
 
     def __attrs_post_init__(self):
         if self.set_norm is True:
@@ -115,7 +115,7 @@ class CrossAttentionNRETail(SetNRETail[_KT], Generic[_KT]):
 @attr.s(eq=False, auto_attribs=True, kw_only=True)
 class LocalSetNRETail(SubsetSBIMixin, NRETail):
     summarize: bool = False
-    shead: Union[BatchedSetModule, Callable[[SetBatch], Tensor]] = None
+    shead: BatchedSetModule | Callable[[SetBatch], Tensor] = None
 
     def forward(self, params: _SBIParamsT, obs: SetBatch, **kwargs):
         params_out, obs_out = self._subsample({key: params[key] for key in self.param_names}, obs)

@@ -1,13 +1,13 @@
 from functools import wraps
 from pathlib import Path
-from typing import Union, TypeVar
+from typing import TypeVar
 
 from pytorch_lightning import Trainer
 
 _T = TypeVar('_T')
 
 
-def get_best_ckpt(logdir: Union[str, Path], normalize=True):
+def get_best_ckpt(logdir: str | Path, normalize=True):
     from ruamel import yaml
 
     logdir = Path(logdir)

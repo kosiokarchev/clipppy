@@ -10,7 +10,7 @@ References
 
 from __future__ import annotations
 
-from typing import Union, Callable, TYPE_CHECKING
+from typing import Callable, TYPE_CHECKING
 
 import attr
 import torch
@@ -34,7 +34,7 @@ class MAB(AttrsModule):
     num_heads: int
     """Number of heads for the ~`torch.nn.MultiheadAttention`. Must divide into `embed_dims`."""
 
-    rFF: Union[Module, Callable[[Tensor], Tensor]] = _empty_module
+    rFF: Module | Callable[[Tensor], Tensor] = _empty_module
     """"Row-wise" transform (rFF in eq. (6) of [Lee2019]_):
     ``(batch..., embed_dim) -> (batch..., embed_dim)``."""
 
@@ -149,7 +149,7 @@ class PMA(ParametrizedAttrsModule):
     k: int = 1
     """Number of seed vectors."""
 
-    rFF: Union[Module, Callable[[Tensor], Tensor]] = _empty_module
+    rFF: Module | Callable[[Tensor], Tensor] = _empty_module
     """"Row-wise" transform (rFF in eq. (11) of [Lee2019]_):
         ``(batch..., embed_dim) -> (batch..., embed_dim)``."""
 

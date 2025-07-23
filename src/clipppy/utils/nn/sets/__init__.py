@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from itertools import chain, repeat
-from typing import Iterable, Union, TYPE_CHECKING, Callable, NamedTuple, cast
+from typing import Iterable, TYPE_CHECKING, Callable, NamedTuple, cast
 
 import attr
 import torch
@@ -147,9 +147,9 @@ class CrossAttentionLayer(ParametrizedAttrsModule):
 
 @attr.s(eq=False, auto_attribs=True)
 class CrossEncoder(AttrsModule):
-    nfeatures: Union[int, Iterable[int]]
+    nfeatures: int | Iterable[int]
     nlayers: int = None
-    nheads: Union[int, Iterable[int]] = 1
+    nheads: int | Iterable[int] = 1
 
     nfeatures_in: int = attr.ib(init=False)
 
@@ -195,7 +195,7 @@ class BatchedSetModule(Module, ABC):
 
 @attr.s(eq=False, auto_attribs=True)
 class MappedSetModule(BatchedSetModule, AttrsModule):
-    net: Union[Module, Callable[[Tensor], Tensor]]
+    net: Module | Callable[[Tensor], Tensor]
 
     def forward(self, batch: SetBatch) -> Tensor:
         return torch.stack(tuple(map(self.net, batch.vals)), dim=0)
@@ -263,7 +263,7 @@ class Collapser(AttrsModule):
 
 @attr.s(eq=False, auto_attribs=True)
 class SetCollapser(Collapser, BatchedSetModule):
-    net: Union[Module, Callable[[SetBatch], SetBatch]] = _empty_module
+    net: Module | Callable[[SetBatch], SetBatch] = _empty_module
     # collapse_fn: _collapse_fn_t = collapse_mean
     reduce_fn: Callable[[SetBatch], Tensor] = SetBatch.mean
 
@@ -275,8 +275,8 @@ class SetCollapser(Collapser, BatchedSetModule):
 
 # @attr.s(eq=False, auto_attribs=True)
 # class USet(Collapser, BatchedSetModule):
-#     prenet: Union[Module, Callable[[Tensor], Tensor]]
-#     postnet: Union[Module, Callable[[tuple[Tensor, Tensor]], Tensor]]
+#     prenet: Module | Callable[[Tensor], Tensor]
+#     postnet: Module | Callable[[tuple[Tensor, Tensor]], Tensor]
 #     precollapse: _collapse_fn_t = collapse_mean
 #     postcollapse: _collapse_fn_t = collapse_mean
 #
@@ -300,14 +300,14 @@ class SetCollapser(Collapser, BatchedSetModule):
 #         if not isinstance(self.nets, ModuleList):
 #             self.nets = ModuleList(self.nets)
 #
-#     def iter_levels(self, lenss: Union[LongTensor, Iterable[LongTensor]]) -> tuple[Iterable[LongTensor], Module, _collapse_fn_t]:
+#     def iter_levels(self, lenss: LongTensor | Iterable[LongTensor]) -> tuple[Iterable[LongTensor], Module, _collapse_fn_t]:
 #         yield from zip(always_iterable(lenss, Tensor), self.nets, cycle(self.collapse_fns))
 #
 #     @staticmethod
 #     def forward_one(t: Tensor, lens: LongTensor, net: Module, collapse_fn: _collapse_fn_t, *args, dim: int) -> Tensor:
 #         return collapse_fn(net(t), lens_to_indptr_like(t, lens, dim))
 #
-#     def forward(self, t: Tensor, lenss: Union[LongTensor, Iterable[LongTensor]], dim=-2) -> Tensor:
+#     def forward(self, t: Tensor, lenss: LongTensor | Iterable[LongTensor], dim=-2) -> Tensor:
 #         return last(
 #             t for t in [t]
 #             for lens, *args in self.iter_levels(lenss)

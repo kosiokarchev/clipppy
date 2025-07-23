@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from numbers import Number
-from typing import Iterable, Mapping, Protocol, TypeVar, Generic, Any, Union
+from typing import Iterable, Mapping, Protocol, TypeVar, Generic, Any
 
 import attr
 import torch
@@ -17,15 +17,15 @@ from phytorchx.dataframe import TensorDataFrame
 
 from ..utils.typing import _KT
 
-_MultiKT = Union[_KT, Iterable[_KT]]
+_MultiKT = _KT | Iterable[_KT]
 _MultiMappingT: TypeAlias = Mapping[_MultiKT, Tensor]
 
 
 _TreeV = TypeVar('_TreeV')
-_Tree: TypeAlias = Union[_TreeV, Iterable['_Tree'], Mapping[Any, '_Tree']]
+_Tree: TypeAlias = _TreeV | Iterable['_Tree'] | Mapping[Any, '_Tree']
 _SBIParamsT: TypeAlias = Mapping[_KT, Tensor]
 _SBIObsT: TypeAlias = Mapping[_KT, Tensor]
-_SBIWeightT: TypeAlias = _Tree[Union[Tensor, Number]]
+_SBIWeightT: TypeAlias = _Tree[Tensor | Number]
 
 
 @dataclass
@@ -74,7 +74,7 @@ class MultiNPEProtocol(MultiSBIProtocol):
 class BaseMultiSBIResultRep:
     _samples: Mapping[_KT, Tensor]
 
-    def to(self, device: Union[str, torch.device] = None):
+    def to(self, device: str | torch.device = None):
         self._samples = {key: val.to(device) for key, val in self._samples.items()}
         return self
 

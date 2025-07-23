@@ -3,11 +3,11 @@ from __future__ import annotations
 from abc import ABC
 from collections import OrderedDict
 from itertools import chain
-from typing import Literal, Union, Generic, TYPE_CHECKING
+from typing import Literal, Generic, TYPE_CHECKING
 
 import attr
 import torch
-from torch import nn, Tensor
+from torch import Tensor
 from torch.nn import Module
 
 from phytorchx import broadcast_cat
@@ -61,7 +61,7 @@ class IUNRETail(UNRETail[_KT], Generic[_KT]):
     ihead: Module = attr.ib(default=_empty_module)
     shead: Module = attr.ib(default=_empty_module)
 
-    _additional: Union[Tensor, Literal[False]] = attr.ib(default=None, repr=False)
+    _additional: Tensor | Literal[False] = attr.ib(default=None, repr=False)
     subsample: int = None
     summarize: bool = False
 

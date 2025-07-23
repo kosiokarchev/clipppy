@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from functools import singledispatchmethod
 from itertools import chain
-from typing import Any, Mapping, Iterable, Union, cast
+from typing import Any, Mapping, Iterable, cast
 
 import attr
 import torch
@@ -52,7 +52,7 @@ class PeriodicCallback(Callback, ABC):
 
 @attr.define(kw_only=True, slots=False)
 class DiagnosticFigureMixin:
-    logger: Union[Logger, Iterable[Logger]] = None
+    logger: Logger | Iterable[Logger] = None
 
     @singledispatchmethod
     def _log_figure(self, logger: Logger, name: str, fig, global_step: int):
@@ -89,7 +89,7 @@ class MultiSBIPosteriorCallback(MultiSBIDiagnosticFigureCallback, PeriodicCallba
     groups_global: Iterable[_MultiKT] = ()
     groups_local: Iterable[_MultiKT] = ()
 
-    device: Union[str, torch.device] = None
+    device: str | torch.device = None
 
     ref_plotters: Iterable[MultiSBIPosteriorPlotter] = ()
 

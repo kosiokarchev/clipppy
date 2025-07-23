@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import pickle
 from functools import partial
-from typing import Callable, Type, Union, Sequence, Iterable, Generic, Mapping, Optional
+from typing import Callable, Type, Sequence, Iterable, Generic, Mapping, Optional
 
 import attr
 import torch
@@ -120,7 +120,7 @@ def Norm(size=None, whiten=False, batchnorm=False, layernorm=False):
 
 class Perceptron(Module):
     def __init__(
-        self, size: Optional[int], nonlinearity: Union[Type[Module], Callable[[], _ff_module_like]] = ReLU,
+        self, size: Optional[int], nonlinearity: Type[Module] | Callable[[], _ff_module_like] = ReLU,
         bias=True, whiten=False, batchnorm=False, layernorm=frozendict(elementwise_affine=False)
     ):
         super().__init__()

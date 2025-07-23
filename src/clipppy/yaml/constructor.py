@@ -3,9 +3,7 @@ from __future__ import annotations
 from functools import partial, partialmethod, wraps
 from inspect import BoundArguments, cleandoc, Parameter, Signature
 from itertools import starmap
-from typing import (
-    Any, Callable, Iterable, MutableMapping, Optional, Type, TypeVar, Union)
-from warnings import warn
+from typing import Any, Callable, Iterable, MutableMapping, Optional, Type, TypeVar
 
 from more_itertools import consume, side_effect
 from ruamel.yaml import Constructor, MappingNode, Node, ScalarNode, SequenceNode
@@ -97,8 +95,8 @@ class ClipppyConstructor(ScopeMixin, TaggerMixin, Constructor):
     def construct_object(self, node, deep=True):
         return super().construct_object(node, deep) if isinstance(node, Node) else node
 
-    _type_hook_t = Callable[[Node, 'ClipppyConstructor'], Optional[Union[Node, Any]]]
-    type_hooks: MutableMapping[Union[Type, Callable, Any], _type_hook_t] = {}
+    _type_hook_t = Callable[[Node, 'ClipppyConstructor'], Optional[Node | Any]]
+    type_hooks: MutableMapping[Type | Callable | Any, _type_hook_t] = {}
 
     @classmethod
     def add_type_hook(cls, obj, hook: _type_hook_t):
@@ -146,7 +144,7 @@ class ClipppyConstructor(ScopeMixin, TaggerMixin, Constructor):
 
     @classmethod
     def construct_prefixed(
-            cls, resolver: Callable[[str, MutableMapping[str, Any]], Union[Any, tuple[Any, MutableMapping[str, Any]]]],
+            cls, resolver: Callable[[str, MutableMapping[str, Any]], Any | tuple[Any, MutableMapping[str, Any]]],
             loader: ClipppyConstructor, suffix: str, node: Node, **kwargs):
         obj = resolver(suffix, kwargs)
         if isinstance(obj, PrefixedReturn):

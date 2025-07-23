@@ -4,7 +4,7 @@ from dataclasses import dataclass, field, InitVar
 from functools import partial
 from operator import itemgetter
 from os import PathLike
-from typing import Mapping, Union, Collection, Iterator, Optional, TypeVar
+from typing import Mapping, Collection, Iterator, TypeVar
 from warnings import warn
 
 import zarr
@@ -14,17 +14,16 @@ from torch.utils.data import Dataset
 
 from ..data import _ValuesT
 
-
 _T = TypeVar('_T')
 
 
 @dataclass
 class ZarrDataset(Dataset[_ValuesT]):
-    store: InitVar[Union[zarr.storage.Store, PathLike, str]]
+    store: InitVar[zarr.storage.Store | PathLike | str]
     keys: Collection[str] = None
     group: zarr.Group = field(init=False)
 
-    def __post_init__(self, store: Union[zarr.storage.Store, PathLike, str]):
+    def __post_init__(self, store: zarr.storage.Store | PathLike | str):
         self.group = zarr.hierarchy.open_group(store)
 
     @staticmethod

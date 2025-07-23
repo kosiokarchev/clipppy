@@ -3,7 +3,7 @@ from __future__ import annotations
 from contextlib import nullcontext
 from dataclasses import dataclass, field
 from numbers import Number
-from typing import Union, Mapping, Any, ContextManager, Iterable
+from typing import Mapping, Any, ContextManager, Iterable
 
 from pyro.poutine import Trace
 from torch import Tensor
@@ -18,7 +18,7 @@ from ...utils.messengers import CollectSitesMessenger
 from ...utils.trace import ClipppyTrace
 from ...utils.typing import _Distribution
 
-_RangeBoundT: TypeAlias = Union[Number, Tensor, None]
+_RangeBoundT: TypeAlias = Number | Tensor | None
 _RangeT: TypeAlias = tuple[_RangeBoundT, _RangeBoundT]
 
 

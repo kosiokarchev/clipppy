@@ -1,4 +1,4 @@
-from typing import Union, Callable, Mapping, TYPE_CHECKING
+from typing import Callable, Mapping, TYPE_CHECKING
 
 import attr
 import torch
@@ -31,8 +31,8 @@ class MAB(AttrsModule):
     num_heads: int
     head_dim: int = None
 
-    rFF: Union[Module, Callable[[Tensor], Tensor]] = _empty_module
-    use_layer_norm: Union[bool, Mapping] = True
+    rFF: Module | Callable[[Tensor], Tensor] = _empty_module
+    use_layer_norm: bool | Mapping = True
 
     def __attrs_post_init__(self):
         self.mha = BatchedAttention(self.embed_dim, heads=self.num_heads, dim_head=self.head_dim)
@@ -64,7 +64,7 @@ class PMA(ParametrizedAttrsModule):
     mab: MAB
 
     k: int = 1
-    rFF: Union[Module, Callable[[Tensor], Tensor]] = _empty_module
+    rFF: Module | Callable[[Tensor], Tensor] = _empty_module
     S: Parameter = attr.field(init=False, repr=False)
 
     def __attrs_post_init__(self):

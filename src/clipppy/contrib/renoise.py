@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from numbers import Number
-from typing import Iterable, MutableMapping, Union
+from typing import Iterable, MutableMapping
 
 import torch
 from torch import Tensor
@@ -11,7 +11,7 @@ from ..utils.typing import _KT, _VT
 
 @dataclass
 class GaussianRenoiser:
-    noise: Union[Tensor, Number]
+    noise: Tensor | Number
     noiseless_name: _KT
     noisy_name: _KT
 
@@ -23,5 +23,5 @@ class GaussianRenoiser:
         return item
 
 
-def GaussianRenoise(dataset: Iterable[MutableMapping[_KT, _VT]], noise: Union[Tensor, Number], noiseless_name: _KT, noisy_name: _KT):
+def GaussianRenoise(dataset: Iterable[MutableMapping[_KT, _VT]], noise: Tensor | Number, noiseless_name: _KT, noisy_name: _KT):
     return IterableWrapper(dataset).map(GaussianRenoiser(noise, noiseless_name, noisy_name))

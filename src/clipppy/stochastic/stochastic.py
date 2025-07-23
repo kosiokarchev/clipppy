@@ -3,7 +3,7 @@ from __future__ import annotations
 from contextlib import nullcontext
 from itertools import chain
 from operator import itemgetter
-from typing import Any, Callable, Collection, Iterable, Literal, Mapping, Tuple, Type, TYPE_CHECKING, TypeVar, Union
+from typing import Any, Callable, Collection, Iterable, Literal, Mapping, Tuple, Type, TYPE_CHECKING, TypeVar
 from warnings import warn
 
 from frozendict import frozendict
@@ -15,7 +15,6 @@ from .capsule import AllEncapsulator, Capsule
 from .sampler import AbstractSampler, NamedSampler, PseudoSampler, Sampler
 from ..utils import expandkeys, Sentinel
 from ..utils.typing import SupportsItems
-
 
 _T = TypeVar('_T')
 _cls = TypeVar('_cls')
@@ -30,7 +29,7 @@ class StochasticScope(AllEncapsulator[_T]):
     __slots__ = 'stochastic_name',
 
     if TYPE_CHECKING:
-        def __new__(cls: Type[_cls], obj: _T, *args, **kwargs) -> Union[_cls, _T]: ...
+        def __new__(cls: Type[_cls], obj: _T, *args, **kwargs) -> _cls | _T: ...
 
     def _init__(self, obj, name: str = None,
                 capsule: Capsule = None, capsule_args: Iterable[Capsule] = (),
@@ -46,10 +45,10 @@ class StochasticScope(AllEncapsulator[_T]):
             return self._scoped_call(*args, **kwargs)
 
 
-_SpecT: TypeAlias = Union[AbstractSampler, TorchDistributionMixin, Any]
-_eSpecT: TypeAlias = Union[SupportsItems[str, _SpecT], Iterable[Tuple[str, _SpecT]], Iterable[_SpecT]]
-_SpecKT: TypeAlias = Union[str, Literal[Sentinel.merge], Collection[str]]
-_SpecVT: TypeAlias = Union[_SpecT, _eSpecT, Callable[[], _eSpecT]]
+_SpecT: TypeAlias = AbstractSampler | TorchDistributionMixin | Any
+_eSpecT: TypeAlias = SupportsItems[str, _SpecT] | Iterable[Tuple[str, _SpecT]] | Iterable[_SpecT]
+_SpecKT: TypeAlias = str | Literal[Sentinel.merge], Collection[str]
+_SpecVT: TypeAlias = _SpecT | _eSpecT | Callable[[], _eSpecT]
 
 
 class StochasticSpecs:
@@ -83,7 +82,7 @@ class StochasticSpecs:
     `~Capsule.value`\ s are then automatically extracted by the rules outlined
     above.
     """
-    def __init__(self, specs: Union[SupportsItems[_SpecKT, _SpecVT], Iterable[_SpecKT, _SpecVT]] = (), /, **kwargs: _SpecVT):
+    def __init__(self, specs: SupportsItems[_SpecKT, _SpecVT] | Iterable[_SpecKT, _SpecVT] = (), /, **kwargs: _SpecVT):
         self.specs: Iterable[tuple[_SpecKT, _SpecVT]] = [(
             name,
             (spec.set_name(strname) if spec.name is None else spec) if isinstance(spec, NamedSampler)
@@ -169,7 +168,7 @@ class Stochastic(StochasticScope[_T]):
     __slots__ = 'stochastic_specs',
 
     if TYPE_CHECKING:
-        def __new__(cls: Type[_cls], obj: _T, *args, **kwargs) -> Union[_cls, _T]: ...
+        def __new__(cls: Type[_cls], obj: _T, *args, **kwargs) -> _cls | _T: ...
 
     def _init__(self, obj, specs: StochasticSpecs = (),
                 capsule: Capsule = None, capsule_args: Iterable[Capsule] = (),

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Iterable, Union, Protocol, runtime_checkable, Any, Optional
+from typing import Protocol, runtime_checkable, Any
 
 from pyro.distributions import constraints
 from pyro.distributions.torch_distribution import TorchDistribution, TorchDistributionMixin
@@ -8,7 +8,7 @@ from torch import Size
 
 from phytorchx import sizeify, _Size
 
-_Distribution = Union[TorchDistribution, TorchDistributionMixin]
+_Distribution = TorchDistribution | TorchDistributionMixin
 
 
 @runtime_checkable
@@ -24,7 +24,7 @@ def unwrap_only(obj, wrapper_types):
 
 
 
-def unwrap(obj: Union[Any, DistributionWrapperProtocol], bound=type(None)):
+def unwrap(obj: Any | DistributionWrapperProtocol, bound=type(None)):
     while isinstance(obj, DistributionWrapperProtocol) and not isinstance(obj, bound):
         yield obj
         obj = obj.base_dist

@@ -11,7 +11,7 @@ from .stochastic import *
 __all__ = stochastic.__all__ + sampler.__all__ + infinite.__all__ + ('find_sampler',)
 
 
-def find_sampler(root: Union[NamedSampler, PseudoSampler, Sampler, Stochastic, Any], name: str) -> Optional[NamedSampler]:
+def find_sampler(root: NamedSampler | PseudoSampler | Sampler | Stochastic | Any, name: str) -> Optional[NamedSampler]:
     if isinstance(root, NamedSampler) and root.name == name:
         return root
     elif isinstance(root, PseudoSampler):

@@ -46,7 +46,7 @@ def cwd(newcwd: os.PathLike):
         os.chdir(curcwd)
 
 
-def determine_scope(scope: Union[Mapping[str, Any], FrameType] = None):
+def determine_scope(scope: Mapping[str, Any] | FrameType = None):
     if isinstance(scope, Mapping):
         return scope
     if scope is None:
@@ -87,14 +87,14 @@ class ClipppyYAML(YAML):
         data = self._load_file(phytorchx.load, fname, **kwargs)
         return data if key is None else data[key]
 
-    def trace(self, fname, key: Union[str, Iterable[str]], **kwargs):
+    def trace(self, fname, key: str | Iterable[str], **kwargs):
         trace = self.pt(fname, **kwargs)
         return trace.nodes[key]['value'] if isinstance(key, str) else {
             k: trace.nodes[k]['value'] for k in key
         }
 
-    def load(self, path_or_stream: Union[os.PathLike, str, TextIO], force_templating=True,
-             scope: Union[Mapping[str, Any], FrameType] = None, **kwargs):
+    def load(self, path_or_stream: os.PathLike | str | TextIO, force_templating=True,
+             scope: Mapping[str, Any] | FrameType = None, **kwargs):
         is_a_stream = isinstance(path_or_stream, io.IOBase)
         path = Path((is_a_stream and getattr(path_or_stream, 'name', Path() / 'dummy')) or path_or_stream)
         stream = is_a_stream and path_or_stream or path.open('r')
@@ -110,7 +110,7 @@ class ClipppyYAML(YAML):
     resolver: ClipppyResolver
     constructor: CC
 
-    def __init__(self, base_dir: Union[os.PathLike, AnyStr] = None, interpret_as_Clipppy=True):
+    def __init__(self, base_dir: os.PathLike | AnyStr = None, interpret_as_Clipppy=True):
         self.base_dir = base_dir if base_dir is not None else None
 
         super().__init__(typ='unsafe', pure=True)

@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import cached_property
 from itertools import chain
-from typing import ClassVar, Generic, TYPE_CHECKING, TypeVar, Callable, Union, Mapping
+from typing import ClassVar, Generic, TYPE_CHECKING, TypeVar, Callable, Mapping
 
 import attr
 import pyro.distributions
@@ -28,10 +28,10 @@ if TYPE_CHECKING:
     from typing import Type
 
     # because TransformedDistribution cannot be found in pyro.distributions
-    TransformedDistribution: Union[Type[torch.distributions.TransformedDistribution], Type[pyro.distributions.Distribution]]
+    TransformedDistribution: Type[torch.distributions.TransformedDistribution] | Type[pyro.distributions.Distribution]
 
 
-_DistributionT = TypeVar('_DistributionT', bound=Union[pyro.distributions.Distribution, torch.distributions.Distribution])
+_DistributionT = TypeVar('_DistributionT', bound=pyro.distributions.Distribution | torch.distributions.Distribution)
 
 
 @dataclass
@@ -100,7 +100,7 @@ class ConstrainedNPETail(NPETail[_HeadOoutT, TransformedDistribution, _KT], Gene
 
 @attr.s(eq=False, auto_attribs=True, kw_only=True)
 class ParametrizedNPETail(NPETail[_HeadOoutT, _DistributionT, _KT], AttrsModule, Generic[_HeadOoutT, _DistributionT, _KT]):
-    net: Union[Module, Callable[[_HeadOoutT], Tensor]] = _empty_module
+    net: Module | Callable[[_HeadOoutT], Tensor] = _empty_module
     add_last: bool = True
 
     def __attrs_post_init__(self):
@@ -161,7 +161,7 @@ class NFTail(ParametrizedNPETail[_HeadOoutT, ConditionalTransformedDistribution,
         return self._event_size
 
     @classmethod
-    def spline_autoregressive(cls, ndim: int, context_size: int, count_bins: int = 16, nlayers: int = 5, hidden_size: Union[int, list[int]] = None, nhidden: int = 2, bound: float = 5., **kwargs):
+    def spline_autoregressive(cls, ndim: int, context_size: int, count_bins: int = 16, nlayers: int = 5, hidden_size: int | list[int] = None, nhidden: int = 2, bound: float = 5., **kwargs):
         if hidden_size is None:
             hidden_size = max(ndim * count_bins, context_size)
         if isinstance(hidden_size, int):

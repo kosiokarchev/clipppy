@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from functools import partialmethod
 from itertools import chain
-from typing import Mapping, Union, Generic
+from typing import Mapping, Generic
 
 import attr
 from more_itertools import always_iterable
@@ -18,7 +18,7 @@ from ...utils import Sentinel
 
 
 @attr.s(eq=False, auto_attribs=True, kw_only=True)
-class NPE(LightningSBICommand[NPELoss, Union[NPEResult, Mapping[_MultiKT, NPEResult]], _HeadOoutT, _KT], Generic[_HeadOoutT, _KT]):
+class NPE(LightningSBICommand[NPELoss, NPEResult | Mapping[_MultiKT, NPEResult], _HeadOoutT, _KT], Generic[_HeadOoutT, _KT]):
     loss_config: Config[NPELoss] = attr.ib(factory=lambda: Config(NPELoss(), Sentinel.no_call))
 
     def _step(self, batch: SBIBatch, *args, _log_name, **kwargs):

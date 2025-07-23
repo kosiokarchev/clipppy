@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections import OrderedDict
-from typing import Callable, Generic, Iterable, Mapping, TYPE_CHECKING, TypeVar, Union
+from typing import Callable, Generic, Iterable, Mapping, TYPE_CHECKING, TypeVar
 
 import attr
 import torch.nn
@@ -48,7 +48,7 @@ class PassthroughSBIHead(BaseSBIHead[_HeadOoutT, _KT], Generic[_HeadOoutT, _KT])
 
 @attr.s(eq=False, auto_attribs=True)
 class SBIHead(PassthroughSBIHead[_HeadOoutT, _KT], ObsPacker, Generic[_HeadOoutT, _KT]):
-    head: Union[Module, Callable[[Tensor], _HeadOoutT]] = _empty_module
+    head: Module | Callable[[Tensor], _HeadOoutT] = _empty_module
 
     whiten: bool = True
 

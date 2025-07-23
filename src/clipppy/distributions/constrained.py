@@ -4,9 +4,8 @@ import math
 from abc import ABC, abstractmethod
 from functools import cached_property
 from types import new_class
-from typing import Generic, TypeVar, Union, Type, ClassVar, MutableMapping
+from typing import Generic, TypeVar, Type, ClassVar, MutableMapping
 
-import torch
 from pyro.distributions.torch_distribution import TorchDistribution, TorchDistributionMixin
 from torch import is_tensor, Size, Tensor
 from typing_extensions import Self, TypeAlias, ParamSpec
@@ -14,9 +13,8 @@ from typing_extensions import Self, TypeAlias, ParamSpec
 from .utils import process_log_prob
 from .wrapper import unwrap
 
-
-_t = TypeVar('_t', bound=Union[float, Tensor])
-_DT = TypeVar('_DT', bound=Union[TorchDistribution, TorchDistributionMixin])
+_t = TypeVar('_t', bound=float | Tensor)
+_DT = TypeVar('_DT', bound=TorchDistribution | TorchDistributionMixin)
 _tDT: TypeAlias = Type[_DT]
 _PS = ParamSpec('_PS')
 
@@ -26,7 +24,7 @@ class ConstrainedDistribution(TorchDistribution, Generic[_DT, _PS], ABC):
     def __class_getitem__(cls, *args):
         return cls
 
-    _concrete: ClassVar[MutableMapping[_tDT], Union[Type[Self], _tDT]]
+    _concrete: ClassVar[MutableMapping[_tDT], Type[Self] | _tDT]
 
     def __init_subclass__(cls, final_constrained=False, register: _tDT = None, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -46,10 +44,10 @@ class ConstrainedDistribution(TorchDistribution, Generic[_DT, _PS], ABC):
     #     self._batch_shape = value
 
     @classmethod
-    def new_constrained(cls, d: _DT, *args: _PS.args, create=False, **kwargs: _PS.kwargs) -> Union[Self, _DT]:
+    def new_constrained(cls, d: _DT, *args: _PS.args, create=False, **kwargs: _PS.kwargs) -> Self | _DT:
         if type(d) in cls._concrete:
             d.__class__ = cls._concrete[type(d)]
-            d: Union[Self, _DT]
+            d: Self | _DT
             d.constrain(*args, **kwargs)
             # if len(d.constraint_shape) > len(d.batch_shape + d.event_shape):
             #     raise ValueError(f'constraint shape {d.constraint_shape}'

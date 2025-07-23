@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from contextlib import suppress
-from typing import Any, Callable, Generic, Iterable, Literal, Mapping, Optional, Type, TypeVar, Union
+from typing import Any, Callable, Generic, Iterable, Literal, Mapping, Optional, Type, TypeVar
 
 import numpy as np
 from more_itertools import always_iterable
@@ -57,11 +57,11 @@ class OptimizingCommand(Command, Generic[_OptimizerT, _LossT], ABC):
         min_steps: int
         avgwindow: int
         conv_th: float
-        lr: Union[float, Literal[Sentinel.skip]]
-        optimizer_cls: Union[Type[_OptimizerT], Callable[..., _OptimizerT], _OptimizerT]
-        optimizer_args: Union[Mapping, Literal[Sentinel.skip]]
-        loss_cls: Union[Type[_LossT], Callable[..., _LossT], _LossT]
-        callback: Union[_CallbackT, Iterable[_CallbackT]]
+        lr: float | Literal[Sentinel.skip]
+        optimizer_cls: Type[_OptimizerT] | Callable[..., _OptimizerT] | _OptimizerT
+        optimizer_args: Mapping | Literal[Sentinel.skip]
+        loss_cls: Type[_LossT] | Callable[..., _LossT] | _LossT
+        callback: _CallbackT | Iterable[_CallbackT]
 
     n_steps: int = 1000
     """Run at most ``n_steps`` steps."""
@@ -96,7 +96,7 @@ class OptimizingCommand(Command, Generic[_OptimizerT, _LossT], ABC):
         """
         return slope > -self.conv_th
 
-    lr: Union[float, Literal[Sentinel.skip]] = 1e-3
+    lr: float | Literal[Sentinel.skip] = 1e-3
     """Learning rate (passed to the optimizer)."""
 
     @staticmethod
@@ -107,11 +107,11 @@ class OptimizingCommand(Command, Generic[_OptimizerT, _LossT], ABC):
         return (cls if kwargs is Sentinel.no_call
                 else instantiator(merge_if_not_skip(kwargs, add_kwargs)))
 
-    optimizer_cls: Union[Type[_OptimizerT], Callable[..., _OptimizerT], _OptimizerT]
+    optimizer_cls: Type[_OptimizerT] | Callable[..., _OptimizerT] | _OptimizerT
     """The class of optimizer to instantiate (or a function that acts like it);
        or a ready optimizer if ``optimizer_args`` is `Sentinel.no_call`."""
 
-    optimizer_args: Union[Mapping, Literal[Sentinel.skip]] = {}
+    optimizer_args: Mapping | Literal[Sentinel.skip] = {}
     """The (keyword!) arguments to pass to ``optimizer_cls``.
 
        Will be updated with the standalone ``lr`` passed, unless it is ``noop``.
@@ -130,25 +130,25 @@ class OptimizingCommand(Command, Generic[_OptimizerT, _LossT], ABC):
         """
         return self._instantiate(self.optimizer_cls, self.optimizer_args, {'lr': self.lr}, self._instantiate_optimizer)
 
-    loss_cls: Union[Type[_LossT], Callable[..., _LossT], _LossT]
+    loss_cls: Type[_LossT] | Callable[..., _LossT] | _LossT
     """The loss class to instantiate (or a function that acts like it);
        or a ready loss function if ``loss_args`` is `Sentinel.no_call`."""
 
-    loss_args: Union[Mapping, Literal[Sentinel.skip]] = {}
+    loss_args: Mapping | Literal[Sentinel.skip] = {}
     """The (keyword!) arguments to pass to ``loss_cls``.
 
        Pass the special value `Sentinel.no_call` to avoid instantiating
        ``load_cls`` and use it directly."""
 
     @property
-    def lossfunc(self) -> Union[_LossT, Callable[..., Tensor]]:
+    def lossfunc(self) -> _LossT | Callable[..., Tensor]:
         """
         Construct a loss as ``loss_cls(**loss_args)`` or simply return
         `loss_cls` if `loss_args` is `Sentinel.no_call`.
         """
         return self._instantiate(self.loss_cls, self.loss_args, {})
 
-    callback: Union[_CallbackT, Iterable[_CallbackT]] = None
+    callback: _CallbackT | Iterable[_CallbackT] = None
     """Callback to be executed after each step (or an iterable of such).
 
        Signature should be ``callback(command, i, loss, args, kwargs)``, where

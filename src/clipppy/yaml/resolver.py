@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from functools import partial
-from typing import Type, Union
+from typing import Type
 
 from ruamel.yaml import MappingNode, Node, ScalarNode, SequenceNode, VersionedResolver, Tag
 
@@ -11,7 +11,7 @@ from ..clipppy import Clipppy
 from ..utils import Sentinel
 
 
-def _key_is(key: Union[Node, Sentinel], spval: Sentinel, tag: str):
+def _key_is(key: Node | Sentinel, spval: Sentinel, tag: str):
     return key is spval or isinstance(key, Node) and key.tag == tag
 
 

@@ -1,7 +1,7 @@
 from abc import abstractmethod, ABC
 from functools import cached_property
 from math import inf
-from typing import Callable, ClassVar, Protocol, Union, Generic
+from typing import Callable, ClassVar, Protocol, Generic
 
 import attr
 from pyro.distributions import Normal, MultivariateNormal
@@ -22,7 +22,7 @@ class DistributionProtocol(Protocol):
 
 class DistributionR(ABC):
     @abstractmethod
-    def __call__(self, x: Tensor) -> Union[Distribution, DistributionProtocol]: ...
+    def __call__(self, x: Tensor) -> Distribution | DistributionProtocol: ...
 
 
 @attr.s(eq=False, auto_attribs=True)

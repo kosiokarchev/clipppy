@@ -4,8 +4,7 @@ import collections.abc
 from inspect import isclass, Parameter
 from itertools import chain, repeat, starmap
 from types import GenericAlias
-from typing import (
-    Callable, ClassVar, Dict, get_args, get_origin, Iterable, Mapping, MutableMapping, Optional, Type, TypeVar, Union)
+from typing import Callable, ClassVar, get_args, get_origin, Iterable, Mapping, MutableMapping, Optional, Type, TypeVar, Union
 from warnings import warn
 
 from more_itertools import consume
